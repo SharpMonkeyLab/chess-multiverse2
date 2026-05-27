@@ -21,7 +21,7 @@
    PAGE LAYOUT KNOBS
    ================================ */
   --stage-edge-gap: 12px;
-  --side-panel-width: 300px;
+  --side-panel-width: 380px;
   --panel-board-gap: 48px;
 
   /* This is calculated. Do not edit normally. */
@@ -139,7 +139,6 @@ select {
   grid-column: 3;
 
   display: grid;
-  grid-template-columns: 1fr;
   gap: 6px;
 
   justify-items: stretch;
@@ -167,6 +166,7 @@ select {
 
 .top-command-button-row>button,
 .top-command-button-row .menu-button {
+  width: 100%;
   min-height: 32px;
   padding: 6px 8px;
   white-space: nowrap;
@@ -177,7 +177,8 @@ select {
 }
 
 .command-menu {
-  width: 330px;
+  width: 350px;
+  max-height: 52vh;
 
   position: absolute;
   top: calc(100% + 8px);
@@ -188,20 +189,18 @@ select {
 
   padding: 12px;
 
+  overflow-y: auto;
+  overflow-x: hidden;
+
   border: 1px solid rgba(231, 201, 122, 0.28);
   border-radius: 14px;
 
-  background: rgba(5, 6, 10, 0.92);
+  background: rgba(5, 6, 10, 0.94);
   box-shadow:
     0 10px 30px rgba(0, 0, 0, 0.5),
     0 0 20px rgba(231, 201, 122, 0.08);
 
   backdrop-filter: blur(5px);
-}
-
-.command-menu section {
-  display: grid;
-  gap: 8px;
 }
 
 .command-menu h2 {
@@ -210,6 +209,64 @@ select {
 
 .command-menu select {
   min-height: 32px;
+}
+
+.command-menu details {
+  border: 1px solid rgba(231, 201, 122, 0.14);
+  border-radius: 10px;
+  background: rgba(5, 6, 10, 0.16);
+  overflow: hidden;
+}
+
+.command-menu summary {
+  min-height: 32px;
+  padding: 7px 9px;
+
+  display: flex;
+  align-items: center;
+
+  color: var(--gold);
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+
+  cursor: pointer;
+  user-select: none;
+}
+
+.command-menu summary:hover {
+  background: rgba(231, 201, 122, 0.08);
+}
+
+.command-menu-section {
+  display: grid;
+  gap: 8px;
+
+  padding: 8px 9px 10px;
+}
+
+.command-menu .world-details-form {
+  display: grid;
+  gap: 7px;
+}
+
+.command-menu::-webkit-scrollbar {
+  width: 8px;
+}
+
+.command-menu::-webkit-scrollbar-track {
+  background: rgba(5, 6, 10, 0.32);
+  border-radius: 999px;
+}
+
+.command-menu::-webkit-scrollbar-thumb {
+  background: rgba(231, 201, 122, 0.34);
+  border-radius: 999px;
+}
+
+.command-menu::-webkit-scrollbar-thumb:hover {
+  background: rgba(231, 201, 122, 0.52);
 }
 
 .menu-button-grid {
@@ -256,6 +313,42 @@ select {
 
   font-size: 0.72rem;
   line-height: 1.25;
+}
+
+.board-controls-box {
+  gap: 8px;
+}
+
+.standard-setup-btn {
+  width: 100%;
+  min-height: 38px;
+}
+
+.board-history-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.board-history-row button {
+  min-height: 44px;
+
+  display: grid;
+  place-items: center;
+  gap: 2px;
+}
+
+.board-history-row small {
+  display: block;
+
+  color: var(--muted);
+  font-size: 0.62rem;
+  line-height: 1;
+}
+
+.clear-board-btn {
+  width: 100%;
+  min-height: 38px;
 }
 
 .game-stage {
@@ -418,6 +511,23 @@ select {
   box-shadow: none;
 }
 
+.board.has-board-skin .cell.has-terrain.terrain-color {
+  background:
+    radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.12), transparent 55%),
+    var(--cell-terrain-color);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.board.has-board-skin .cell.has-terrain.terrain-image {
+  background-color: var(--cell-terrain-color);
+  background-image: var(--cell-terrain-image);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
 .board-grid {
   position: absolute;
 
@@ -431,6 +541,19 @@ select {
   grid-template-columns: repeat(8, var(--board-cell-width));
   grid-template-rows: repeat(8, var(--board-cell-height));
   gap: var(--board-grid-gap);
+}
+
+.board-piece-skin {
+  width: 86%;
+  height: 86%;
+
+  display: block;
+
+  object-fit: contain;
+  pointer-events: none;
+
+  filter:
+    drop-shadow(0 2px 2px rgba(0, 0, 0, 0.75)) drop-shadow(0 0 4px rgba(0, 0, 0, 0.45));
 }
 
 .sidebar,
@@ -475,6 +598,42 @@ select {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+}
+
+.sidebar-major-section {
+  display: grid;
+  gap: 10px;
+}
+
+.sidebar-major-section + .sidebar-major-section {
+  margin-top: 20px;
+  padding-top: 18px;
+
+  border-top: 1px solid rgba(231, 201, 122, 0.24);
+}
+
+.sidebar-major-title {
+  margin: 0;
+
+  color: var(--gold);
+  font-size: 0.84rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sidebar-major-content {
+  display: grid;
+  gap: 10px;
+}
+
+.editor-section-content {
+  padding: 10px;
+
+  border: 1px solid rgba(231, 201, 122, 0.16);
+  border-radius: 14px;
+
+  background: rgba(5, 6, 10, 0.10);
 }
 
 h1,
@@ -522,39 +681,306 @@ small {
   box-shadow: none;
 }
 
-.compact-palette,
-.piece-row {
+.compact-palette {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
   gap: 8px;
 }
 
-.piece-tray-button {
-  width: 42px;
-  height: 42px;
-  min-height: 42px;
-  padding: 0;
+/* ================================
+   PIECE TRAY
+   ================================ */
 
+.piece-row {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
   justify-content: center;
+  align-items: center;
 
-  font-family: "Times New Roman", Georgia, serif;
-  font-size: 1.5rem;
-  line-height: 1;
+  gap: 7px;
 }
 
-.piece-tray-button.active {
-  outline: 2px solid var(--gold);
-  outline-offset: 2px;
+.piece-tray-button {
+  position: relative;
+
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  min-height: 42px;
+
+  display: grid;
+  place-items: center;
+
+  padding: 0;
+
+  border: 1px solid rgba(231, 201, 122, 0.28);
+  border-radius: 10px;
 
   background:
-    radial-gradient(circle at 50% 30%, rgba(231, 201, 122, 0.25), transparent 55%),
-    linear-gradient(180deg, #262B36, #11141B);
+    linear-gradient(180deg, rgba(38, 43, 54, 0.92), rgba(17, 20, 27, 0.92));
+
+  color: var(--text);
+  cursor: pointer;
+
+  overflow: visible;
+}
+
+.piece-tray-button:hover {
+  border-color: var(--gold);
 
   box-shadow:
-    0 0 14px rgba(231, 201, 122, 0.45),
-    inset 0 0 12px rgba(231, 201, 122, 0.10);
+    0 0 10px rgba(231, 201, 122, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* No portrait: show normal piece image/symbol large */
+.piece-tray-image {
+  width: 92%;
+  height: 92%;
+
+  display: block;
+
+  object-fit: contain;
+  pointer-events: none;
+
+  filter:
+    drop-shadow(0 1px 1px rgba(0, 0, 0, 0.75)) drop-shadow(0 0 3px rgba(0, 0, 0, 0.35));
+}
+
+.piece-tray-symbol {
+  font-size: 1.55rem;
+  line-height: 1;
+
+  pointer-events: none;
+}
+
+/* ================================
+   CHARACTER PORTRAIT DISPLAY
+   ================================ */
+
+.theme-display-mode-box {
+  display: grid;
+  gap: 7px;
+
+  padding: 10px;
+
+  border: 1px solid rgba(231, 201, 122, 0.18);
+  border-radius: 12px;
+
+  background: rgba(5, 6, 10, 0.12);
+}
+
+/* Has portrait: portrait fills the tray button */
+.piece-tray-character-stack {
+  position: relative;
+
+  width: 100%;
+  height: 100%;
+
+  display: grid;
+  place-items: center;
+
+  pointer-events: none;
+}
+
+.piece-tray-portrait {
+  width: 100%;
+  height: 100%;
+
+  display: block;
+
+  object-fit: cover;
+  object-position: center center;
+
+  border-radius: 9px;
+
+  background: rgba(5, 6, 10, 0.72);
+
+  pointer-events: none;
+}
+
+/* Small chess identity badge under portrait */
+.piece-tray-identity-badge {
+  position: absolute;
+
+  left: 50%;
+  bottom: -8px;
+
+  transform: translateX(-50%);
+
+  width: 30px;
+  height: 16px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 999px;
+  border: 1px solid rgba(231, 201, 122, 0.58);
+
+  background: rgba(5, 6, 10, 0.92);
+
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.48),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+
+  pointer-events: none;
+
+  z-index: 5;
+}
+
+.piece-tray-mini-symbol {
+  font-size: 0.82rem;
+  line-height: 1;
+
+  pointer-events: none;
+}
+
+/* ================================
+   CHARACTER PORTRAIT DISPLAY
+   ================================ */
+
+/* MODE 1:
+   Chess piece dominant.
+   Portrait sits low as a stadium/banner behind the lower piece.
+*/
+
+.cell-piece.has-character.piece-with-portrait .board-piece-skin {
+  transform: translateY(-10%);
+  z-index: 3;
+}
+
+.board-character-badge {
+  position: absolute;
+
+  width: 72%;
+  height: 82%;
+
+  left: 50%;
+  bottom: -30%;
+
+  transform: translateX(-50%);
+
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+
+  overflow: hidden;
+
+  border-radius: 999px 999px 8px 8px;
+  border: 2px solid rgba(231, 201, 122, 0.64);
+
+  background: rgba(5, 6, 10, 0.76);
+
+  box-shadow:
+    0 2px 5px rgba(0, 0, 0, 0.62),
+    0 0 8px rgba(231, 201, 122, 0.24);
+
+  pointer-events: none;
+
+  z-index: 3;
+}
+
+.board-character-badge-image {
+  width: 100%;
+  height: 112%;
+
+  display: block;
+
+  object-fit: cover;
+  object-position: center 0%;
+
+  transform: translateY(-20%);
+
+  pointer-events: none;
+}
+
+/* MODE 2:
+   Portrait dominant.
+   True circular portrait with a small rectangular/pill piece badge
+   overlapping the bottom edge.
+*/
+
+.board-character-main {
+  position: relative;
+
+  width: 84%;
+  aspect-ratio: 1 / 1;
+
+  display: grid;
+  place-items: center;
+}
+
+.board-character-main-portrait-frame {
+  width: 100%;
+  height: 100%;
+
+  display: grid;
+  place-items: center;
+
+  overflow: hidden;
+
+  border-radius: 50%;
+  border: 2px solid rgba(231, 201, 122, 0.66);
+
+  background: rgba(5, 6, 10, 0.76);
+
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.58),
+    0 0 9px rgba(231, 201, 122, 0.20);
+}
+
+.board-character-main-portrait {
+  width: 100%;
+  height: 100%;
+
+  display: block;
+
+  object-fit: cover;
+  object-position: center center;
+
+  pointer-events: none;
+}
+
+.board-character-mini-piece {
+  position: absolute;
+
+  left: 50%;
+  bottom: -8px;
+
+  transform: translateX(-50%);
+
+  width: 46px;
+  height: 24px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 999px;
+  border: 1px solid rgba(231, 201, 122, 0.62);
+
+  background: rgba(5, 6, 10, 0.90);
+
+  box-shadow:
+    0 2px 5px rgba(0, 0, 0, 0.52),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+
+  pointer-events: none;
+
+  z-index: 5;
+}
+
+.board-character-mini-piece img {
+  width: 70%;
+  height: 70%;
+
+  object-fit: contain;
+}
+
+.board-character-mini-piece span {
+  font-size: 1rem;
+  line-height: 1;
 }
 
 .two-button-row,
@@ -692,6 +1118,23 @@ textarea {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
 }
 
+.coords {
+  opacity: 0;
+  transition: opacity 0.12s ease;
+
+  pointer-events: none;
+}
+
+.cell:hover .coords {
+  opacity: 1;
+}
+
+.coords {
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.95),
+    0 0 5px rgba(0, 0, 0, 0.75);
+}
+
 .cell-piece {
   position: absolute;
   inset: 0;
@@ -798,22 +1241,63 @@ textarea {
     inset 0 0 12px rgba(231, 201, 122, 0.10);
 }
 
+/* ================================
+   TERRAIN TOOL BUTTONS
+   ================================ */
+
 .terrain-tool-btn {
-  position: relative;
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  min-height: 42px;
+
+  padding: 4px;
+
+  display: grid;
+  place-items: center;
+
+  border: 1px solid rgba(231, 201, 122, 0.28);
+  border-radius: 9px;
+
+  background:
+    linear-gradient(180deg, rgba(38, 43, 54, 0.92), rgba(17, 20, 27, 0.92));
+
+  cursor: pointer;
   overflow: hidden;
 }
 
+/* Remove the old automatic terrain dot */
 .terrain-tool-btn::before {
-  content: "";
-  width: 12px;
-  height: 12px;
+  content: none;
+}
 
-  display: inline-block;
-  margin-right: 6px;
+/* The actual colour/image preview */
+.terrain-tool-swatch {
+  width: 100%;
+  height: 100%;
 
-  border-radius: 999px;
-  background: var(--terrain-color);
-  border: 1px solid rgba(248, 250, 252, 0.35);
+  display: block;
+
+  border-radius: 6px;
+  border: 1px solid rgba(248, 250, 252, 0.22);
+
+  background-color: var(--terrain-color);
+  background-image: var(--terrain-image);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.18),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.28);
+}
+
+.terrain-tool-btn:hover {
+  border-color: var(--gold);
+
+  box-shadow:
+    0 0 10px rgba(231, 201, 122, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .terrain-tool-btn.active,
@@ -822,8 +1306,13 @@ textarea {
   outline-offset: 2px;
 
   box-shadow:
-    0 0 14px rgba(231, 201, 122, 0.42),
-    inset 0 0 12px rgba(231, 201, 122, 0.10);
+    0 0 14px rgba(231, 201, 122, 0.45),
+    inset 0 0 12px rgba(231, 201, 122, 0.12);
+}
+
+/* Keep clear terrain button as a normal wide button */
+.terrain-clear-btn {
+  width: 100%;
 }
 
 .piece-tray-button.active,
@@ -923,32 +1412,11 @@ button:disabled {
 }
 
 .cell.has-terrain.terrain-image {
+  background-color: var(--cell-terrain-color);
   background-image: var(--cell-terrain-image);
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-}
-
-.board-character-portrait {
-  width: 82%;
-  height: 82%;
-
-  object-fit: cover;
-  border-radius: 999px;
-
-  border: 2px solid rgba(248, 250, 252, 0.55);
-
-  box-shadow:
-    0 0 10px rgba(0, 0, 0, 0.75),
-    0 0 8px rgba(231, 201, 122, 0.20);
-}
-
-.cell-piece.white .board-character-portrait {
-  border-color: rgba(248, 250, 252, 0.75);
-}
-
-.cell-piece.black .board-character-portrait {
-  border-color: rgba(5, 6, 10, 0.85);
 }
 
 details {
@@ -1227,6 +1695,74 @@ details>*:not(summary) {
   border-radius: 12px;
 }
 
+.piece-skin-editor {
+  display: grid;
+  gap: 14px;
+}
+
+.piece-skin-team-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.piece-skin-team-editor h3 {
+  margin: 0;
+
+  color: var(--gold);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.piece-skin-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.piece-skin-editor-item {
+  display: grid;
+  gap: 6px;
+
+  padding: 8px;
+
+  border: 1px solid rgba(231, 201, 122, 0.18);
+  border-radius: 10px;
+
+  background: rgba(5, 6, 10, 0.12);
+}
+
+.piece-skin-preview {
+  height: 54px;
+
+  display: grid;
+  place-items: center;
+
+  border: 1px solid rgba(231, 201, 122, 0.18);
+  border-radius: 9px;
+
+  background: rgba(5, 6, 10, 0.28);
+
+  overflow: hidden;
+}
+
+.piece-skin-preview img {
+  width: 100%;
+  height: 100%;
+
+  object-fit: contain;
+}
+
+.piece-skin-preview span {
+  font-size: 1.8rem;
+}
+
+.compact-upload-label {
+  min-height: 28px;
+  font-size: 0.72rem;
+  padding: 5px 7px;
+}
+
 .terrain-preview {
   width: 100%;
   height: 48px;
@@ -1303,6 +1839,33 @@ details>*:not(summary) {
   box-shadow:
     0 0 14px rgba(231, 201, 122, 0.42),
     inset 0 0 12px rgba(231, 201, 122, 0.10);
+}
+
+.counter-tool-btn,
+.condition-tool-btn,
+.terrain-tool-btn {
+  display: grid;
+  place-items: center;
+}
+
+.counter-tool-btn {
+  min-width: 42px;
+  min-height: 42px;
+}
+
+.condition-tool-btn {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  min-height: 42px;
+}
+
+.counter-clear-btn,
+.condition-clear-btn,
+.terrain-clear-btn {
+  display: grid;
+  place-items: center;
+  text-align: center;
 }
 
 .character-picker {

@@ -11,6 +11,7 @@ import Workspace from "./Workspace";
 import RightPanel from "./RightPanel";
 import {
   createBoardCells,
+  createDefaultWorldTheme,
   createPieceRecord,
   createStandardSetupCells,
   DEFAULT_WORLD_FEATURES,
@@ -31,6 +32,7 @@ import {
 const FALLBACK_STAGE_WIDTH = 1460;
 const FALLBACK_STAGE_HEIGHT = 840;
 const STAGE_SCREEN_PADDING = 12;
+const MAX_CELL_HISTORY = 30;
 
 // **************************************************************
 // HELPER FUNCTIONS
@@ -70,10 +72,16 @@ function clearCounterOnCell(cell) {
   cell.counterColor = "neutral";
 }
 
-function toggleConditionOnCell(cell, conditionKey) {
+function toggleConditionOnCell(cell, conditionKey, shouldStack = false) {
   if (!conditionKey) return;
 
   const currentConditions = cell.conditions || [];
+
+  if (shouldStack) {
+    cell.conditions = [...currentConditions, conditionKey];
+    return;
+  }
+
   const alreadyHasCondition = currentConditions.includes(conditionKey);
 
   if (alreadyHasCondition) {
@@ -169,10 +177,7 @@ export default function WorldCreator() {
     rulesNotes: ""
   });
 
-  const [worldTheme, setWorldTheme] = useState({
-    backgroundImage: "",
-    boardSkinImage: ""
-  });
+  const [worldTheme, setWorldTheme] = useState(createDefaultWorldTheme());
 
   const [worldMechanics, setWorldMechanics] = useState(DEFAULT_WORLD_MECHANICS);
 
@@ -196,6 +201,9 @@ export default function WorldCreator() {
   );
 
   const [worldTokens, setWorldTokens] = useState({});
+
+  const [cellHistory, setCellHistory] = useState([]);
+  const [cellFuture, setCellFuture] = useState([]);
 
   const [cells, setCells] = useState(createStandardSetupCells);
   const [movingPiece, setMovingPiece] = useState(null);
@@ -309,12 +317,31 @@ export default function WorldCreator() {
       }
     );
 
-    setWorldTheme(
-      worldData.worldTheme || {
-        backgroundImage: "",
-        boardSkinImage: ""
-      }
-    );
+    const defaultTheme = createDefaultWorldTheme();
+
+    setWorldTheme({
+      ...defaultTheme,
+      ...(worldData.worldTheme || {}),
+      backgroundImage:
+        worldData.worldTheme?.backgroundImage || defaultTheme.backgroundImage,
+      boardSkinImage:
+        worldData.worldTheme?.boardSkinImage || defaultTheme.boardSkinImage,
+      pieceSkins: {
+        ...defaultTheme.pieceSkins,
+        ...(worldData.worldTheme?.pieceSkins || {}),
+        white: {
+          ...defaultTheme.pieceSkins.white,
+          ...(worldData.worldTheme?.pieceSkins?.white || {})
+        },
+        black: {
+          ...defaultTheme.pieceSkins.black,
+          ...(worldData.worldTheme?.pieceSkins?.black || {})
+        }
+      },
+      characterDisplayMode:
+        worldData.worldTheme?.characterDisplayMode ||
+        defaultTheme.characterDisplayMode
+    });
 
     setWorldMechanics(worldData.worldMechanics || DEFAULT_WORLD_MECHANICS);
     setWorldFeatures(worldData.worldFeatures || DEFAULT_WORLD_FEATURES);
@@ -367,6 +394,60 @@ export default function WorldCreator() {
 
   // SMALL SELECTION/HELPER HANDLERS
 
+  function pushCellsToHistory(previousCells) {
+    setCellHistory((currentHistory) => {
+      const nextHistory = [...currentHistory, previousCells];
+
+      if (nextHistory.length > MAX_CELL_HISTORY) {
+        return nextHistory.slice(nextHistory.length - MAX_CELL_HISTORY);
+      }
+
+      return nextHistory;
+    });
+
+    setCellFuture([]);
+  }
+
+  function updateCellsWithHistory(updateFunction) {
+    setCells((currentCells) => {
+      pushCellsToHistory(currentCells);
+      return updateFunction(currentCells);
+    });
+  }
+
+  function handleUndo() {
+    if (cellHistory.length === 0) return;
+
+    const previousCells = cellHistory[cellHistory.length - 1];
+
+    setCellFuture((currentFuture) => [cells, ...currentFuture]);
+    setCellHistory((currentHistory) => currentHistory.slice(0, -1));
+    setCells(previousCells);
+
+    setMovingPiece(null);
+  }
+
+  function handleRedo() {
+    if (cellFuture.length === 0) return;
+
+    const nextCells = cellFuture[0];
+
+    setCellHistory((currentHistory) => {
+      const nextHistory = [...currentHistory, cells];
+
+      if (nextHistory.length > MAX_CELL_HISTORY) {
+        return nextHistory.slice(nextHistory.length - MAX_CELL_HISTORY);
+      }
+
+      return nextHistory;
+    });
+
+    setCellFuture((currentFuture) => currentFuture.slice(1));
+    setCells(nextCells);
+
+    setMovingPiece(null);
+  }
+
   function clearAllSelections() {
     setSelectedTeam(null);
     setSelectedPiece(null);
@@ -402,6 +483,26 @@ export default function WorldCreator() {
     setWorldTheme((currentTheme) => ({
       ...currentTheme,
       [field]: value
+    }));
+  }
+
+  function handlePieceSkinChange(team, pieceKey, imageData) {
+    setWorldTheme((currentTheme) => ({
+      ...currentTheme,
+      pieceSkins: {
+        ...currentTheme.pieceSkins,
+        [team]: {
+          ...currentTheme.pieceSkins?.[team],
+          [pieceKey]: imageData
+        }
+      }
+    }));
+  }
+
+  function handleCharacterDisplayModeChange(nextMode) {
+    setWorldTheme((currentTheme) => ({
+      ...currentTheme,
+      characterDisplayMode: nextMode
     }));
   }
 
@@ -539,12 +640,25 @@ export default function WorldCreator() {
     setSelectedTerrainAction(null);
   }
 
-
-
   function handleApplyTerrainToWholeBoard() {
+    if (!worldFeatures.terrains) return;
+
+    if (selectedTerrainAction === "clear") {
+      updateCellsWithHistory((currentCells) =>
+        currentCells.map((cell) => ({
+          ...cell,
+          tile: "neutral",
+          conditions: [...cell.conditions],
+          tokens: [...cell.tokens]
+        }))
+      );
+
+      return;
+    }
+
     if (!selectedTerrain) return;
 
-    setCells((currentCells) =>
+    updateCellsWithHistory((currentCells) =>
       currentCells.map((cell) => ({
         ...cell,
         tile: selectedTerrain,
@@ -555,7 +669,7 @@ export default function WorldCreator() {
   }
 
   function handleClearAllTerrains() {
-    setCells((currentCells) =>
+    updateCellsWithHistory((currentCells) =>
       currentCells.map((cell) => ({
         ...cell,
         tile: "neutral",
@@ -570,7 +684,8 @@ export default function WorldCreator() {
   // BOARD/RESET HANDLERS
 
   function handleStandardSetup() {
-    setCells(createStandardSetupCells());
+    updateCellsWithHistory(() => createStandardSetupCells());
+    clearAllSelections();
     setMovingPiece(null);
     setSelectedTeam(null);
     setSelectedToken(null);
@@ -585,7 +700,8 @@ export default function WorldCreator() {
   }
 
   function handleClearBoard() {
-    setCells(createBoardCells());
+    updateCellsWithHistory(() => createBoardCells());
+    clearAllSelections();
     setMovingPiece(null);
     setSelectedTeam(null);
     setSelectedToken(null);
@@ -748,7 +864,7 @@ export default function WorldCreator() {
     const clickedToken = getPrimaryToken(clickedCell);
 
     if (selectedCounterAction === "adjust" && selectedCounterDelta !== null) {
-      setCells((currentCells) => {
+      updateCellsWithHistory((currentCells) => {
         const nextCells = currentCells.map(cloneCell);
         const targetCell = nextCells[index];
 
@@ -768,7 +884,7 @@ export default function WorldCreator() {
     }
 
     if (selectedCounterAction === "set") {
-      setCells((currentCells) => {
+      updateCellsWithHistory((currentCells) => {
         const nextCells = currentCells.map(cloneCell);
         const targetCell = nextCells[index];
 
@@ -787,7 +903,7 @@ export default function WorldCreator() {
     }
 
     if (selectedCounterAction === "clear") {
-      setCells((currentCells) => {
+      updateCellsWithHistory((currentCells) => {
         const nextCells = currentCells.map(cloneCell);
         const targetCell = nextCells[index];
 
@@ -806,13 +922,13 @@ export default function WorldCreator() {
     }
 
     if (selectedConditionAction === "toggle" && selectedCondition) {
-      setCells((currentCells) => {
+      updateCellsWithHistory((currentCells) => {
         const nextCells = currentCells.map(cloneCell);
         const targetCell = nextCells[index];
 
         if (!cellHasOccupant(targetCell)) return nextCells;
 
-        toggleConditionOnCell(targetCell, selectedCondition);
+        toggleConditionOnCell(targetCell, selectedCondition, event?.shiftKey);
 
         return nextCells;
       });
@@ -826,7 +942,7 @@ export default function WorldCreator() {
     }
 
     if (selectedConditionAction === "clear") {
-      setCells((currentCells) => {
+      updateCellsWithHistory((currentCells) => {
         const nextCells = currentCells.map(cloneCell);
         const targetCell = nextCells[index];
 
@@ -845,7 +961,7 @@ export default function WorldCreator() {
     }
 
     if (selectedTerrainAction === "paint" && selectedTerrain) {
-      setCells((currentCells) => {
+      updateCellsWithHistory((currentCells) => {
         const nextCells = currentCells.map(cloneCell);
         const targetCell = nextCells[index];
 
@@ -863,7 +979,7 @@ export default function WorldCreator() {
     }
 
     if (selectedTerrainAction === "clear") {
-      setCells((currentCells) => {
+      updateCellsWithHistory((currentCells) => {
         const nextCells = currentCells.map(cloneCell);
         const targetCell = nextCells[index];
 
@@ -903,7 +1019,7 @@ export default function WorldCreator() {
       }
 
       if (selectedToken) {
-        setCells((currentCells) => {
+        updateCellsWithHistory((currentCells) => {
           const nextCells = currentCells.map(cloneCell);
           const targetCell = nextCells[index];
 
@@ -970,7 +1086,7 @@ export default function WorldCreator() {
     }
 
     // Otherwise, move/capture/replace.
-    setCells((currentCells) => {
+    updateCellsWithHistory((currentCells) => {
       const nextCells = currentCells.map(cloneCell);
 
       const sourceCell = nextCells[movingPiece.fromIndex];
@@ -1131,18 +1247,28 @@ export default function WorldCreator() {
 
             <TopCommandBar
               worldDetails={worldDetails}
+              worldFeatures={worldFeatures}
+              worldTheme={worldTheme}
+
               savedWorlds={savedWorlds}
               selectedSavedWorldId={selectedSavedWorldId}
               savedTestGames={savedTestGames}
               selectedSavedTestGameId={selectedSavedTestGameId}
               saveStatus={saveStatus}
+
               onWorldDetailsChange={handleWorldDetailsChange}
+              onThemeChange={handleThemeChange}
+              onToggleWorldFeature={handleToggleWorldFeature}
+              onPieceSkinChange={handlePieceSkinChange}
+              onCharacterDisplayModeChange={handleCharacterDisplayModeChange}
+
               onSaveWorld={handleSaveWorld}
               onLoadWorld={handleLoadWorld}
               onDeleteWorld={handleDeleteWorld}
               onExportWorld={handleExportWorld}
               onImportWorld={handleImportWorld}
               onSelectedSavedWorldChange={setSelectedSavedWorldId}
+
               onSaveTestGame={handleSaveTestGame}
               onLoadTestGame={handleLoadTestGame}
               onDeleteTestGame={handleDeleteTestGame}
@@ -1158,6 +1284,9 @@ export default function WorldCreator() {
 
               onWorldDetailsChange={handleWorldDetailsChange}
               onThemeChange={handleThemeChange}
+              onPieceSkinChange={handlePieceSkinChange}
+              onCharacterDisplayModeChange={handleCharacterDisplayModeChange}
+
               onToggleWorldFeature={handleToggleWorldFeature}
               onTerrainListChange={handleTerrainListChange}
               onCounterSettingsChange={handleCounterSettingsChange}
@@ -1193,7 +1322,6 @@ export default function WorldCreator() {
               onSelectTerrain={handleSelectTerrain}
               onSelectClearTerrain={handleSelectClearTerrain}
               onApplyTerrainToWholeBoard={handleApplyTerrainToWholeBoard}
-              onClearAllTerrains={handleClearAllTerrains}
             />
 
             <Workspace
@@ -1209,6 +1337,7 @@ export default function WorldCreator() {
 
             <RightPanel
               worldFeatures={worldFeatures}
+              worldTheme={worldTheme}
               characterLibrary={characterLibrary}
               worldTokens={worldTokens}
               selectedTeam={selectedTeam}
@@ -1225,6 +1354,8 @@ export default function WorldCreator() {
               onAssignCharacter={handleAssignCharacter}
               onStandardSetup={handleStandardSetup}
               onClearBoard={handleClearBoard}
+              onUndo={handleUndo}
+              onRedo={handleRedo}
             />
           </div>
         </div>

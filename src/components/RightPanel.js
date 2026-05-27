@@ -1,12 +1,21 @@
 import {
   DEFAULT_PIECES,
   GENERIC_TOKEN_SYMBOL,
+  getPieceSkin,
   getPieceSymbol
 } from "@/lib/defaultWorld";
 
 import CharacterCard from "./CharacterCard";
 
-function TeamTray({ team, selectedTeam, selectedPiece, onSelectPiece }) {
+function TeamTray({
+  team,
+  worldTheme,
+  pieceNames,
+  characterLibrary,
+  selectedTeam,
+  selectedPiece,
+  onSelectPiece
+}) {
   return (
     <section className="panel-box">
       <h2>{team === "black" ? "Black Team" : "White Team"}</h2>
@@ -16,14 +25,52 @@ function TeamTray({ team, selectedTeam, selectedPiece, onSelectPiece }) {
           const isSelected =
             selectedTeam === team && selectedPiece === piece.key;
 
+          const pieceSkin = getPieceSkin(worldTheme, team, piece.key);
+          const assignedCharacterName = pieceNames?.[team]?.[piece.key] || "";
+
+          const characterList = Array.isArray(characterLibrary)
+            ? characterLibrary
+            : Object.values(characterLibrary || {});
+
+          const assignedCharacter = characterList.find(
+            (character) =>
+              character.name?.trim().toLowerCase() ===
+              assignedCharacterName.trim().toLowerCase()
+          );
+
           return (
             <button
               key={piece.key}
-              className={`piece-tray-button ${isSelected ? "active" : ""}`}
+              type="button"
+              className={`piece-tray-button ${team} ${isSelected ? "active" : ""}`}
               title={`Select ${team} ${piece.label}`}
               onClick={() => onSelectPiece(team, piece.key)}
             >
-              {getPieceSymbol(team, piece.key)}
+              {assignedCharacter?.portrait ? (
+                <div className="piece-tray-character-stack">
+                  <img
+                    className="piece-tray-portrait"
+                    src={assignedCharacter.portrait}
+                    alt={assignedCharacter.name}
+                  />
+
+                  <div className="piece-tray-identity-badge">
+                    <span className="piece-tray-mini-symbol">
+                      {getPieceSymbol(team, piece.key)}
+                    </span>
+                  </div>
+                </div>
+              ) : pieceSkin ? (
+                <img
+                  className="piece-tray-image"
+                  src={pieceSkin}
+                  alt={`${team} ${piece.label}`}
+                />
+              ) : (
+                <span className="piece-tray-symbol">
+                  {getPieceSymbol(team, piece.key)}
+                </span>
+              )}
             </button>
           );
         })}
@@ -68,6 +115,7 @@ function TokenTray({ worldTokens, selectedToken, onSelectToken }) {
 
 export default function RightPanel({
   worldFeatures,
+  worldTheme,
   characterLibrary,
   worldTokens,
   selectedTeam,
@@ -83,28 +131,43 @@ export default function RightPanel({
   onUnlockName,
   onAssignCharacter,
   onStandardSetup,
-  onClearBoard
+  onClearBoard,
+  onUndo,
+  onRedo
 }) {
   return (
     <aside className="right-panel">
-      <button className="primary-button" onClick={onStandardSetup}>
-        Standard Setup
-      </button>
-
-      <div className="board-action-row">
-        <button>
-          ↶ Undo
-          <br />
-          <small>Ctrl+Z</small>
+      <section className="panel-box board-controls-box">
+        <button
+          type="button"
+          className="primary-button standard-setup-btn"
+          onClick={onStandardSetup}
+        >
+          Standard Setup
         </button>
 
-        <button onClick={onClearBoard}>
+        <div className="board-history-row">
+          <button type="button" onClick={onUndo}>
+            ↶ Undo
+            <small>Ctrl+Z</small>
+          </button>
+
+          <button type="button" onClick={onRedo}>
+            ↷ Redo
+            <small>Ctrl+Y</small>
+          </button>
+        </div>
+
+        <button type="button" className="clear-board-btn" onClick={onClearBoard}>
           Clear Board
         </button>
-      </div>
+      </section>
 
       <TeamTray
         team="black"
+        worldTheme={worldTheme}
+        pieceNames={pieceNames}
+        characterLibrary={characterLibrary}
         selectedTeam={selectedTeam}
         selectedPiece={selectedPiece}
         onSelectPiece={onSelectPiece}
@@ -112,6 +175,9 @@ export default function RightPanel({
 
       <TeamTray
         team="white"
+        worldTheme={worldTheme}
+        pieceNames={pieceNames}
+        characterLibrary={characterLibrary}
         selectedTeam={selectedTeam}
         selectedPiece={selectedPiece}
         onSelectPiece={onSelectPiece}

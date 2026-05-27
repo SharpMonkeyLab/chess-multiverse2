@@ -41,6 +41,7 @@ export default function Board({
               pieceNames={pieceNames}
               characterLibrary={characterLibrary}
               worldMechanics={worldMechanics}
+              worldTheme={worldTheme}
               hasBoardSkin={Boolean(worldTheme?.boardSkinImage)}
               onClick={(event) => onCellClick(index, event)}
             />

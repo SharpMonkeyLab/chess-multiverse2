@@ -20,12 +20,12 @@ export default function TerrainEditor({ terrains, onTerrainListChange }) {
     const nextTerrains = terrains.map((terrain, terrainIndex) =>
       terrainIndex === index
         ? {
-            ...terrain,
-            [field]: value,
-            ...(field === "label"
-              ? { key: makeKeyFromLabel(value) || terrain.key }
-              : {})
-          }
+          ...terrain,
+          [field]: value,
+          ...(field === "label"
+            ? { key: makeKeyFromLabel(value) || terrain.key }
+            : {})
+        }
         : terrain
     );
 
@@ -41,6 +41,7 @@ export default function TerrainEditor({ terrains, onTerrainListChange }) {
       {
         key,
         label,
+        description: "",
         fillType: "color",
         color: "#4b5563",
         image: ""
@@ -77,15 +78,24 @@ export default function TerrainEditor({ terrains, onTerrainListChange }) {
 
             <label>Name</label>
             <input
-              value={terrain.label}
+              value={terrain.label || ""}
               onChange={(event) =>
                 updateTerrain(index, "label", event.target.value)
               }
             />
 
+            <label>Description</label>
+            <textarea
+              value={terrain.description || ""}
+              placeholder="Explain what this terrain does or represents."
+              onChange={(event) =>
+                updateTerrain(index, "description", event.target.value)
+              }
+            />
+
             <label>Fill Type</label>
             <select
-              value={terrain.fillType}
+              value={terrain.fillType || "color"}
               onChange={(event) =>
                 updateTerrain(index, "fillType", event.target.value)
               }
@@ -99,7 +109,7 @@ export default function TerrainEditor({ terrains, onTerrainListChange }) {
                 <label>Colour</label>
                 <input
                   type="color"
-                  value={terrain.color}
+                  value={terrain.color || "#4b5563"}
                   onChange={(event) =>
                     updateTerrain(index, "color", event.target.value)
                   }

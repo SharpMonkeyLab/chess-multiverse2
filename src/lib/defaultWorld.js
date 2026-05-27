@@ -1,5 +1,18 @@
 export const BOARD_SIZE = 8;
 
+export const DEFAULT_BACKGROUND_IMAGE =
+  "/theme/default/default-background.png";
+
+export const DEFAULT_BOARD_SKIN_IMAGE =
+  "/theme/default/default-board-skin.png";
+
+export const DEFAULT_TERRAIN_IMAGES = {
+  forest: "/terrains/default/forest.png",
+  water: "/terrains/default/water.png",
+  sand: "/terrains/default/sand.png",
+  fire: "/terrains/default/fire.png"
+};
+
 export const DEFAULT_WORLD_FEATURES = {
   characters: true,
   worldTokens: true,
@@ -94,58 +107,72 @@ export const DEFAULT_WORLD_MECHANICS = {
     {
       key: "forest",
       label: "Forest",
-      fillType: "color",
+      description: "Terrain covered with Forests.",
+      fillType: "image",
       color: "#2f6b45",
-      image: ""
+      image: DEFAULT_TERRAIN_IMAGES.forest
     },
     {
       key: "water",
       label: "Water",
-      fillType: "color",
+      description: "Water-filled terrain.",
+      fillType: "image",
       color: "#2f5f9e",
-      image: ""
+      image: DEFAULT_TERRAIN_IMAGES.water
     },
     {
       key: "sand",
       label: "Sand",
-      fillType: "color",
+      description: "Dry loose terrain.",
+      fillType: "image",
       color: "#b68b45",
-      image: ""
+      image: DEFAULT_TERRAIN_IMAGES.sand
     },
     {
       key: "fire",
       label: "Fire",
-      fillType: "color",
+      description: "Dangerous burning terrain.",
+      fillType: "image",
       color: "#a33a2a",
-      image: ""
+      image: DEFAULT_TERRAIN_IMAGES.fire
     }
   ],
 
   counter: {
     name: "Counter",
+    description: "A general number marker placed on pieces or tokens.",
     decreaseLabel: "-1",
     increaseLabel: "+1",
+
+    allowSetCounter: false,
+    setLabel: "Set Number",
+    setDescription: "Set the counter to an exact value.",
+    initialValue: "0"
   },
 
   conditions: [
     {
       key: "blocked",
       label: "Blocked",
+      description: "This piece is restricted or disabled.",
       icon: "🚫"
     },
     {
       key: "shielded",
       label: "Shielded",
+      description: "This piece has protection.",
       icon: "🛡️"
     },
     {
       key: "poisoned",
       label: "Poisoned",
+      description: "This piece is affected by poison.",
       icon: "☠️"
     },
     {
       key: "burning",
       label: "Burning",
+      description: "This piece is affected by fire.",
       icon: "🔥"
     }
   ]
@@ -287,6 +314,53 @@ export const PIECE_TYPES = DEFAULT_PIECES.map((piece) => piece.key);
 
 export function getPieceDefinition(pieceKey) {
   return DEFAULT_PIECES.find((piece) => piece.key === pieceKey);
+}
+
+export function createPieceSkinRecord(defaultValue = "") {
+  const record = {
+    white: {},
+    black: {}
+  };
+
+  DEFAULT_PIECES.forEach((piece) => {
+    record.white[piece.key] = defaultValue;
+    record.black[piece.key] = defaultValue;
+  });
+
+  return record;
+}
+
+export const DEFAULT_PIECE_SKINS = {
+  white: {
+    king: "/pieces/default/white-king.png",
+    queen: "/pieces/default/white-queen.png",
+    rook: "/pieces/default/white-rook.png",
+    bishop: "/pieces/default/white-bishop.png",
+    knight: "/pieces/default/white-knight.png",
+    pawn: "/pieces/default/white-pawn.png"
+  },
+  black: {
+    king: "/pieces/default/black-king.png",
+    queen: "/pieces/default/black-queen.png",
+    rook: "/pieces/default/black-rook.png",
+    bishop: "/pieces/default/black-bishop.png",
+    knight: "/pieces/default/black-knight.png",
+    pawn: "/pieces/default/black-pawn.png"
+  }
+};
+
+export function createDefaultWorldTheme() {
+  return {
+    backgroundImage: DEFAULT_BACKGROUND_IMAGE,
+    boardSkinImage: DEFAULT_BOARD_SKIN_IMAGE,
+    pieceSkins: DEFAULT_PIECE_SKINS,
+
+    characterDisplayMode: "piece-with-portrait"
+  };
+}
+
+export function getPieceSkin(worldTheme, team, pieceKey) {
+  return worldTheme?.pieceSkins?.[team]?.[pieceKey] || "";
 }
 
 export function createPieceRecord(defaultValue) {

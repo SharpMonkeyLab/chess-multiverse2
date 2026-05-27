@@ -1,7 +1,5 @@
-import FeatureToggleEditor from "./FeatureToggleEditor";
 import CharacterEditor from "./CharacterEditor";
 import TokenEditor from "./TokenEditor";
-import ThemeEditor from "./ThemeEditor";
 import TerrainEditor from "./TerrainEditor";
 import CounterEditor from "./CounterEditor";
 import ConditionEditor from "./ConditionEditor";
@@ -14,6 +12,9 @@ export default function LeftSidebar({
 
   onWorldDetailsChange,
   onThemeChange,
+  onPieceSkinChange,
+  onCharacterDisplayModeChange,
+
   onToggleWorldFeature,
   onTerrainListChange,
   onCounterSettingsChange,
@@ -49,283 +50,259 @@ export default function LeftSidebar({
   onSelectTerrain,
   onSelectClearTerrain,
   onApplyTerrainToWholeBoard,
-  onClearAllTerrains
 }) {
   return (
     <aside className="sidebar">
       <header className="sidebar-title-row">
-        <h1>Tools</h1>
+        <h1>Toolbox</h1>
         <button className="shortcut-help-btn" type="button">?</button>
       </header>
 
       <p className="sidebar-description">
-        Shape the battlefield with terrains, use counters and affect pieces with conditions.
+        Use play tools during testing, or edit the world systems below.
       </p>
 
-      {worldFeatures.counters && (
-        <section className="panel-box">
-          <h2>{worldMechanics.counter.name}</h2>
+      <section className="sidebar-major-section">
+        <h2 className="sidebar-major-title">Play Tools</h2>
 
-          <div className="compact-palette">
-            <button
-              className={
-                selectedCounterAction === "adjust" && selectedCounterDelta === -1
-                  ? "counter-tool-btn active"
-                  : "counter-tool-btn"
-              }
-              onClick={() => onSelectCounterDelta(-1)}
-            >
-              {worldMechanics.counter.decreaseLabel}
-            </button>
+        <div className="sidebar-major-content">
 
-            <button
-              className={
-                selectedCounterAction === "adjust" && selectedCounterDelta === 1
-                  ? "counter-tool-btn active"
-                  : "counter-tool-btn"
-              }
-              onClick={() => onSelectCounterDelta(1)}
-            >
-              {worldMechanics.counter.increaseLabel}
-            </button>
-          </div>
+          {worldFeatures.terrains && (
+            <section className="panel-box">
+              <h2>Terrains</h2>
 
-          <div className="counter-set-row">
-            <input
-              type="number"
-              value={counterSetValue}
-              onChange={(event) => onCounterSetValueChange(event.target.value)}
-              aria-label="Counter value"
-            />
+              <div className="compact-palette">
+                {worldMechanics.terrains.map((terrain) => (
+                  <button
+                    key={terrain.key}
+                    className={
+                      selectedTerrainAction === "paint" &&
+                        selectedTerrain === terrain.key
+                        ? "terrain-tool-btn active"
+                        : "terrain-tool-btn"
+                    }
+                    style={{
+                      "--terrain-color": terrain.color || "#4b5563",
+                      "--terrain-image": terrain.image ? `url("${terrain.image}")` : "none"
+                    }}
+                    title={
+                      terrain.description
+                        ? `${terrain.label}: ${terrain.description}`
+                        : terrain.label
+                    }
+                    onClick={() => onSelectTerrain(terrain.key)}
+                  >
+                    <span className="terrain-tool-swatch" />
+                  </button>
+                ))}
+              </div>
 
-            <button
-              className={
-                selectedCounterAction === "set"
-                  ? "counter-tool-btn active"
-                  : "counter-tool-btn"
-              }
-              onClick={onSelectSetCounter}
-            >
-              Set Number
-            </button>
-          </div>
-
-          <button
-            className={
-              selectedCounterAction === "clear"
-                ? "counter-clear-btn active"
-                : "counter-clear-btn"
-            }
-            onClick={onSelectClearCounter}
-          >
-            Clear Counter
-          </button>
-        </section>
-      )}
-
-      {worldFeatures.conditions && (
-        <section className="panel-box">
-          <h2>Conditions</h2>
-
-          <div className="compact-palette">
-            {worldMechanics.conditions.map((condition) => (
               <button
-                key={condition.key}
-                className={
-                  selectedConditionAction === "toggle" &&
-                    selectedCondition === condition.key
-                    ? "condition-tool-btn active"
-                    : "condition-tool-btn"
-                }
-                title={condition.label}
-                onClick={() => onSelectCondition(condition.key)}
+                type="button"
+                onClick={onApplyTerrainToWholeBoard}
+                disabled={selectedTerrainAction !== "clear" && !selectedTerrain}
               >
-                {condition.icon}
+                Apply to Board
               </button>
-            ))}
-          </div>
 
-          <button
-            className={
-              selectedConditionAction === "clear"
-                ? "condition-clear-btn active"
-                : "condition-clear-btn"
-            }
-            onClick={onSelectClearConditions}
-          >
-            Clear Conditions
-          </button>
-        </section>
-      )}
-
-      {worldFeatures.terrains && (
-        <section className="panel-box">
-          <h2>Terrains</h2>
-
-          <div className="compact-palette">
-            {worldMechanics.terrains.map((terrain) => (
               <button
-                key={terrain.key}
                 className={
-                  selectedTerrainAction === "paint" &&
-                    selectedTerrain === terrain.key
-                    ? "terrain-tool-btn active"
-                    : "terrain-tool-btn"
+                  selectedTerrainAction === "clear"
+                    ? "terrain-clear-btn active"
+                    : "terrain-clear-btn"
                 }
-                style={{
-                  "--terrain-color": terrain.color || "#4b5563"
-                }}
-                title={terrain.label}
-                onClick={() => onSelectTerrain(terrain.key)}
+                onClick={onSelectClearTerrain}
               >
-                {terrain.label}
+                Clear Tile Terrain
               </button>
-            ))}
-          </div>
+            </section>
+          )}
 
-          <div className="two-button-row">
-            <button
-              type="button"
-              onClick={onApplyTerrainToWholeBoard}
-              disabled={!selectedTerrain}
-            >
-              Apply to Whole Board
-            </button>
+          {worldFeatures.counters && (
+            <section className="panel-box">
+              <h2 title={worldMechanics.counter.description || worldMechanics.counter.name}>
+                {worldMechanics.counter.name}
+              </h2>
 
-            <button type="button" onClick={onClearAllTerrains}>
-              Clear Board Terrains
-            </button>
-          </div>
+              <div className="compact-palette">
+                <button
+                  className={
+                    selectedCounterAction === "adjust" && selectedCounterDelta === -1
+                      ? "counter-tool-btn active"
+                      : "counter-tool-btn"
+                  }
+                  title={
+                    worldMechanics.counter.description
+                      ? `${worldMechanics.counter.name}: ${worldMechanics.counter.description}`
+                      : worldMechanics.counter.name
+                  }
+                  onClick={() => onSelectCounterDelta(-1)}
+                >
+                  {worldMechanics.counter.decreaseLabel}
+                </button>
 
-          <button
-            className={
-              selectedTerrainAction === "clear"
-                ? "terrain-clear-btn active"
-                : "terrain-clear-btn"
-            }
-            onClick={onSelectClearTerrain}
-          >
-            Clear Tile Terrain
-          </button>
-        </section>
-      )}
+                <button
+                  className={
+                    selectedCounterAction === "adjust" && selectedCounterDelta === 1
+                      ? "counter-tool-btn active"
+                      : "counter-tool-btn"
+                  }
+                  title={
+                    worldMechanics.counter.description
+                      ? `${worldMechanics.counter.name}: ${worldMechanics.counter.description}`
+                      : worldMechanics.counter.name
+                  }
+                  onClick={() => onSelectCounterDelta(1)}
+                >
+                  {worldMechanics.counter.increaseLabel}
+                </button>
+              </div>
 
-      <section className="panel-box world-editor-box">
-        <h2>World Editor</h2>
+              {worldMechanics.counter.allowSetCounter && (
+                <div className="counter-set-row">
+                  <input
+                    type="number"
+                    value={counterSetValue}
+                    onChange={(event) => onCounterSetValueChange(event.target.value)}
+                    aria-label="Counter value"
+                  />
 
-        <details open>
-          <summary>World Details</summary>
+                  <button
+                    className={
+                      selectedCounterAction === "set"
+                        ? "counter-tool-btn active"
+                        : "counter-tool-btn"
+                    }
+                    title={
+                      worldMechanics.counter.setDescription
+                        ? `${worldMechanics.counter.setLabel || "Set Number"}: ${worldMechanics.counter.setDescription}`
+                        : worldMechanics.counter.setLabel || "Set Number"
+                    }
+                    onClick={onSelectSetCounter}
+                  >
+                    {worldMechanics.counter.setLabel || "Set Number"}
+                  </button>
+                </div>
+              )}
 
-          <div className="world-details-form">
-            <label>World Name</label>
-            <input
-              value={worldDetails.name}
-              placeholder="e.g. Elemental Chess"
-              onChange={(event) =>
-                onWorldDetailsChange("name", event.target.value)
-              }
-            />
+              <button
+                className={
+                  selectedCounterAction === "clear"
+                    ? "counter-clear-btn active"
+                    : "counter-clear-btn"
+                }
+                title={`Clear ${worldMechanics.counter.name}`}
+                onClick={onSelectClearCounter}
+              >
+                Clear Counter
+              </button>
+            </section>
+          )}
 
-            <label>World Description</label>
-            <textarea
-              value={worldDetails.description}
-              maxLength={180}
-              placeholder="Briefly describe this world."
-              onChange={(event) =>
-                onWorldDetailsChange("description", event.target.value)
-              }
-            />
+          {worldFeatures.conditions && (
+            <section className="panel-box">
+              <h2>Conditions</h2>
 
-            <div className="field-counter">
-              {worldDetails.description.length}/180
-            </div>
+              <div className="compact-palette">
+                {worldMechanics.conditions.map((condition) => (
+                  <button
+                    key={condition.key}
+                    className={
+                      selectedConditionAction === "toggle" &&
+                        selectedCondition === condition.key
+                        ? "condition-tool-btn active"
+                        : "condition-tool-btn"
+                    }
+                    title={
+                      condition.description
+                        ? `${condition.label}: ${condition.description}`
+                        : condition.label
+                    }
+                    onClick={() => onSelectCondition(condition.key)}
+                  >
+                    {condition.icon}
+                  </button>
+                ))}
+              </div>
 
-            <label>Rules Summary / Creator Notes</label>
-            <textarea
-              value={worldDetails.rulesNotes}
-              placeholder="Write the main custom rules or reminders."
-              onChange={(event) =>
-                onWorldDetailsChange("rulesNotes", event.target.value)
-              }
-            />
-          </div>
-        </details>
+              <button
+                className={
+                  selectedConditionAction === "clear"
+                    ? "condition-clear-btn active"
+                    : "condition-clear-btn"
+                }
+                onClick={onSelectClearConditions}
+              >
+                Clear Conditions
+              </button>
+            </section>
+          )}
+        </div>
+      </section>
 
-        <details>
-          <summary>World Features</summary>
+      <section className="sidebar-major-section">
+        <h2 className="sidebar-major-title">World Editors</h2>
 
-          <FeatureToggleEditor
-            worldFeatures={worldFeatures}
-            onToggleWorldFeature={onToggleWorldFeature}
-          />
-        </details>
+        <div className="sidebar-major-content editor-section-content">
 
-        <details>
-          <summary>Theme Images</summary>
+          {worldFeatures.terrains && (
+            <details>
+              <summary>Terrain Editor</summary>
 
-          <ThemeEditor
-            worldTheme={worldTheme}
-            onThemeChange={onThemeChange}
-          />
-        </details>
+              <TerrainEditor
+                terrains={worldMechanics.terrains}
+                onTerrainListChange={onTerrainListChange}
+              />
+            </details>
+          )}
 
-        {worldFeatures.terrains && (
-          <details>
-            <summary>Terrain Editor</summary>
+          {worldFeatures.counters && (
+            <details>
+              <summary>Counter Editor</summary>
 
-            <TerrainEditor
-              terrains={worldMechanics.terrains}
-              onTerrainListChange={onTerrainListChange}
-            />
-          </details>
-        )}
+              <CounterEditor
+                counter={worldMechanics.counter}
+                onCounterSettingsChange={onCounterSettingsChange}
+              />
+            </details>
+          )}
 
-        {worldFeatures.counters && (
-          <details>
-            <summary>Counter Editor</summary>
+          {worldFeatures.conditions && (
+            <details>
+              <summary>Condition Editor</summary>
 
-            <CounterEditor
-              counter={worldMechanics.counter}
-              onCounterSettingsChange={onCounterSettingsChange}
-            />
-          </details>
-        )}
+              <ConditionEditor
+                conditions={worldMechanics.conditions}
+                onConditionListChange={onConditionListChange}
+              />
+            </details>
+          )}
 
-        {worldFeatures.conditions && (
-          <details>
-            <summary>Condition Editor</summary>
+          {worldFeatures.characters && (
+            <details>
+              <summary>Character Editor</summary>
 
-            <ConditionEditor
-              conditions={worldMechanics.conditions}
-              onConditionListChange={onConditionListChange}
-            />
-          </details>
-        )}
+              <CharacterEditor
+                characterLibrary={characterLibrary}
+                characterUploadStatus={characterUploadStatus}
+                onSaveCharacter={onSaveCharacter}
+                onCharacterCsvUpload={onCharacterCsvUpload}
+              />
+            </details>
+          )}
 
-        {worldFeatures.characters && (
-          <details>
-            <summary>Character Editor</summary>
+          {worldFeatures.worldTokens && (
+            <details>
+              <summary>Token Editor</summary>
 
-            <CharacterEditor
-              characterLibrary={characterLibrary}
-              characterUploadStatus={characterUploadStatus}
-              onSaveCharacter={onSaveCharacter}
-              onCharacterCsvUpload={onCharacterCsvUpload}
-            />
-          </details>
-        )}
-
-        {worldFeatures.worldTokens && (
-          <details>
-            <summary>Token Editor</summary>
-
-            <TokenEditor
-              worldTokens={worldTokens}
-              onAddWorldToken={onAddWorldToken}
-              onDeleteWorldToken={onDeleteWorldToken}
-            />
-          </details>
-        )}
+              <TokenEditor
+                worldTokens={worldTokens}
+                onAddWorldToken={onAddWorldToken}
+                onDeleteWorldToken={onDeleteWorldToken}
+              />
+            </details>
+          )}
+        </div>
       </section>
     </aside>
   );

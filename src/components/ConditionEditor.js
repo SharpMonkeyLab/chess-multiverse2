@@ -7,12 +7,12 @@ export default function ConditionEditor({ conditions, onConditionListChange }) {
     const nextConditions = conditions.map((condition, conditionIndex) =>
       conditionIndex === index
         ? {
-            ...condition,
-            [field]: value,
-            ...(field === "label"
-              ? { key: makeKeyFromLabel(value) || condition.key }
-              : {})
-          }
+          ...condition,
+          [field]: value,
+          ...(field === "label"
+            ? { key: makeKeyFromLabel(value) || condition.key }
+            : {})
+        }
         : condition
     );
 
@@ -28,6 +28,7 @@ export default function ConditionEditor({ conditions, onConditionListChange }) {
       {
         key,
         label,
+        description: "",
         icon: "✨"
       }
     ]);
@@ -62,6 +63,15 @@ export default function ConditionEditor({ conditions, onConditionListChange }) {
               value={condition.label}
               onChange={(event) =>
                 updateCondition(index, "label", event.target.value)
+              }
+            />
+
+            <label>Description</label>
+            <textarea
+              value={condition.description || ""}
+              placeholder="Explain what this condition means."
+              onChange={(event) =>
+                updateCondition(index, "description", event.target.value)
               }
             />
 
