@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { makeKeyFromLabel } from "@/lib/defaultWorld";
 
 function uploadImageFile(file, onLoad) {
@@ -15,137 +17,246 @@ function uploadImageFile(file, onLoad) {
   reader.readAsDataURL(file);
 }
 
+function createNewTerrain() {
+  const label = "New Terrain";
+  const key = `${makeKeyFromLabel(label)}-${Date.now()}`;
+
+  return {
+    key,
+    label,
+    description: "",
+    fillType: "color",
+    color: "#4b5563",
+    image: ""
+  };
+}
+
+function getTerrainTitle(terrain) {
+  const label = terrain.label || "Unnamed Terrain";
+  const description = terrain.description || "No description";
+
+  return `${label}: ${description}`;
+}
+
 export default function TerrainEditor({ terrains, onTerrainListChange }) {
-  function updateTerrain(index, field, value) {
-    const nextTerrains = terrains.map((terrain, terrainIndex) =>
-      terrainIndex === index
-        ? {
-          ...terrain,
-          [field]: value,
-          ...(field === "label"
-            ? { key: makeKeyFromLabel(value) || terrain.key }
-            : {})
-        }
-        : terrain
-    );
+  const terrainList = Array.isArray(terrains) ? terrains : [];
+
+  const [selectedTerrainKey, setSelectedTerrainKey] = useState(
+    terrainList[0]?.key || ""
+  );
+
+  const selectedTerrain =
+    terrainList.find((terrain) => terrain.key === selectedTerrainKey) ||
+    terrainList[0];
+
+  function updateTerrain(terrainKey, field, value) {
+    const nextTerrains = terrainList.map((terrain) => {
+      if (terrain.key !== terrainKey) return terrain;
+
+      return {
+        ...terrain,
+        [field]: value,
+        ...(field === "label"
+          ? { key: makeKeyFromLabel(value) || terrain.key }
+          : {})
+      };
+    });
 
     onTerrainListChange(nextTerrains);
+
+    if (field === "label") {
+      const nextKey = makeKeyFromLabel(value) || terrainKey;
+      setSelectedTerrainKey(nextKey);
+    }
   }
 
   function addTerrain() {
-    const label = "New Terrain";
-    const key = `${makeKeyFromLabel(label)}-${Date.now()}`;
+    const newTerrain = createNewTerrain();
 
-    onTerrainListChange([
-      ...terrains,
-      {
-        key,
-        label,
-        description: "",
-        fillType: "color",
-        color: "#4b5563",
-        image: ""
-      }
-    ]);
+    onTerrainListChange([...terrainList, newTerrain]);
+    setSelectedTerrainKey(newTerrain.key);
   }
 
-  function deleteTerrain(index) {
-    onTerrainListChange(
-      terrains.filter((terrain, terrainIndex) => terrainIndex !== index)
+  function deleteTerrain(terrainKey) {
+    const nextTerrains = terrainList.filter(
+      (terrain) => terrain.key !== terrainKey
     );
+
+    onTerrainListChange(nextTerrains);
+
+    setSelectedTerrainKey(nextTerrains[0]?.key || "");
+  }
+
+  function getTerrainPreviewStyle(terrain) {
+    return {
+      "--terrain-preview-color": terrain.color || "#4b5563",
+      "--terrain-preview-image":
+        terrain.fillType === "image" && terrain.image
+          ? `url("${terrain.image}")`
+          : "none"
+    };
   }
 
   return (
-    <div className="mechanic-editor">
-      <p className="small muted">
-        Create the terrain types available in this world.
-      </p>
+    <div className="terrain-creator">
+      <div className="creator-header-row">
+        <div>
+          <h3>Terrain Creator</h3>
+          <p className="small muted">
+            Create the terrain types available in this world.
+          </p>
+        </div>
 
-      <button type="button" onClick={addTerrain}>
-        + Add Terrain
-      </button>
-
-      <div className="mechanic-editor-list">
-        {terrains.map((terrain, index) => (
-          <div className="mechanic-editor-card" key={terrain.key}>
-            <div className="terrain-preview">
-              {terrain.fillType === "image" && terrain.image ? (
-                <img src={terrain.image} alt={terrain.label} />
-              ) : (
-                <span style={{ background: terrain.color }} />
-              )}
-            </div>
-
-            <label>Name</label>
-            <input
-              value={terrain.label || ""}
-              onChange={(event) =>
-                updateTerrain(index, "label", event.target.value)
-              }
-            />
-
-            <label>Description</label>
-            <textarea
-              value={terrain.description || ""}
-              placeholder="Explain what this terrain does or represents."
-              onChange={(event) =>
-                updateTerrain(index, "description", event.target.value)
-              }
-            />
-
-            <label>Fill Type</label>
-            <select
-              value={terrain.fillType || "color"}
-              onChange={(event) =>
-                updateTerrain(index, "fillType", event.target.value)
-              }
-            >
-              <option value="color">Colour</option>
-              <option value="image">Image</option>
-            </select>
-
-            {terrain.fillType === "color" ? (
-              <>
-                <label>Colour</label>
-                <input
-                  type="color"
-                  value={terrain.color || "#4b5563"}
-                  onChange={(event) =>
-                    updateTerrain(index, "color", event.target.value)
-                  }
-                />
-              </>
-            ) : (
-              <>
-                <label>Image</label>
-
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(event) =>
-                    uploadImageFile(event.target.files[0], (imageData) =>
-                      updateTerrain(index, "image", imageData)
-                    )
-                  }
-                />
-
-                {terrain.image && (
-                  <button
-                    type="button"
-                    onClick={() => updateTerrain(index, "image", "")}
-                  >
-                    Clear Terrain Image
-                  </button>
-                )}
-              </>
-            )}
-
-            <button type="button" onClick={() => deleteTerrain(index)}>
-              Delete Terrain
-            </button>
-          </div>
-        ))}
+        <button type="button" onClick={addTerrain}>
+          + Add Terrain
+        </button>
       </div>
+
+      <div className="terrain-gallery">
+        {terrainList.length === 0 ? (
+          <p className="small muted">No terrains yet.</p>
+        ) : (
+          terrainList.map((terrain) => {
+            const isSelected = selectedTerrain?.key === terrain.key;
+
+            return (
+              <div
+                key={terrain.key}
+                role="button"
+                tabIndex={0}
+                className={
+                  isSelected
+                    ? "terrain-gallery-card active"
+                    : "terrain-gallery-card"
+                }
+                title={getTerrainTitle(terrain)}
+                style={getTerrainPreviewStyle(terrain)}
+                onClick={() => setSelectedTerrainKey(terrain.key)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setSelectedTerrainKey(terrain.key);
+                  }
+                }}
+              >
+                <span className="terrain-gallery-preview" />
+
+                <button
+                  type="button"
+                  className="terrain-gallery-delete"
+                  title={`Delete ${terrain.label || "terrain"}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    deleteTerrain(terrain.key);
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {selectedTerrain && (
+        <div className="terrain-edit-form">
+          <h3>Edit Terrain</h3>
+
+          <div
+            className="terrain-edit-preview"
+            style={getTerrainPreviewStyle(selectedTerrain)}
+          >
+            <span />
+          </div>
+
+          <label>Name</label>
+          <input
+            value={selectedTerrain.label || ""}
+            placeholder="e.g. Forest"
+            onChange={(event) =>
+              updateTerrain(selectedTerrain.key, "label", event.target.value)
+            }
+          />
+
+          <label>Description</label>
+          <textarea
+            value={selectedTerrain.description || ""}
+            placeholder="Explain what this terrain does or represents."
+            onChange={(event) =>
+              updateTerrain(
+                selectedTerrain.key,
+                "description",
+                event.target.value
+              )
+            }
+          />
+
+          <label>Fill Type</label>
+          <select
+            value={selectedTerrain.fillType || "color"}
+            onChange={(event) =>
+              updateTerrain(
+                selectedTerrain.key,
+                "fillType",
+                event.target.value
+              )
+            }
+          >
+            <option value="color">Colour</option>
+            <option value="image">Image</option>
+          </select>
+
+          {selectedTerrain.fillType === "image" ? (
+            <>
+              <label>Image</label>
+
+              <input
+                key={`image-input-${selectedTerrain.key}`}
+                type="file"
+                accept="image/*"
+                onChange={(event) => {
+                  uploadImageFile(event.target.files[0], (imageData) =>
+                    updateTerrain(selectedTerrain.key, "image", imageData)
+                  );
+
+                  event.target.value = "";
+                }}
+              />
+
+              {selectedTerrain.image && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateTerrain(selectedTerrain.key, "image", "")
+                  }
+                >
+                  Clear Terrain Image
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <label>Colour</label>
+              <input
+                key={`color-input-${selectedTerrain.key}`}
+                type="color"
+                value={selectedTerrain.color || "#4b5563"}
+                onChange={(event) =>
+                  updateTerrain(selectedTerrain.key, "color", event.target.value)
+                }
+              />
+            </>
+          )}
+
+          <button
+            type="button"
+            className="danger-button"
+            onClick={() => deleteTerrain(selectedTerrain.key)}
+          >
+            Delete Terrain
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,101 +1,305 @@
 "use client";
 
-export default function CounterEditor({ counter, onCounterSettingsChange }) {
-  function updateCounter(field, value) {
-    onCounterSettingsChange({
-      ...counter,
-      [field]: value
+import { useState } from "react";
+
+import { createCounterKey } from "@/lib/defaultWorld";
+
+function createNewCounter() {
+  const label = "New Counter";
+
+  return {
+    key: `${createCounterKey(label)}-${Date.now()}`,
+    label,
+    description: "",
+    color: "#e7c97a",
+    decreaseLabel: "-1",
+    increaseLabel: "+1",
+
+    allowSetCounter: false,
+    setLabel: "Set",
+    setDescription: "",
+    initialValue: 0
+  };
+}
+
+function getCounterList(counterSettings) {
+  if (Array.isArray(counterSettings)) return counterSettings;
+
+  if (counterSettings) {
+    return [
+      {
+        key: "main-counter",
+        label: counterSettings.name || "Counter",
+        description: counterSettings.description || "",
+        color: "#e7c97a",
+        decreaseLabel: counterSettings.decreaseLabel || "-1",
+        increaseLabel: counterSettings.increaseLabel || "+1",
+        allowSetCounter: Boolean(counterSettings.allowSetCounter),
+        setLabel: counterSettings.setLabel || "Set",
+        setDescription: counterSettings.setDescription || "",
+        initialValue: Number(counterSettings.initialValue || 0)
+      }
+    ];
+  }
+
+  return [];
+}
+
+export default function CounterEditor({
+  counter,
+  counters,
+  onCounterSettingsChange,
+  onCounterListChange
+}) {
+  const counterList = getCounterList(counters || counter);
+
+  const [selectedCounterKey, setSelectedCounterKey] = useState(
+    counterList[0]?.key || ""
+  );
+
+  const selectedCounter =
+    counterList.find((item) => item.key === selectedCounterKey) ||
+    counterList[0];
+
+  function updateCounter(counterKey, field, value) {
+    const nextCounters = counterList.map((item) => {
+      if (item.key !== counterKey) return item;
+
+      return {
+        ...item,
+        [field]: value
+      };
     });
+
+    if (onCounterListChange) {
+      onCounterListChange(nextCounters);
+      return;
+    }
+
+    if (onCounterSettingsChange) {
+      onCounterSettingsChange(nextCounters);
+    }
+  }
+
+  function addCounter() {
+    const newCounter = createNewCounter();
+    const nextCounters = [...counterList, newCounter];
+
+    if (onCounterListChange) {
+      onCounterListChange(nextCounters);
+    } else {
+      onCounterSettingsChange(nextCounters);
+    }
+
+    setSelectedCounterKey(newCounter.key);
+  }
+
+  function deleteCounter(counterKey) {
+    const nextCounters = counterList.filter(
+      (item) => item.key !== counterKey
+    );
+
+    if (onCounterListChange) {
+      onCounterListChange(nextCounters);
+    } else {
+      onCounterSettingsChange(nextCounters);
+    }
+
+    setSelectedCounterKey(nextCounters[0]?.key || "");
   }
 
   return (
-    <div className="mechanic-editor">
-      <p className="small muted">
-        Define what the main number counter means in this world.
-      </p>
+    <div className="counter-creator">
+      <div className="creator-header-row">
+        <div>
+          <h3>Counter Creator</h3>
+          <p className="small muted">
+            Create coloured counter types for this world.
+          </p>
+        </div>
 
-      <div className="counter-editor-preview">
-        <button type="button">{counter.decreaseLabel}</button>
-        <button type="button">{counter.increaseLabel}</button>
-        <button type="button">Clear Counter</button>
+        <button type="button" onClick={addCounter}>
+          + Add Counter
+        </button>
+      </div>
 
-        {counter.allowSetCounter && (
-          <button type="button">{counter.setLabel || "Set Number"}</button>
+      <div className="counter-gallery">
+        {counterList.length === 0 ? (
+          <p className="small muted">No counters yet.</p>
+        ) : (
+          counterList.map((item) => {
+            const isSelected = selectedCounter?.key === item.key;
+
+            return (
+              <div
+                key={item.key}
+                role="button"
+                tabIndex={0}
+                className={
+                  isSelected
+                    ? "counter-gallery-card active"
+                    : "counter-gallery-card"
+                }
+                title={
+                  item.description
+                    ? `${item.label}: ${item.description}`
+                    : item.label
+                }
+                onClick={() => setSelectedCounterKey(item.key)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setSelectedCounterKey(item.key);
+                  }
+                }}
+              >
+                <span
+                  className="counter-gallery-dot"
+                  style={{ "--counter-preview-color": item.color || "#e7c97a" }}
+                />
+
+                <span className="counter-gallery-label">
+                  {item.label}
+                </span>
+
+                <button
+                  type="button"
+                  className="counter-gallery-delete"
+                  title={`Delete ${item.label || "counter"}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    deleteCounter(item.key);
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            );
+          })
         )}
       </div>
 
-      <label>Counter Name</label>
-      <input
-        value={counter.name}
-        placeholder="e.g. Level, HP, Damage"
-        onChange={(event) => updateCounter("name", event.target.value)}
-      />
+      {selectedCounter && (
+        <div className="counter-edit-form">
+          <h3>Edit Counter</h3>
 
-      <label>Counter Description</label>
-      <textarea
-        value={counter.description || ""}
-        placeholder="Explain what this counter represents."
-        onChange={(event) => updateCounter("description", event.target.value)}
-      />
+          <div
+            className="counter-edit-preview"
+            style={{
+              "--counter-preview-color": selectedCounter.color || "#e7c97a"
+            }}
+          >
+            {selectedCounter.label || "Counter"}
+          </div>
 
-      <label>Decrease Button Label</label>
-      <input
-        value={counter.decreaseLabel}
-        placeholder="e.g. -1, Damage, Level Down"
-        onChange={(event) =>
-          updateCounter("decreaseLabel", event.target.value)
-        }
-      />
-
-      <label>Increase Button Label</label>
-      <input
-        value={counter.increaseLabel}
-        placeholder="e.g. +1, Heal, Level Up"
-        onChange={(event) =>
-          updateCounter("increaseLabel", event.target.value)
-        }
-      />
-
-      <label className="checkbox-row">
-        <input
-          type="checkbox"
-          checked={Boolean(counter.allowSetCounter)}
-          onChange={(event) =>
-            updateCounter("allowSetCounter", event.target.checked)
-          }
-        />
-
-        <span>Allow Set Counter in tools</span>
-      </label>
-
-      {counter.allowSetCounter && (
-        <>
-          <label>Set Button Label</label>
+          <label>Name</label>
           <input
-            value={counter.setLabel || ""}
-            placeholder="e.g. Set Number, Set HP, Set Level"
-            onChange={(event) => updateCounter("setLabel", event.target.value)}
+            value={selectedCounter.label || ""}
+            placeholder="e.g. Chakra"
+            onChange={(event) =>
+              updateCounter(selectedCounter.key, "label", event.target.value)
+            }
           />
 
-          <label>Set Button Description</label>
+          <label>Description</label>
           <textarea
-            value={counter.setDescription || ""}
-            placeholder="Explain when this exact-value setting should be used."
+            value={selectedCounter.description || ""}
+            placeholder="Explain what this counter represents."
             onChange={(event) =>
-              updateCounter("setDescription", event.target.value)
+              updateCounter(
+                selectedCounter.key,
+                "description",
+                event.target.value
+              )
             }
           />
 
-          <label>Initial Set Value</label>
+          <label>Colour</label>
           <input
-            type="number"
-            value={counter.initialValue ?? ""}
-            placeholder="0"
+            type="color"
+            value={selectedCounter.color || "#e7c97a"}
             onChange={(event) =>
-              updateCounter("initialValue", event.target.value)
+              updateCounter(selectedCounter.key, "color", event.target.value)
             }
           />
-        </>
+
+          <label>Decrease Button Label</label>
+          <input
+            value={selectedCounter.decreaseLabel || "-1"}
+            onChange={(event) =>
+              updateCounter(
+                selectedCounter.key,
+                "decreaseLabel",
+                event.target.value
+              )
+            }
+          />
+
+          <label>Increase Button Label</label>
+          <input
+            value={selectedCounter.increaseLabel || "+1"}
+            onChange={(event) =>
+              updateCounter(
+                selectedCounter.key,
+                "increaseLabel",
+                event.target.value
+              )
+            }
+          />
+
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={Boolean(selectedCounter.allowSetCounter)}
+              onChange={(event) =>
+                updateCounter(
+                  selectedCounter.key,
+                  "allowSetCounter",
+                  event.target.checked
+                )
+              }
+            />
+
+            <span>Allow Set Counter in tools</span>
+          </label>
+
+          {selectedCounter.allowSetCounter && (
+            <>
+              <label>Set Button Label</label>
+              <input
+                value={selectedCounter.setLabel || "Set"}
+                onChange={(event) =>
+                  updateCounter(
+                    selectedCounter.key,
+                    "setLabel",
+                    event.target.value
+                  )
+                }
+              />
+
+              <label>Initial Value</label>
+              <input
+                type="number"
+                value={selectedCounter.initialValue ?? 0}
+                onChange={(event) =>
+                  updateCounter(
+                    selectedCounter.key,
+                    "initialValue",
+                    Number(event.target.value)
+                  )
+                }
+              />
+            </>
+          )}
+
+          <button
+            type="button"
+            className="danger-button"
+            onClick={() => deleteCounter(selectedCounter.key)}
+          >
+            Delete Counter
+          </button>
+        </div>
       )}
     </div>
   );

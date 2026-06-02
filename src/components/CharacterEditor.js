@@ -2,143 +2,126 @@
 
 import { useState } from "react";
 
-const emptyCharacterForm = {
-    name: "",
-    ability: "",
-    description: "",
-    cost: "",
-    tokens: "",
-    portrait: ""
-};
+function readImageFile(file, onLoad) {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return;
+
+    const reader = new FileReader();
+
+    reader.onload = function (event) {
+        onLoad(event.target.result);
+    };
+
+    reader.readAsDataURL(file);
+}
+
+function createEmptyCharacter() {
+    const timestamp = Date.now();
+
+    return {
+        id: `character-${timestamp}`,
+        name: "New Character",
+        abilityName: "New Ability",
+        abilityDescription: "",
+        portrait: ""
+    };
+}
+
+function getCharacterTitle(character) {
+    const name = character.name || "Unnamed Character";
+    const ability = character.abilityName || "No ability";
+
+    return `${name}: ${ability}`;
+}
+
+function getCharacterList(characterLibrary) {
+    return Array.isArray(characterLibrary)
+        ? characterLibrary
+        : Object.values(characterLibrary || {});
+}
 
 export default function CharacterEditor({
     characterLibrary,
     characterUploadStatus,
-    onSaveCharacter,
+    onCharacterLibraryChange,
     onCharacterCsvUpload
 }) {
-    const [form, setForm] = useState(emptyCharacterForm);
+    const characterList = getCharacterList(characterLibrary);
 
-    const characterCount = Object.keys(characterLibrary).length;
+    const [selectedCharacterId, setSelectedCharacterId] = useState(
+        characterList[0]?.id || characterList[0]?.name || ""
+    );
 
-    function updateForm(field, value) {
-        setForm((currentForm) => ({
-            ...currentForm,
-            [field]: value
-        }));
+    const selectedCharacter =
+        characterList.find(
+            (character) =>
+                character.id === selectedCharacterId ||
+                character.name === selectedCharacterId
+        ) || characterList[0];
+
+    function updateCharacter(characterId, field, value) {
+        const nextCharacters = characterList.map((character) => {
+            const isMatch =
+                character.id === characterId || character.name === characterId;
+
+            if (!isMatch) return character;
+
+            return {
+                ...character,
+                [field]: value
+            };
+        });
+
+        onCharacterLibraryChange(nextCharacters);
+    }
+
+    function addCharacter() {
+        const newCharacter = createEmptyCharacter();
+
+        onCharacterLibraryChange([...characterList, newCharacter]);
+        setSelectedCharacterId(newCharacter.id);
+    }
+
+    function deleteCharacter(characterId) {
+        const nextCharacters = characterList.filter(
+            (character) =>
+                character.id !== characterId && character.name !== characterId
+        );
+
+        onCharacterLibraryChange(nextCharacters);
+
+        const nextSelectedCharacter = nextCharacters[0];
+
+        setSelectedCharacterId(
+            nextSelectedCharacter?.id || nextSelectedCharacter?.name || ""
+        );
     }
 
     function handlePortraitUpload(file) {
-        if (!file) return;
-        if (!file.type.startsWith("image/")) return;
+        if (!selectedCharacter) return;
 
-        const reader = new FileReader();
-
-        reader.onload = function (event) {
-            updateForm("portrait", event.target.result);
-        };
-
-        reader.readAsDataURL(file);
-    }
-
-    function handleSave() {
-        const trimmedName = form.name.trim();
-
-        if (!trimmedName) return;
-
-        const character = {
-            name: trimmedName,
-            ability: form.ability.trim(),
-            description: form.description.trim(),
-            cost: form.cost.trim(),
-            portrait: form.portrait,
-            tokens: form.tokens
-                ? form.tokens.split("|").map((token) => token.trim()).filter(Boolean)
-                : []
-        };
-
-        onSaveCharacter(character);
-        setForm(emptyCharacterForm);
+        readImageFile(file, (imageData) => {
+            updateCharacter(
+                selectedCharacter.id || selectedCharacter.name,
+                "portrait",
+                imageData
+            );
+        });
     }
 
     return (
-        <div className="character-editor">
-            <p className="small muted">
-                Create characters manually. These characters become available in the Character Card picker.
-            </p>
-
-            <div className="character-editor-count">
-                {characterCount} character{characterCount === 1 ? "" : "s"} in this world.
-            </div>
-
-            <label>Character Name</label>
-            <input
-                value={form.name}
-                placeholder="e.g. Gravon"
-                onChange={(event) => updateForm("name", event.target.value)}
-            />
-
-            <label>Portrait</label>
-
-            <div className="character-portrait-editor">
-                <div className="character-portrait-preview">
-                    {form.portrait ? (
-                        <img src={form.portrait} alt="Character portrait preview" />
-                    ) : (
-                        <span>No portrait</span>
-                    )}
+        <div className="character-creator">
+            <div className="creator-header-row">
+                <div>
+                    <h3>Character Creator</h3>
+                    <p className="small muted">
+                        Create the characters available in this world.
+                    </p>
                 </div>
 
-                <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(event) => handlePortraitUpload(event.target.files[0])}
-                />
-
-                {form.portrait && (
-                    <button
-                        type="button"
-                        onClick={() => updateForm("portrait", "")}
-                    >
-                        Clear Portrait
-                    </button>
-                )}
-            </div>
-
-            <label>Ability Name</label>
-            <input
-                value={form.ability}
-                placeholder="e.g. Compact Form"
-                onChange={(event) => updateForm("ability", event.target.value)}
-            />
-
-            <label>Description</label>
-            <textarea
-                value={form.description}
-                placeholder="Describe what this ability does."
-                onChange={(event) => updateForm("description", event.target.value)}
-            />
-
-            <label>Cost</label>
-            <input
-                value={form.cost}
-                placeholder="e.g. 1, 2, Ultimate, Passive"
-                onChange={(event) => updateForm("cost", event.target.value)}
-            />
-
-            <label>Tokens</label>
-            <input
-                value={form.tokens}
-                placeholder="e.g. Space|Pressure"
-                onChange={(event) => updateForm("tokens", event.target.value)}
-            />
-
-            <button className="primary-button" type="button" onClick={handleSave}>
-                Save Character
-            </button>
-
-            <div className="character-import-divider">
-                <span>OR</span>
+                <button type="button" onClick={addCharacter}>
+                    + Add Character
+                </button>
             </div>
 
             <div className="character-import-box">
@@ -157,13 +140,166 @@ export default function CharacterEditor({
                 <input
                     type="file"
                     accept=".csv"
-                    onChange={(event) => onCharacterCsvUpload(event.target.files[0])}
+                    onChange={(event) => {
+                        onCharacterCsvUpload(event.target.files[0]);
+                        event.target.value = "";
+                    }}
                 />
 
                 <p className="small muted">
                     {characterUploadStatus}
                 </p>
             </div>
+
+            <div className="character-gallery">
+                {characterList.length === 0 ? (
+                    <p className="small muted">No characters yet.</p>
+                ) : (
+                    characterList.map((character) => {
+                        const characterId = character.id || character.name;
+                        const isSelected =
+                            selectedCharacter &&
+                            (selectedCharacter.id === characterId ||
+                                selectedCharacter.name === characterId);
+
+                        return (
+                            <div
+                                key={characterId}
+                                role="button"
+                                tabIndex={0}
+                                className={
+                                    isSelected
+                                        ? "character-gallery-card active"
+                                        : "character-gallery-card"
+                                }
+                                title={getCharacterTitle(character)}
+                                onClick={() => setSelectedCharacterId(characterId)}
+                                onKeyDown={(event) => {
+                                    if (event.key === "Enter" || event.key === " ") {
+                                        event.preventDefault();
+                                        setSelectedCharacterId(characterId);
+                                    }
+                                }}
+                            >
+                                <span className="character-gallery-portrait">
+                                    {character.portrait ? (
+                                        <img src={character.portrait} alt={character.name} />
+                                    ) : (
+                                        <span className="character-gallery-placeholder">
+                                            {(character.name || "?").charAt(0).toUpperCase()}
+                                        </span>
+                                    )}
+                                </span>
+
+                                <button
+                                    type="button"
+                                    className="character-gallery-delete"
+                                    title={`Delete ${character.name || "character"}`}
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        deleteCharacter(characterId);
+                                    }}
+                                >
+                                    ×
+                                </button>
+                            </div>
+                        );
+                    })
+                )}
+            </div>
+
+            {selectedCharacter && (
+                <div className="character-edit-form">
+                    <h3>Edit Character</h3>
+
+                    <div className="character-edit-preview">
+                        {selectedCharacter.portrait ? (
+                            <img
+                                src={selectedCharacter.portrait}
+                                alt={selectedCharacter.name}
+                            />
+                        ) : (
+                            <span>
+                                {(selectedCharacter.name || "?").charAt(0).toUpperCase()}
+                            </span>
+                        )}
+                    </div>
+
+                    <label>Name</label>
+                    <input
+                        value={selectedCharacter.name || ""}
+                        placeholder="e.g. Kakashi"
+                        onChange={(event) =>
+                            updateCharacter(
+                                selectedCharacter.id || selectedCharacter.name,
+                                "name",
+                                event.target.value
+                            )
+                        }
+                    />
+
+                    <label>Portrait</label>
+                    <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(event) => {
+                            handlePortraitUpload(event.target.files[0]);
+                            event.target.value = "";
+                        }}
+                    />
+
+                    {selectedCharacter.portrait && (
+                        <button
+                            type="button"
+                            onClick={() =>
+                                updateCharacter(
+                                    selectedCharacter.id || selectedCharacter.name,
+                                    "portrait",
+                                    ""
+                                )
+                            }
+                        >
+                            Clear Portrait
+                        </button>
+                    )}
+
+                    <label>Ability Name</label>
+                    <input
+                        value={selectedCharacter.abilityName || ""}
+                        placeholder="e.g. Lightning Blade"
+                        onChange={(event) =>
+                            updateCharacter(
+                                selectedCharacter.id || selectedCharacter.name,
+                                "abilityName",
+                                event.target.value
+                            )
+                        }
+                    />
+
+                    <label>Ability Description</label>
+                    <textarea
+                        value={selectedCharacter.abilityDescription || ""}
+                        placeholder="Describe what this character can do."
+                        onChange={(event) =>
+                            updateCharacter(
+                                selectedCharacter.id || selectedCharacter.name,
+                                "abilityDescription",
+                                event.target.value
+                            )
+                        }
+                    />
+
+                    <button
+                        type="button"
+                        className="danger-button"
+                        onClick={() =>
+                            deleteCharacter(selectedCharacter.id || selectedCharacter.name)
+                        }
+                    >
+                        Delete Character
+                    </button>
+                </div>
+            )}
         </div>
     );
 }

@@ -1,9 +1,10 @@
 "use client";
 
-import { DEFAULT_PIECES, getPieceSymbol } from "@/lib/defaultWorld";
 import {
   DEFAULT_BACKGROUND_IMAGE,
-  DEFAULT_BOARD_SKIN_IMAGE
+  DEFAULT_BOARD_SKIN_IMAGE,
+  DEFAULT_PIECES,
+  getPieceSymbol
 } from "@/lib/defaultWorld";
 
 function readImageFile(file, onLoad) {
@@ -146,13 +147,13 @@ export default function ThemeEditor({
       </p>
 
       <ImageUploadBox
-        title="Board Skin"
-        description="Square image containing board border and tiles."
-        image={worldTheme.boardSkinImage}
-        uploadLabel="Upload Board Skin"
-        clearLabel="Reset Board Skin"
-        onUpload={(imageData) => onThemeChange("boardSkinImage", imageData)}
-        onClear={() => onThemeChange("boardSkinImage", DEFAULT_BOARD_SKIN_IMAGE)}
+        title="Stage Background"
+        description="Fills the whole editor background."
+        image={worldTheme.backgroundImage}
+        uploadLabel="Upload Background"
+        clearLabel="Reset Background"
+        onUpload={(imageData) => onThemeChange("backgroundImage", imageData)}
+        onClear={() => onThemeChange("backgroundImage", DEFAULT_BACKGROUND_IMAGE)}
       />
 
       <ImageUploadBox

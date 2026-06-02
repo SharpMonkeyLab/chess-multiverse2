@@ -1,95 +1,120 @@
-export function normalizeName(name) {
-    return name.trim().toLowerCase();
+export function normalizeName(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase();
 }
 
-export function parseCSV(text) {
-    const rows = [];
-    let currentRow = [];
-    let currentValue = "";
-    let insideQuotes = false;
+function splitCsvLine(line) {
+  const values = [];
+  let currentValue = "";
+  let insideQuotes = false;
 
-    for (let i = 0; i < text.length; i++) {
-        const char = text[i];
-        const nextChar = text[i + 1];
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index];
+    const nextCharacter = line[index + 1];
 
-        if (char === '"' && insideQuotes && nextChar === '"') {
-            currentValue += '"';
-            i++;
-        } else if (char === '"') {
-            insideQuotes = !insideQuotes;
-        } else if (char === "," && !insideQuotes) {
-            currentRow.push(currentValue.trim());
-            currentValue = "";
-        } else if ((char === "\n" || char === "\r") && !insideQuotes) {
-            if (currentValue || currentRow.length > 0) {
-                currentRow.push(currentValue.trim());
-                rows.push(currentRow);
-                currentRow = [];
-                currentValue = "";
-            }
-
-            if (char === "\r" && nextChar === "\n") {
-                i++;
-            }
-        } else {
-            currentValue += char;
-        }
+    if (character === '"' && nextCharacter === '"') {
+      currentValue += '"';
+      index += 1;
+      continue;
     }
 
-    if (currentValue || currentRow.length > 0) {
-        currentRow.push(currentValue.trim());
-        rows.push(currentRow);
+    if (character === '"') {
+      insideQuotes = !insideQuotes;
+      continue;
     }
 
-    return rows;
+    if (character === "," && !insideQuotes) {
+      values.push(currentValue.trim());
+      currentValue = "";
+      continue;
+    }
+
+    currentValue += character;
+  }
+
+  values.push(currentValue.trim());
+
+  return values;
+}
+
+function parseCsv(text) {
+  const lines = String(text || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0) return [];
+
+  const headers = splitCsvLine(lines[0]).map((header) =>
+    normalizeName(header)
+  );
+
+  return lines.slice(1).map((line) => {
+    const values = splitCsvLine(line);
+    const row = {};
+
+    headers.forEach((header, index) => {
+      row[header] = values[index] || "";
+    });
+
+    return row;
+  });
+}
+
+function parseTokens(value) {
+  if (!value) return [];
+
+  return String(value)
+    .split(/[|;,]/)
+    .map((token) => token.trim())
+    .filter(Boolean);
 }
 
 export function buildCharacterLibraryFromCSV(csvText) {
-    const rows = parseCSV(csvText);
+  const rows = parseCsv(csvText);
 
-    if (rows.length < 2) {
-        return {};
-    }
+  return rows
+    .map((row, index) => {
+      const name = row.character || row.name || `Character ${index + 1}`;
+      const abilityName = row.ability || row.abilityname || "";
+      const abilityDescription =
+        row.description ||
+        row.abilitydescription ||
+        row["ability description"] ||
+        "";
 
-    const headers = rows[0].map((header) => normalizeName(header));
+      return {
+        id: `character-${normalizeName(name) || index}`,
+        name,
+        character: name,
 
-    const characterIndex = headers.indexOf("character");
-    const abilityIndex = headers.indexOf("ability");
-    const descriptionIndex = headers.indexOf("description");
-    const costIndex = headers.indexOf("cost");
-    const portraitIndex = headers.indexOf("portrait");
-    const tokensIndex = headers.indexOf("tokens");
+        ability: abilityName,
+        abilityName,
 
-    if (characterIndex === -1 || abilityIndex === -1 || descriptionIndex === -1) {
-        return {};
-    }
+        description: abilityDescription,
+        abilityDescription,
 
-    const characterLibrary = {};
-
-    rows.slice(1).forEach((row) => {
-        const characterName = row[characterIndex]?.trim();
-
-        if (!characterName) return;
-
-        const tokenText = tokensIndex !== -1 ? row[tokensIndex]?.trim() || "" : "";
-
-        characterLibrary[normalizeName(characterName)] = {
-            name: characterName,
-            ability: row[abilityIndex]?.trim() || "",
-            description: row[descriptionIndex]?.trim() || "",
-            cost: costIndex !== -1 ? row[costIndex]?.trim() || "" : "",
-            portrait: portraitIndex !== -1 ? row[portraitIndex]?.trim() || "" : "",
-            tokens: tokenText
-                ? tokenText.split("|").map((token) => token.trim()).filter(Boolean)
-                : []
-        };
-    });
-
-    return characterLibrary;
+        cost: row.cost || "",
+        portrait: row.portrait || "",
+        tokens: parseTokens(row.tokens)
+      };
+    })
+    .filter((character) => character.name);
 }
 
 export function getCharacterByName(characterLibrary, characterName) {
-    if (!characterName) return null;
+  if (!characterName) return null;
 
-    return characterLibrary[normalizeName(characterName)] || null;
+  const characterList = Array.isArray(characterLibrary)
+    ? characterLibrary
+    : Object.values(characterLibrary || {});
+
+  const normalizedName = normalizeName(characterName);
+
+  return (
+    characterList.find(
+      (character) => normalizeName(character.name) === normalizedName
+    ) || null
+  );
 }

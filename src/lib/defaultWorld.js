@@ -138,6 +138,22 @@ export const DEFAULT_WORLD_MECHANICS = {
     }
   ],
 
+  counters: [
+    {
+      key: "main-counter",
+      label: "Counter",
+      description: "A general number marker placed on pieces or tokens.",
+      color: "#e7c97a",
+      decreaseLabel: "-1",
+      increaseLabel: "+1",
+
+      allowSetCounter: false,
+      setLabel: "Set Number",
+      setDescription: "Set the counter to an exact value.",
+      initialValue: 0
+    }
+  ],
+
   counter: {
     name: "Counter",
     description: "A general number marker placed on pieces or tokens.",
@@ -243,6 +259,41 @@ export function makeKeyFromLabel(label) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+export function createCounterKey(label) {
+  return makeKeyFromLabel(label) || `counter-${Date.now()}`;
+}
+
+export function getCounterListFromMechanics(worldMechanics) {
+  if (Array.isArray(worldMechanics?.counters)) {
+    return worldMechanics.counters;
+  }
+
+  if (worldMechanics?.counter) {
+    return [
+      {
+        key: "main-counter",
+        label: worldMechanics.counter.name || "Counter",
+        description: worldMechanics.counter.description || "",
+        color: "#e7c97a",
+        decreaseLabel: worldMechanics.counter.decreaseLabel || "-1",
+        increaseLabel: worldMechanics.counter.increaseLabel || "+1",
+        allowSetCounter: Boolean(worldMechanics.counter.allowSetCounter),
+        setLabel: worldMechanics.counter.setLabel || "Set Number",
+        setDescription: worldMechanics.counter.setDescription || "",
+        initialValue: Number(worldMechanics.counter.initialValue || 0)
+      }
+    ];
+  }
+
+  return [];
+}
+
+export function getCounterDefinitionFromMechanics(worldMechanics, counterKey) {
+  return getCounterListFromMechanics(worldMechanics).find(
+    (counter) => counter.key === counterKey
+  );
 }
 
 export function getTerrainDefinitionFromMechanics(worldMechanics, terrainKey) {

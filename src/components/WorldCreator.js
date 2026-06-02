@@ -38,36 +38,67 @@ const MAX_CELL_HISTORY = 30;
 // HELPER FUNCTIONS
 // **************************************************************
 
-function updateCounterColor(cell) {
-  const value = Number(cell.counter || 0);
-
-  if (!cell.counter || value === 0) {
-    cell.counter = "";
-    cell.counterColor = "neutral";
-    return;
-  }
-
-  cell.counterColor = value > 0 ? "positive" : "negative";
+function getCellCounters(cell) {
+  return {
+    ...(cell.counters || {})
+  };
 }
 
-function adjustCounterOnCell(cell, delta) {
-  const currentValue = Number(cell.counter || 0);
-  const nextValue = currentValue + delta;
-
-  cell.counter = String(nextValue);
-  updateCounterColor(cell);
-}
-
-function setCounterOnCell(cell, value) {
+function cleanCounterValue(value) {
   const numberValue = Number(value);
 
-  if (!Number.isFinite(numberValue)) return;
+  if (!Number.isFinite(numberValue) || numberValue === 0) {
+    return null;
+  }
 
-  cell.counter = String(numberValue);
-  updateCounterColor(cell);
+  return numberValue;
 }
 
-function clearCounterOnCell(cell) {
+function adjustCounterOnCell(cell, counterKey, delta) {
+  if (!counterKey) return;
+
+  const counters = getCellCounters(cell);
+  const currentValue = Number(counters[counterKey] || 0);
+  const nextValue = cleanCounterValue(currentValue + delta);
+
+  if (nextValue === null) {
+    delete counters[counterKey];
+  } else {
+    counters[counterKey] = nextValue;
+  }
+
+  cell.counters = counters;
+}
+
+function setCounterOnCell(cell, counterKey, value) {
+  if (!counterKey) return;
+
+  const counters = getCellCounters(cell);
+  const nextValue = cleanCounterValue(value);
+
+  if (nextValue === null) {
+    delete counters[counterKey];
+  } else {
+    counters[counterKey] = nextValue;
+  }
+
+  cell.counters = counters;
+}
+
+function clearCounterOnCell(cell, counterKey) {
+  if (!counterKey) return;
+
+  const counters = getCellCounters(cell);
+
+  delete counters[counterKey];
+
+  cell.counters = counters;
+}
+
+function clearAllCountersOnCell(cell) {
+  cell.counters = {};
+
+  // Legacy cleanup
   cell.counter = "";
   cell.counterColor = "neutral";
 }
@@ -101,8 +132,11 @@ function clearConditionsOnCell(cell) {
 function cloneCell(cell) {
   return {
     ...cell,
-    conditions: [...cell.conditions],
-    tokens: [...cell.tokens]
+    conditions: [...(cell.conditions || [])],
+    tokens: [...(cell.tokens || [])],
+    counters: {
+      ...(cell.counters || {})
+    }
   };
 }
 
@@ -212,6 +246,7 @@ export default function WorldCreator() {
   const [selectedPiece, setSelectedPiece] = useState(null);
   const [selectedToken, setSelectedToken] = useState(null);
 
+  const [selectedCounterKey, setSelectedCounterKey] = useState("main-counter");
   const [selectedCounterDelta, setSelectedCounterDelta] = useState(null);
   const [selectedCounterAction, setSelectedCounterAction] = useState(null);
   const [counterSetValue, setCounterSetValue] = useState("3");
@@ -465,6 +500,48 @@ export default function WorldCreator() {
     setMovingPiece(null);
   }
 
+  useEffect(() => {
+    function handleKeyboardShortcut(event) {
+      const tagName = event.target.tagName;
+
+      const isTyping =
+        tagName === "INPUT" ||
+        tagName === "TEXTAREA" ||
+        tagName === "SELECT";
+
+      if (isTyping) return;
+
+      const key = event.key.toLowerCase();
+
+      const isUndo = event.ctrlKey && key === "z";
+      const isRedo = event.ctrlKey && key === "y";
+      const isEscape = key === "escape";
+
+      if (isUndo) {
+        event.preventDefault();
+        handleUndo();
+        return;
+      }
+
+      if (isRedo) {
+        event.preventDefault();
+        handleRedo();
+        return;
+      }
+
+      if (isEscape) {
+        event.preventDefault();
+        clearAllSelections();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyboardShortcut);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyboardShortcut);
+    };
+  }, [cellHistory, cellFuture, cells]);
+
   function handleToggleWorldFeature(featureKey) {
     setWorldFeatures((currentFeatures) => ({
       ...currentFeatures,
@@ -517,10 +594,10 @@ export default function WorldCreator() {
     }));
   }
 
-  function handleCounterSettingsChange(nextCounter) {
+  function handleCounterSettingsChange(nextCounters) {
     setWorldMechanics((currentMechanics) => ({
       ...currentMechanics,
-      counter: nextCounter
+      counters: Array.isArray(nextCounters) ? nextCounters : currentMechanics.counters
     }));
   }
 
@@ -538,37 +615,58 @@ export default function WorldCreator() {
     setMovingPiece(null);
   }
 
-  function handleSelectCounterDelta(delta) {
-    if (!worldFeatures.counters) return;
-
+  function handleSelectCounterDelta(counterKey, delta) {
+    setSelectedCounterKey(counterKey);
     setSelectedCounterDelta(delta);
     setSelectedCounterAction("adjust");
 
-    clearConditionSelections();
-    clearTerrainSelections();
-    clearPlacementSelections();
+    setSelectedTeam(null);
+    setSelectedPiece(null);
+    setSelectedToken(null);
+
+    setSelectedCondition(null);
+    setSelectedConditionAction(null);
+
+    setSelectedTerrain(null);
+    setSelectedTerrainAction(null);
+
+    setMovingPiece(null);
   }
 
-  function handleSelectSetCounter() {
-    if (!worldFeatures.counters) return;
-
-    setSelectedCounterDelta(null);
+  function handleSelectSetCounter(counterKey) {
+    setSelectedCounterKey(counterKey);
     setSelectedCounterAction("set");
+    setSelectedCounterDelta(null);
 
-    clearConditionSelections();
-    clearTerrainSelections();
-    clearPlacementSelections();
+    setSelectedTeam(null);
+    setSelectedPiece(null);
+    setSelectedToken(null);
+
+    setSelectedCondition(null);
+    setSelectedConditionAction(null);
+
+    setSelectedTerrain(null);
+    setSelectedTerrainAction(null);
+
+    setMovingPiece(null);
   }
 
-  function handleSelectClearCounter() {
-    if (!worldFeatures.counters) return;
-
-    setSelectedCounterDelta(null);
+  function handleSelectClearCounter(counterKey) {
+    setSelectedCounterKey(counterKey);
     setSelectedCounterAction("clear");
+    setSelectedCounterDelta(null);
 
-    clearConditionSelections();
-    clearTerrainSelections();
-    clearPlacementSelections();
+    setSelectedTeam(null);
+    setSelectedPiece(null);
+    setSelectedToken(null);
+
+    setSelectedCondition(null);
+    setSelectedConditionAction(null);
+
+    setSelectedTerrain(null);
+    setSelectedTerrainAction(null);
+
+    setMovingPiece(null);
   }
 
   function handleSelectCondition(conditionKey) {
@@ -870,7 +968,11 @@ export default function WorldCreator() {
 
         if (!cellHasOccupant(targetCell)) return nextCells;
 
-        adjustCounterOnCell(targetCell, selectedCounterDelta);
+        adjustCounterOnCell(
+          targetCell,
+          selectedCounterKey,
+          selectedCounterDelta
+        );
 
         return nextCells;
       });
@@ -890,7 +992,11 @@ export default function WorldCreator() {
 
         if (!cellHasOccupant(targetCell)) return nextCells;
 
-        setCounterOnCell(targetCell, counterSetValue);
+        setCounterOnCell(
+          targetCell,
+          selectedCounterKey,
+          counterSetValue
+        );
 
         return nextCells;
       });
@@ -909,7 +1015,7 @@ export default function WorldCreator() {
 
         if (!cellHasOccupant(targetCell)) return nextCells;
 
-        clearCounterOnCell(targetCell);
+        clearCounterOnCell(targetCell, selectedCounterKey);
 
         return nextCells;
       });
@@ -1282,6 +1388,8 @@ export default function WorldCreator() {
               worldFeatures={worldFeatures}
               worldMechanics={worldMechanics}
 
+              onClearSelections={clearAllSelections}
+
               onWorldDetailsChange={handleWorldDetailsChange}
               onThemeChange={handleThemeChange}
               onPieceSkinChange={handlePieceSkinChange}
@@ -1293,9 +1401,11 @@ export default function WorldCreator() {
               onConditionListChange={handleConditionListChange}
 
               characterLibrary={characterLibrary}
+              onCharacterLibraryChange={setCharacterLibrary}
               characterUploadStatus={characterUploadStatus}
               worldTokens={worldTokens}
 
+              selectedCounterKey={selectedCounterKey}
               selectedCounterDelta={selectedCounterDelta}
               selectedCounterAction={selectedCounterAction}
               counterSetValue={counterSetValue}
@@ -1346,6 +1456,7 @@ export default function WorldCreator() {
               activePiece={activePiece}
               pieceNames={pieceNames}
               pieceNameLocked={pieceNameLocked}
+              onClearSelections={clearAllSelections}
               onSelectPiece={handleSelectPiece}
               onSelectToken={handleSelectToken}
               onNameChange={handleNameChange}

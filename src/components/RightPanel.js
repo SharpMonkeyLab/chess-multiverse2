@@ -124,6 +124,7 @@ export default function RightPanel({
   activePiece,
   pieceNames,
   pieceNameLocked,
+  onClearSelections,
   onSelectPiece,
   onSelectToken,
   onNameChange,
@@ -136,7 +137,18 @@ export default function RightPanel({
   onRedo
 }) {
   return (
-    <aside className="right-panel">
+    <aside
+      className="right-panel"
+      onClick={(event) => {
+        const clickedInteractiveElement = event.target.closest(
+          "button, input, select, textarea, label, summary, a, [role='button']"
+        );
+
+        if (clickedInteractiveElement) return;
+
+        onClearSelections();
+      }}
+    >
       <section className="panel-box board-controls-box">
         <button
           type="button"
@@ -183,14 +195,6 @@ export default function RightPanel({
         onSelectPiece={onSelectPiece}
       />
 
-      {worldFeatures.worldTokens && (
-        <TokenTray
-          worldTokens={worldTokens}
-          selectedToken={selectedToken}
-          onSelectToken={onSelectToken}
-        />
-      )}
-
       {worldFeatures?.characters && (
         <CharacterCard
           activePiece={activePiece}
@@ -203,6 +207,14 @@ export default function RightPanel({
           onLockName={onLockName}
           onUnlockName={onUnlockName}
           onAssignCharacter={onAssignCharacter}
+        />
+      )}
+
+      {worldFeatures.worldTokens && (
+        <TokenTray
+          worldTokens={worldTokens}
+          selectedToken={selectedToken}
+          onSelectToken={onSelectToken}
         />
       )}
     </aside>

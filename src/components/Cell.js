@@ -1,5 +1,6 @@
 import {
   GENERIC_TOKEN_SYMBOL,
+  getCounterDefinitionFromMechanics,
   getConditionDefinitionFromMechanics,
   getPieceSkin,
   getPieceSymbol,
@@ -44,6 +45,24 @@ export default function Cell({
           : "none"
     }
     : {};
+
+  const cellCounters = cellData.counters || {};
+
+  const visibleCounters = Object.entries(cellCounters)
+    .filter(([, value]) => Number(value) !== 0)
+    .map(([counterKey, value]) => {
+      const counterDefinition = getCounterDefinitionFromMechanics(
+        worldMechanics,
+        counterKey
+      );
+
+      return {
+        key: counterKey,
+        value,
+        label: counterDefinition?.label || "Counter",
+        color: counterDefinition?.color || "#e7c97a"
+      };
+    });
 
   const pieceSymbol =
     cellData.team && cellData.pieceType
@@ -141,11 +160,20 @@ export default function Cell({
         </div>
       )}
 
-      {cellData.counter && (
-        <div className={`cell-counter ${cellData.counterColor}`}>
-          {Number(cellData.counter) > 0
-            ? `+${cellData.counter}`
-            : cellData.counter}
+      {visibleCounters.length > 0 && (
+        <div className="cell-counter-stack">
+          {visibleCounters.map((counter) => (
+            <span
+              key={counter.key}
+              className="cell-counter"
+              style={{ "--cell-counter-color": counter.color }}
+              title={`${counter.label}: ${counter.value}`}
+            >
+              {Number(counter.value) > 0
+                ? `+${counter.value}`
+                : counter.value}
+            </span>
+          ))}
         </div>
       )}
 

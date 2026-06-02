@@ -1,3 +1,8 @@
+"use client";
+
+import { useState } from "react";
+
+import { getCounterListFromMechanics } from "@/lib/defaultWorld";
 import CharacterEditor from "./CharacterEditor";
 import TokenEditor from "./TokenEditor";
 import TerrainEditor from "./TerrainEditor";
@@ -10,6 +15,8 @@ export default function LeftSidebar({
   worldFeatures,
   worldMechanics,
 
+  onClearSelections,
+
   onWorldDetailsChange,
   onThemeChange,
   onPieceSkinChange,
@@ -21,12 +28,14 @@ export default function LeftSidebar({
   onConditionListChange,
 
   characterLibrary,
+  onCharacterLibraryChange,
   characterUploadStatus,
   worldTokens,
 
   selectedCounterDelta,
   selectedCounterAction,
   counterSetValue,
+  selectedCounterKey,
 
   selectedCondition,
   selectedConditionAction,
@@ -51,16 +60,60 @@ export default function LeftSidebar({
   onSelectClearTerrain,
   onApplyTerrainToWholeBoard,
 }) {
+
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const counterList = getCounterListFromMechanics(worldMechanics);
+
   return (
-    <aside className="sidebar">
+    <aside
+      className="sidebar"
+      onClick={(event) => {
+        const clickedInteractiveElement = event.target.closest(
+          "button, input, select, textarea, label, summary, a, [role='button']"
+        );
+
+        if (clickedInteractiveElement) return;
+
+        onClearSelections();
+      }}
+    >
       <header className="sidebar-title-row">
         <h1>Toolbox</h1>
-        <button className="shortcut-help-btn" type="button">?</button>
+        <button
+          className="shortcut-help-btn"
+          type="button"
+          onClick={() => setIsHelpOpen((current) => !current)}
+          aria-expanded={isHelpOpen}
+        >
+          ?
+        </button>
       </header>
 
       <p className="sidebar-description">
         Use play tools during testing, or edit the world systems below.
       </p>
+
+      {isHelpOpen && (
+        <section className="shortcut-help-panel">
+          <h2>Shortcuts</h2>
+
+          <div className="shortcut-help-group">
+            <h3>Tools</h3>
+            <p><kbd>Q W E R T Y</kbd> Terrain tools</p>
+            <p><kbd>A S D F G H</kbd> Counter tools</p>
+            <p><kbd>Z X C V B N</kbd> Condition tools</p>
+          </div>
+
+          <div className="shortcut-help-group">
+            <h3>Board Editing</h3>
+            <p><kbd>Shift</kbd> + click: keep placing selected item</p>
+            <p><kbd>Shift</kbd> + condition click: stack duplicate condition</p>
+            <p><kbd>Ctrl</kbd> + <kbd>Z</kbd>: undo</p>
+            <p><kbd>Ctrl</kbd> + <kbd>Y</kbd>: redo</p>
+            <p><kbd>Esc</kbd>: clear current selection</p>
+          </div>
+        </section>
+      )}
 
       <section className="sidebar-major-section">
         <h2 className="sidebar-major-title">Play Tools</h2>
@@ -83,7 +136,10 @@ export default function LeftSidebar({
                     }
                     style={{
                       "--terrain-color": terrain.color || "#4b5563",
-                      "--terrain-image": terrain.image ? `url("${terrain.image}")` : "none"
+                      "--terrain-image":
+                        terrain.fillType === "image" && terrain.image
+                          ? `url("${terrain.image}")`
+                          : "none"
                     }}
                     title={
                       terrain.description
@@ -119,46 +175,94 @@ export default function LeftSidebar({
           )}
 
           {worldFeatures.counters && (
-            <section className="panel-box">
-              <h2 title={worldMechanics.counter.description || worldMechanics.counter.name}>
-                {worldMechanics.counter.name}
-              </h2>
+            <section className="panel-box tool-panel-box counter-tool-panel">
+              <h2>Counters</h2>
 
-              <div className="compact-palette">
-                <button
-                  className={
-                    selectedCounterAction === "adjust" && selectedCounterDelta === -1
-                      ? "counter-tool-btn active"
-                      : "counter-tool-btn"
-                  }
-                  title={
-                    worldMechanics.counter.description
-                      ? `${worldMechanics.counter.name}: ${worldMechanics.counter.description}`
-                      : worldMechanics.counter.name
-                  }
-                  onClick={() => onSelectCounterDelta(-1)}
-                >
-                  {worldMechanics.counter.decreaseLabel}
-                </button>
+              <div className="counter-tool-list">
+                {counterList.map((counter) => (
+                  <div
+                    key={counter.key}
+                    className="counter-tool-row"
+                    title={
+                      counter.description
+                        ? `${counter.label}: ${counter.description}`
+                        : counter.label
+                    }
+                  >
+                    <div
+                      className="counter-tool-dot"
+                      style={{ "--counter-tool-color": counter.color || "#e7c97a" }}
+                    />
 
-                <button
-                  className={
-                    selectedCounterAction === "adjust" && selectedCounterDelta === 1
-                      ? "counter-tool-btn active"
-                      : "counter-tool-btn"
-                  }
-                  title={
-                    worldMechanics.counter.description
-                      ? `${worldMechanics.counter.name}: ${worldMechanics.counter.description}`
-                      : worldMechanics.counter.name
-                  }
-                  onClick={() => onSelectCounterDelta(1)}
-                >
-                  {worldMechanics.counter.increaseLabel}
-                </button>
+                    <div className="counter-tool-name">
+                      {counter.label}
+                    </div>
+
+                    <button
+                      type="button"
+                      className={
+                        selectedCounterKey === counter.key &&
+                          selectedCounterAction === "adjust" &&
+                          selectedCounterDelta === -1
+                          ? "counter-tool-btn active"
+                          : "counter-tool-btn"
+                      }
+                      onClick={() => onSelectCounterDelta(counter.key, -1)}
+                    >
+                      {counter.decreaseLabel || "-1"}
+                    </button>
+
+                    <button
+                      type="button"
+                      className={
+                        selectedCounterKey === counter.key &&
+                          selectedCounterAction === "adjust" &&
+                          selectedCounterDelta === 1
+                          ? "counter-tool-btn active"
+                          : "counter-tool-btn"
+                      }
+                      onClick={() => onSelectCounterDelta(counter.key, 1)}
+                    >
+                      {counter.increaseLabel || "+1"}
+                    </button>
+
+                    {counter.allowSetCounter && (
+                      <button
+                        type="button"
+                        className={
+                          selectedCounterKey === counter.key &&
+                            selectedCounterAction === "set"
+                            ? "counter-tool-btn active"
+                            : "counter-tool-btn"
+                        }
+                        title={
+                          counter.setDescription
+                            ? `${counter.setLabel || "Set"}: ${counter.setDescription}`
+                            : counter.setLabel || "Set"
+                        }
+                        onClick={() => onSelectSetCounter(counter.key)}
+                      >
+                        {counter.setLabel || "Set"}
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      className={
+                        selectedCounterKey === counter.key &&
+                          selectedCounterAction === "clear"
+                          ? "counter-clear-btn active"
+                          : "counter-clear-btn"
+                      }
+                      onClick={() => onSelectClearCounter(counter.key)}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                ))}
               </div>
 
-              {worldMechanics.counter.allowSetCounter && (
+              {counterList.some((counter) => counter.allowSetCounter) && (
                 <div className="counter-set-row">
                   <input
                     type="number"
@@ -166,36 +270,8 @@ export default function LeftSidebar({
                     onChange={(event) => onCounterSetValueChange(event.target.value)}
                     aria-label="Counter value"
                   />
-
-                  <button
-                    className={
-                      selectedCounterAction === "set"
-                        ? "counter-tool-btn active"
-                        : "counter-tool-btn"
-                    }
-                    title={
-                      worldMechanics.counter.setDescription
-                        ? `${worldMechanics.counter.setLabel || "Set Number"}: ${worldMechanics.counter.setDescription}`
-                        : worldMechanics.counter.setLabel || "Set Number"
-                    }
-                    onClick={onSelectSetCounter}
-                  >
-                    {worldMechanics.counter.setLabel || "Set Number"}
-                  </button>
                 </div>
               )}
-
-              <button
-                className={
-                  selectedCounterAction === "clear"
-                    ? "counter-clear-btn active"
-                    : "counter-clear-btn"
-                }
-                title={`Clear ${worldMechanics.counter.name}`}
-                onClick={onSelectClearCounter}
-              >
-                Clear Counter
-              </button>
             </section>
           )}
 
@@ -261,8 +337,11 @@ export default function LeftSidebar({
               <summary>Counter Editor</summary>
 
               <CounterEditor
+                counters={worldMechanics.counters}
                 counter={worldMechanics.counter}
-                onCounterSettingsChange={onCounterSettingsChange}
+                onCounterListChange={(nextCounters) =>
+                  onCounterSettingsChange(nextCounters)
+                }
               />
             </details>
           )}
@@ -280,20 +359,21 @@ export default function LeftSidebar({
 
           {worldFeatures.characters && (
             <details>
-              <summary>Character Editor</summary>
+              <summary>Character Creator</summary>
 
               <CharacterEditor
                 characterLibrary={characterLibrary}
                 characterUploadStatus={characterUploadStatus}
-                onSaveCharacter={onSaveCharacter}
+                onCharacterLibraryChange={onCharacterLibraryChange}
                 onCharacterCsvUpload={onCharacterCsvUpload}
+                onSaveCharacter={onSaveCharacter}
               />
             </details>
           )}
 
           {worldFeatures.worldTokens && (
             <details>
-              <summary>Token Editor</summary>
+              <summary>Token Creator</summary>
 
               <TokenEditor
                 worldTokens={worldTokens}

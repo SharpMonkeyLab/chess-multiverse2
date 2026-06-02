@@ -1,10 +1,36 @@
+"use client";
+
+import { useState } from "react";
+
 import {
   GENERIC_TOKEN_SYMBOL,
   getPieceDefinition,
   getPieceSymbol,
   humanizeTokenName
 } from "@/lib/defaultWorld";
+
 import { getCharacterByName } from "@/lib/csv";
+
+function getCharacterList(characterLibrary) {
+  return Array.isArray(characterLibrary)
+    ? characterLibrary
+    : Object.values(characterLibrary || {});
+}
+
+function getCharacterAbilityName(character) {
+  return character?.ability || character?.abilityName || "No ability name";
+}
+
+function getCharacterDescription(character) {
+  return character?.description || character?.abilityDescription || "";
+}
+
+function getCharacterTitle(character) {
+  const name = character?.name || "Unnamed Character";
+  const ability = getCharacterAbilityName(character);
+
+  return `${name}: ${ability}`;
+}
 
 export default function CharacterCard({
   activePiece,
@@ -18,6 +44,8 @@ export default function CharacterCard({
   onAssignCharacter,
   onSelectToken
 }) {
+  const [pickerView, setPickerView] = useState("grid");
+
   if (!activePiece) {
     return (
       <section className="panel-box character-card-box">
@@ -36,9 +64,11 @@ export default function CharacterCard({
   const pieceName = pieceNames[team][pieceKey];
   const isLocked = pieceNameLocked[team][pieceKey];
   const matchedCharacter = getCharacterByName(characterLibrary, pieceName);
+
   const abilityTokens = matchedCharacter?.tokens || [];
-  const characterOptions = Object.values(characterLibrary).sort((a, b) =>
-    a.name.localeCompare(b.name)
+
+  const characterOptions = getCharacterList(characterLibrary).sort((a, b) =>
+    (a.name || "").localeCompare(b.name || "")
   );
 
   return (
@@ -66,6 +96,7 @@ export default function CharacterCard({
           {isLocked ? (
             <button
               className="character-card-name-button"
+              type="button"
               onClick={() => onUnlockName(team, pieceKey)}
               title="Click to edit character name"
             >
@@ -84,6 +115,7 @@ export default function CharacterCard({
 
               <button
                 className="character-ok-btn"
+                type="button"
                 onClick={() => onLockName(team, pieceKey)}
               >
                 OK / Lock
@@ -107,10 +139,12 @@ export default function CharacterCard({
           </div>
         ) : (
           <>
-            <div className="ability-name">{matchedCharacter.ability}</div>
+            <div className="ability-name">
+              {getCharacterAbilityName(matchedCharacter)}
+            </div>
 
             <div className="ability-text">
-              {matchedCharacter.description}
+              {getCharacterDescription(matchedCharacter)}
             </div>
 
             {matchedCharacter.cost && (
@@ -149,36 +183,94 @@ export default function CharacterCard({
 
       {!isLocked && characterOptions.length > 0 && (
         <div className="character-picker">
-          <div className="character-picker-title">
-            Choose from Character Library
+          <div className="character-picker-header">
+            <div className="character-picker-title">
+              Choose from Character Library
+            </div>
+
+            <div className="character-picker-view-toggle">
+              <button
+                type="button"
+                className={pickerView === "grid" ? "active" : ""}
+                onClick={() => setPickerView("grid")}
+              >
+                Grid
+              </button>
+
+              <button
+                type="button"
+                className={pickerView === "list" ? "active" : ""}
+                onClick={() => setPickerView("list")}
+              >
+                List
+              </button>
+            </div>
           </div>
 
-          <div className="character-picker-list">
-            {characterOptions.map((character) => (
-              <button
-                key={character.name}
-                className={
-                  matchedCharacter?.name === character.name
-                    ? "character-picker-btn active"
-                    : "character-picker-btn"
-                }
-                onClick={() => onAssignCharacter(team, pieceKey, character.name)}
-              >
-                <div className="character-picker-portrait">
+          {pickerView === "grid" ? (
+            <div className="character-picker-grid">
+              {characterOptions.map((character) => (
+                <button
+                  key={character.name}
+                  type="button"
+                  className={
+                    matchedCharacter?.name === character.name
+                      ? "character-picker-grid-card active"
+                      : "character-picker-grid-card"
+                  }
+                  title={getCharacterTitle(character)}
+                  onClick={() =>
+                    onAssignCharacter(team, pieceKey, character.name)
+                  }
+                >
                   {character.portrait ? (
                     <img src={character.portrait} alt={character.name} />
                   ) : (
-                    <span>{character.name.slice(0, 1).toUpperCase()}</span>
+                    <span>
+                      {(character.name || "?").slice(0, 1).toUpperCase()}
+                    </span>
                   )}
-                </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="character-picker-list">
+              {characterOptions.map((character) => (
+                <button
+                  key={character.name}
+                  type="button"
+                  className={
+                    matchedCharacter?.name === character.name
+                      ? "character-picker-btn active"
+                      : "character-picker-btn"
+                  }
+                  title={getCharacterTitle(character)}
+                  onClick={() =>
+                    onAssignCharacter(team, pieceKey, character.name)
+                  }
+                >
+                  <div className="character-picker-portrait">
+                    {character.portrait ? (
+                      <img src={character.portrait} alt={character.name} />
+                    ) : (
+                      <span>
+                        {(character.name || "?").slice(0, 1).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
 
-                <div className="character-picker-text">
-                  <strong>{character.name}</strong>
-                  <span>{character.ability || "No ability name"}</span>
-                </div>
-              </button>
-            ))}
-          </div>
+                  <div className="character-picker-text">
+                    <strong>{character.name}</strong>
+                    <span>{getCharacterAbilityName(character)}</span>
+
+                    {getCharacterDescription(character) && (
+                      <p>{getCharacterDescription(character)}</p>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </section>
