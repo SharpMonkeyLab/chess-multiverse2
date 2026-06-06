@@ -4,7 +4,7 @@
 // IMPORTS
 // **************************************************************
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import TopCommandBar from "./TopCommandBar";
 import LeftSidebar from "./LeftSidebar";
 import Workspace from "./Workspace";
@@ -221,6 +221,8 @@ export default function WorldCreator() {
     height: FALLBACK_STAGE_HEIGHT
   });
 
+  const baseDevicePixelRatioRef = useRef(null);
+
   const [savedWorlds, setSavedWorlds] = useState([]);
   const [selectedSavedWorldId, setSelectedSavedWorldId] = useState("");
 
@@ -266,55 +268,68 @@ export default function WorldCreator() {
   }, []);
 
   useEffect(() => {
-    function readCssPixelValue(variableName, fallbackValue) {
-      const rawValue = getComputedStyle(document.documentElement)
-        .getPropertyValue(variableName)
-        .trim();
+  function readCssPixelValue(variableName, fallbackValue) {
+    const rootStyles = getComputedStyle(document.documentElement);
+    const rawValue = rootStyles.getPropertyValue(variableName).trim();
+    const parsedValue = Number.parseFloat(rawValue);
 
-      const parsedValue = parseFloat(rawValue);
+    return Number.isFinite(parsedValue) ? parsedValue : fallbackValue;
+  }
 
-      return Number.isFinite(parsedValue) ? parsedValue : fallbackValue;
+  function getZoomCompensatedViewportSize() {
+    if (baseDevicePixelRatioRef.current === null) {
+      baseDevicePixelRatioRef.current = window.devicePixelRatio || 1;
     }
 
-    function updateStageScale() {
-      const designWidth = readCssPixelValue(
-        "--stage-design-width",
-        FALLBACK_STAGE_WIDTH
-      );
+    const baseDevicePixelRatio = baseDevicePixelRatioRef.current || 1;
+    const currentDevicePixelRatio = window.devicePixelRatio || baseDevicePixelRatio;
 
-      const designHeight = readCssPixelValue(
-        "--stage-design-height",
-        FALLBACK_STAGE_HEIGHT
-      );
+    const browserZoomRatio = currentDevicePixelRatio / baseDevicePixelRatio;
 
-      const viewportWidth = window.visualViewport?.width || window.innerWidth;
-      const viewportHeight = window.visualViewport?.height || window.innerHeight;
-
-      const availableWidth = viewportWidth - STAGE_SCREEN_PADDING * 2;
-      const availableHeight = viewportHeight - STAGE_SCREEN_PADDING * 2;
-
-      const widthScale = availableWidth / designWidth;
-      const heightScale = availableHeight / designHeight;
-
-      const nextScale = Math.min(widthScale, heightScale, 1);
-
-      setStageLayout({
-        scale: Number(nextScale.toFixed(3)),
-        width: designWidth * nextScale,
-        height: designHeight * nextScale
-      });
-    }
-
-    updateStageScale();
-
-    window.addEventListener("resize", updateStageScale);
-    window.visualViewport?.addEventListener("resize", updateStageScale);
-
-    return () => {
-      window.removeEventListener("resize", updateStageScale);
-      window.visualViewport?.removeEventListener("resize", updateStageScale);
+    return {
+      width: window.innerWidth * browserZoomRatio,
+      height: window.innerHeight * browserZoomRatio
     };
-  }, []);
+  }
+
+  function updateStageScale() {
+    const designWidth = readCssPixelValue(
+      "--stage-design-width",
+      FALLBACK_STAGE_WIDTH
+    );
+
+    const designHeight = readCssPixelValue(
+      "--stage-design-height",
+      FALLBACK_STAGE_HEIGHT
+    );
+
+    const viewportPadding = readCssPixelValue("--viewport-padding", 0);
+
+    const viewportSize = getZoomCompensatedViewportSize();
+
+    const availableWidth = Math.max(viewportSize.width - viewportPadding * 2, 1);
+    const availableHeight = Math.max(viewportSize.height - viewportPadding * 2, 1);
+
+    const nextScale = Math.min(
+      availableWidth / designWidth,
+      availableHeight / designHeight
+    );
+
+    setStageLayout({
+      scale: nextScale,
+      width: designWidth * nextScale,
+      height: designHeight * nextScale
+    });
+  }
+
+  updateStageScale();
+
+  window.addEventListener("resize", updateStageScale);
+
+  return () => {
+    window.removeEventListener("resize", updateStageScale);
+  };
+}, []);
 
   //  SAVE DATA
 
