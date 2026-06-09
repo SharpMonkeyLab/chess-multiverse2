@@ -153,24 +153,29 @@ export default function LeftSidebar({
                 ))}
               </div>
 
-              <button
-                type="button"
-                onClick={onApplyTerrainToWholeBoard}
-                disabled={selectedTerrainAction !== "clear" && !selectedTerrain}
-              >
-                Apply to Board
-              </button>
+              <div className="terrain-clear-apply-row">
+                <button
+                  type="button"
+                  className={
+                    selectedTerrainAction === "clear"
+                      ? "terrain-clear-btn active"
+                      : "terrain-clear-btn"
+                  }
+                  onClick={onSelectClearTerrain}
+                >
+                  Clear Terrain
+                </button>
 
-              <button
-                className={
-                  selectedTerrainAction === "clear"
-                    ? "terrain-clear-btn active"
-                    : "terrain-clear-btn"
-                }
-                onClick={onSelectClearTerrain}
-              >
-                Clear Tile Terrain
-              </button>
+                <button
+                  type="button"
+                  className="terrain-apply-board-btn"
+                  onClick={onApplyTerrainToWholeBoard}
+                  disabled={selectedTerrainAction !== "clear" && !selectedTerrain}
+                  title="Apply selected terrain action to the whole board"
+                >
+                  Whole Board
+                </button>
+              </div>
             </section>
           )}
 
@@ -207,6 +212,7 @@ export default function LeftSidebar({
                           ? "counter-tool-btn active"
                           : "counter-tool-btn"
                       }
+                      style={{ "--cell-counter-color": counter.color || "#e7c97a" }}
                       onClick={() => onSelectCounterDelta(counter.key, -1)}
                     >
                       {counter.decreaseLabel || "-1"}
@@ -221,6 +227,7 @@ export default function LeftSidebar({
                           ? "counter-tool-btn active"
                           : "counter-tool-btn"
                       }
+                      style={{ "--cell-counter-color": counter.color || "#e7c97a" }}
                       onClick={() => onSelectCounterDelta(counter.key, 1)}
                     >
                       {counter.increaseLabel || "+1"}
@@ -314,7 +321,7 @@ export default function LeftSidebar({
             </section>
           )}
         </div>
-      </section>
+      </section >
 
       <section className="sidebar-major-section">
         <h2 className="sidebar-major-title">World Editors</h2>
@@ -384,6 +391,6 @@ export default function LeftSidebar({
           )}
         </div>
       </section>
-    </aside>
+    </aside >
   );
 }

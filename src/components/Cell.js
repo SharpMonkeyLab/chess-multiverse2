@@ -96,6 +96,13 @@ export default function Cell({
       style={terrainStyle}
       onClick={onClick}
     >
+
+      {hasTerrain && (
+        <div
+          className={`cell-terrain-layer ${terrain.fillType === "image" ? "terrain-image" : "terrain-color"}`}
+          style={terrainStyle}
+        />
+      )}
       {pieceSymbol && (
         <div
           className={`cell-piece ${cellData.team} ${assignedCharacter?.portrait

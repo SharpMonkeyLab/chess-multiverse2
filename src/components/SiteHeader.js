@@ -1,0 +1,19 @@
+import Link from "next/link";
+
+// Shared platform navigation.
+// This appears on normal website pages, but NOT inside the full-screen World Creator.
+export default function SiteHeader() {
+  return (
+    <header className="site-header">
+      <Link className="site-logo" href="/">
+        Chess Multiverse
+      </Link>
+
+      <nav className="site-nav" aria-label="Main navigation">
+        <Link href="/worlds">Worlds</Link>
+        <Link href="/lobby">Lobby</Link>
+        <Link href="/creator">Create</Link>
+      </nav>
+    </header>
+  );
+}

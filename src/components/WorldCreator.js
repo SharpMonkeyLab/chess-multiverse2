@@ -16,6 +16,7 @@ import {
   createStandardSetupCells,
   DEFAULT_WORLD_FEATURES,
   DEFAULT_WORLD_MECHANICS,
+  getCounterListFromMechanics,
   humanizeTokenName
 } from "@/lib/defaultWorld";
 import { buildCharacterLibraryFromCSV, normalizeName } from "@/lib/csv";
@@ -145,6 +146,7 @@ function clearPieceFromCell(cell) {
   cell.team = null;
   cell.counter = "";
   cell.counterColor = "neutral";
+  cell.counters = {};
   cell.conditions = [];
   cell.tokens = [];
 }
@@ -155,10 +157,11 @@ function createMovingPiece(cell, index) {
     fromIndex: index,
     pieceType: cell.pieceType,
     team: cell.team,
-    counter: cell.counter,
-    counterColor: cell.counterColor,
-    conditions: [...cell.conditions],
-    tokens: [...cell.tokens]
+    counters: {
+      ...(cell.counters || {})
+    },
+    conditions: [...(cell.conditions || [])],
+    tokens: [...(cell.tokens || [])]
   };
 }
 
@@ -243,6 +246,7 @@ export default function WorldCreator() {
 
   const [cells, setCells] = useState(createStandardSetupCells);
   const [movingPiece, setMovingPiece] = useState(null);
+  const [selectedBoardAction, setSelectedBoardAction] = useState(null);
 
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [selectedPiece, setSelectedPiece] = useState(null);
@@ -268,68 +272,68 @@ export default function WorldCreator() {
   }, []);
 
   useEffect(() => {
-  function readCssPixelValue(variableName, fallbackValue) {
-    const rootStyles = getComputedStyle(document.documentElement);
-    const rawValue = rootStyles.getPropertyValue(variableName).trim();
-    const parsedValue = Number.parseFloat(rawValue);
+    function readCssPixelValue(variableName, fallbackValue) {
+      const rootStyles = getComputedStyle(document.documentElement);
+      const rawValue = rootStyles.getPropertyValue(variableName).trim();
+      const parsedValue = Number.parseFloat(rawValue);
 
-    return Number.isFinite(parsedValue) ? parsedValue : fallbackValue;
-  }
-
-  function getZoomCompensatedViewportSize() {
-    if (baseDevicePixelRatioRef.current === null) {
-      baseDevicePixelRatioRef.current = window.devicePixelRatio || 1;
+      return Number.isFinite(parsedValue) ? parsedValue : fallbackValue;
     }
 
-    const baseDevicePixelRatio = baseDevicePixelRatioRef.current || 1;
-    const currentDevicePixelRatio = window.devicePixelRatio || baseDevicePixelRatio;
+    function getZoomCompensatedViewportSize() {
+      if (baseDevicePixelRatioRef.current === null) {
+        baseDevicePixelRatioRef.current = window.devicePixelRatio || 1;
+      }
 
-    const browserZoomRatio = currentDevicePixelRatio / baseDevicePixelRatio;
+      const baseDevicePixelRatio = baseDevicePixelRatioRef.current || 1;
+      const currentDevicePixelRatio = window.devicePixelRatio || baseDevicePixelRatio;
 
-    return {
-      width: window.innerWidth * browserZoomRatio,
-      height: window.innerHeight * browserZoomRatio
+      const browserZoomRatio = currentDevicePixelRatio / baseDevicePixelRatio;
+
+      return {
+        width: window.innerWidth * browserZoomRatio,
+        height: window.innerHeight * browserZoomRatio
+      };
+    }
+
+    function updateStageScale() {
+      const designWidth = readCssPixelValue(
+        "--stage-design-width",
+        FALLBACK_STAGE_WIDTH
+      );
+
+      const designHeight = readCssPixelValue(
+        "--stage-design-height",
+        FALLBACK_STAGE_HEIGHT
+      );
+
+      const viewportPadding = readCssPixelValue("--viewport-padding", 0);
+
+      const viewportSize = getZoomCompensatedViewportSize();
+
+      const availableWidth = Math.max(viewportSize.width - viewportPadding * 2, 1);
+      const availableHeight = Math.max(viewportSize.height - viewportPadding * 2, 1);
+
+      const nextScale = Math.min(
+        availableWidth / designWidth,
+        availableHeight / designHeight
+      );
+
+      setStageLayout({
+        scale: nextScale,
+        width: designWidth * nextScale,
+        height: designHeight * nextScale
+      });
+    }
+
+    updateStageScale();
+
+    window.addEventListener("resize", updateStageScale);
+
+    return () => {
+      window.removeEventListener("resize", updateStageScale);
     };
-  }
-
-  function updateStageScale() {
-    const designWidth = readCssPixelValue(
-      "--stage-design-width",
-      FALLBACK_STAGE_WIDTH
-    );
-
-    const designHeight = readCssPixelValue(
-      "--stage-design-height",
-      FALLBACK_STAGE_HEIGHT
-    );
-
-    const viewportPadding = readCssPixelValue("--viewport-padding", 0);
-
-    const viewportSize = getZoomCompensatedViewportSize();
-
-    const availableWidth = Math.max(viewportSize.width - viewportPadding * 2, 1);
-    const availableHeight = Math.max(viewportSize.height - viewportPadding * 2, 1);
-
-    const nextScale = Math.min(
-      availableWidth / designWidth,
-      availableHeight / designHeight
-    );
-
-    setStageLayout({
-      scale: nextScale,
-      width: designWidth * nextScale,
-      height: designHeight * nextScale
-    });
-  }
-
-  updateStageScale();
-
-  window.addEventListener("resize", updateStageScale);
-
-  return () => {
-    window.removeEventListener("resize", updateStageScale);
-  };
-}, []);
+  }, []);
 
   //  SAVE DATA
 
@@ -513,6 +517,7 @@ export default function WorldCreator() {
     setSelectedTerrainAction(null);
 
     setMovingPiece(null);
+    setSelectedBoardAction(null);
   }
 
   useEffect(() => {
@@ -528,9 +533,66 @@ export default function WorldCreator() {
 
       const key = event.key.toLowerCase();
 
+      const terrainShortcutKeys = ["q", "w", "e", "r", "t", "y"];
+      const counterShortcutKeys = ["a", "s", "d", "f", "g", "h"];
+      const conditionShortcutKeys = ["z", "x", "c", "v", "b", "n"];
+
       const isUndo = event.ctrlKey && key === "z";
       const isRedo = event.ctrlKey && key === "y";
+      const isDeleteKey = key === "delete" || key === "backspace";
       const isEscape = key === "escape";
+
+      if (terrainShortcutKeys.includes(key)) {
+        const terrainList = worldMechanics.terrains || [];
+        const terrainIndex = terrainShortcutKeys.indexOf(key);
+        const terrain = terrainList[terrainIndex];
+
+        if (terrain) {
+          event.preventDefault();
+          handleSelectTerrain(terrain.key);
+        }
+
+        return;
+      }
+
+      if (conditionShortcutKeys.includes(key)) {
+        const conditionList = worldMechanics.conditions || [];
+        const conditionIndex = conditionShortcutKeys.indexOf(key);
+        const condition = conditionList[conditionIndex];
+
+        if (condition) {
+          event.preventDefault();
+          handleSelectCondition(condition.key);
+        }
+
+        return;
+      }
+
+      if (counterShortcutKeys.includes(key)) {
+        const counterList = getCounterListFromMechanics(worldMechanics);
+        const activeCounter =
+          counterList.find((counter) => counter.key === selectedCounterKey) ||
+          counterList[0];
+
+        if (!activeCounter) return;
+
+        event.preventDefault();
+
+        if (key === "a") {
+          handleSelectCounterDelta(activeCounter.key, -1);
+          return;
+        }
+
+        if (key === "s") {
+          handleSelectCounterDelta(activeCounter.key, 1);
+          return;
+        }
+
+        if (key === "d") {
+          handleSelectClearCounter(activeCounter.key);
+          return;
+        }
+      }
 
       if (isUndo) {
         event.preventDefault();
@@ -548,6 +610,12 @@ export default function WorldCreator() {
         event.preventDefault();
         clearAllSelections();
       }
+
+      if (isDeleteKey) {
+        event.preventDefault();
+        handleDeleteSelectedPiece();
+        return;
+      }
     }
 
     window.addEventListener("keydown", handleKeyboardShortcut);
@@ -555,7 +623,14 @@ export default function WorldCreator() {
     return () => {
       window.removeEventListener("keydown", handleKeyboardShortcut);
     };
-  }, [cellHistory, cellFuture, cells]);
+  }, [
+    cellHistory,
+    cellFuture,
+    cells,
+    worldMechanics,
+    selectedCounterKey,
+    movingPiece
+  ]);
 
   function handleToggleWorldFeature(featureKey) {
     setWorldFeatures((currentFeatures) => ({
@@ -828,6 +903,45 @@ export default function WorldCreator() {
     setActivePiece(null);
   }
 
+  function handleSelectDeletePiece() {
+    setSelectedBoardAction("delete-piece");
+
+    setSelectedTeam(null);
+    setSelectedPiece(null);
+    setSelectedToken(null);
+
+    setSelectedCounterDelta(null);
+    setSelectedCounterAction(null);
+
+    setSelectedCondition(null);
+    setSelectedConditionAction(null);
+
+    setSelectedTerrain(null);
+    setSelectedTerrainAction(null);
+
+    setMovingPiece(null);
+  }
+
+  function handleDeleteSelectedPiece() {
+    if (!movingPiece || movingPiece.kind === "token") {
+      handleSelectDeletePiece();
+      return;
+    }
+
+    updateCellsWithHistory((currentCells) => {
+      const nextCells = currentCells.map(cloneCell);
+      const targetCell = nextCells[movingPiece.fromIndex];
+
+      clearPieceFromCell(targetCell);
+
+      return nextCells;
+    });
+
+    setMovingPiece(null);
+    setActivePiece(null);
+    setSelectedBoardAction(null);
+  }
+
   function refreshSavedLists() {
     setSavedWorlds(getLocalItemList("worlds"));
     setSavedTestGames(getLocalItemList("test-games"));
@@ -857,6 +971,29 @@ export default function WorldCreator() {
 
     setSaveStatus(`World loaded: ${savedWorld.name}. Board setup unchanged.`);
   }
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const worldIdFromUrl = searchParams.get("world");
+
+    if (!worldIdFromUrl) return;
+
+    const savedWorld = loadLocalItem("worlds", worldIdFromUrl);
+
+    if (!savedWorld) {
+      setSaveStatus("Could not find that local world.");
+      return;
+    }
+
+    applyWorldSaveData(savedWorld.data);
+    setSelectedSavedWorldId(savedWorld.id);
+    refreshSavedLists();
+
+    setSaveStatus(`World loaded from Library: ${savedWorld.name}`);
+
+    // Remove ?world=... from the URL after loading, so refreshing does not keep reloading it.
+    window.history.replaceState({}, "", window.location.pathname);
+  }, []);
 
   function handleDeleteWorld() {
     if (!selectedSavedWorldId) {
@@ -975,6 +1112,28 @@ export default function WorldCreator() {
   function handleCellClick(index, event) {
     const clickedCell = cells[index];
     const clickedToken = getPrimaryToken(clickedCell);
+
+    if (selectedBoardAction === "delete-piece") {
+      updateCellsWithHistory((currentCells) => {
+        const nextCells = currentCells.map(cloneCell);
+        const targetCell = nextCells[index];
+
+        if (!targetCell.pieceType) return nextCells;
+
+        clearPieceFromCell(targetCell);
+
+        return nextCells;
+      });
+
+      if (!event?.shiftKey) {
+        setSelectedBoardAction(null);
+      }
+
+      setActivePiece(null);
+      setMovingPiece(null);
+
+      return;
+    }
 
     if (selectedCounterAction === "adjust" && selectedCounterDelta !== null) {
       updateCellsWithHistory((currentCells) => {
@@ -1216,9 +1375,11 @@ export default function WorldCreator() {
       clearCellOccupant(targetCell);
       clearOccupantMarkers(targetCell);
 
-      targetCell.counter = movingPiece.counter;
-      targetCell.counterColor = movingPiece.counterColor;
-      targetCell.conditions = [...movingPiece.conditions];
+      targetCell.counters = {
+        ...(movingPiece.counters || {})
+      };
+
+      targetCell.conditions = [...(movingPiece.conditions || [])];
 
       if (movingPiece.kind === "token") {
         targetCell.tokens = [movingPiece.tokenName];
@@ -1231,6 +1392,7 @@ export default function WorldCreator() {
       clearCellOccupant(sourceCell);
       sourceCell.counter = "";
       sourceCell.counterColor = "neutral";
+      sourceCell.counters = {};
       sourceCell.conditions = [];
 
       return nextCells;
@@ -1339,15 +1501,17 @@ export default function WorldCreator() {
   }
 
   return (
-    <main className="viewport-frame">
-      <div
-        className="game-stage"
-        style={
-          worldTheme.backgroundImage
-            ? { backgroundImage: `linear-gradient(rgba(5, 6, 10, 0.72), rgba(5, 6, 10, 0.72)), url("${worldTheme.backgroundImage}")` }
-            : {}
-        }
-      >
+    <main
+      className="viewport-frame"
+      style={
+        worldTheme.backgroundImage
+          ? {
+            backgroundImage: `linear-gradient(rgba(5, 6, 10, 0.72), rgba(5, 6, 10, 0.72)), url("${worldTheme.backgroundImage}")`
+          }
+          : {}
+      }
+    >
+      <div className="game-stage">
 
         <div
           className="stage-scale-frame"
@@ -1478,6 +1642,8 @@ export default function WorldCreator() {
               onLockName={handleLockName}
               onUnlockName={handleUnlockName}
               onAssignCharacter={handleAssignCharacter}
+              selectedBoardAction={selectedBoardAction}
+              onDeletePiece={handleDeleteSelectedPiece}
               onStandardSetup={handleStandardSetup}
               onClearBoard={handleClearBoard}
               onUndo={handleUndo}

@@ -131,6 +131,8 @@ export default function RightPanel({
   onLockName,
   onUnlockName,
   onAssignCharacter,
+  selectedBoardAction,
+  onDeletePiece,
   onStandardSetup,
   onClearBoard,
   onUndo,
@@ -169,6 +171,19 @@ export default function RightPanel({
             <small>Ctrl+Y</small>
           </button>
         </div>
+
+        <button
+          type="button"
+          className={
+            selectedBoardAction === "delete-piece"
+              ? "delete-piece-btn active"
+              : "delete-piece-btn"
+          }
+          onClick={onDeletePiece}
+          title="Delete selected piece, or activate delete piece tool"
+        >
+          Delete Piece
+        </button>
 
         <button type="button" className="clear-board-btn" onClick={onClearBoard}>
           Clear Board

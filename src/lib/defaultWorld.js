@@ -332,13 +332,6 @@ export const DEFAULT_PIECES = [
     isRoyal: false
   },
   {
-    key: "rook",
-    label: "Rook",
-    whiteSymbol: "♖",
-    blackSymbol: "♜",
-    isRoyal: false
-  },
-  {
     key: "bishop",
     label: "Bishop",
     whiteSymbol: "♗",
@@ -350,6 +343,13 @@ export const DEFAULT_PIECES = [
     label: "Knight",
     whiteSymbol: "♘",
     blackSymbol: "♞",
+    isRoyal: false
+  },
+  {
+    key: "rook",
+    label: "Rook",
+    whiteSymbol: "♖",
+    blackSymbol: "♜",
     isRoyal: false
   },
   {
