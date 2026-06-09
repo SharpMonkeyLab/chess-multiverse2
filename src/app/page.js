@@ -1,5 +1,6 @@
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
+import SiteFooter from "@/components/SiteFooter";
 
 // Home page for the Chess Multiverse platform.
 export default function Home() {
@@ -32,6 +33,8 @@ export default function Home() {
           </Link>
         </div>
       </section>
+      
+      <SiteFooter />
     </main>
   );
 }

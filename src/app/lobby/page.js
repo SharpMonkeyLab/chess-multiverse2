@@ -1,5 +1,6 @@
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
+import SiteFooter from "@/components/SiteFooter";
 
 const MOCK_CHALLENGES = [
   {
@@ -154,6 +155,8 @@ export default function LobbyPage() {
           </p>
         </section>
       </div>
+
+      <SiteFooter />
     </main>
   );
 }

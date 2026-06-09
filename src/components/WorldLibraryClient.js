@@ -5,10 +5,22 @@ import Link from "next/link";
 
 import {
     deleteLocalItem,
+    downloadJsonFile,
     getLocalItemList,
+    makeSafeFileName,
     readJsonFile,
     saveLocalItem
 } from "@/lib/saveLoad";
+
+import {
+    getEnabledFeatureLabels,
+    getWorldCardStats,
+    getWorldData,
+    getWorldDescription,
+    getWorldName,
+    getWorldPreviewImages,
+    getWorldRulesPreview
+} from "@/lib/worldData";
 
 const FEATURED_WORLDS = [
     {
@@ -44,6 +56,25 @@ function getWorldNameFromData(data) {
     return data?.worldDetails?.name || data?.name || "Imported World";
 }
 
+function createDuplicateWorldName(originalName, existingWorlds) {
+    const baseName = `${originalName || "Untitled World"} Copy`;
+    const existingNames = existingWorlds.map((world) => world.name);
+
+    if (!existingNames.includes(baseName)) {
+        return baseName;
+    }
+
+    let copyNumber = 2;
+    let nextName = `${baseName} ${copyNumber}`;
+
+    while (existingNames.includes(nextName)) {
+        copyNumber += 1;
+        nextName = `${baseName} ${copyNumber}`;
+    }
+
+    return nextName;
+}
+
 function formatDate(value) {
     if (!value) return "Unknown date";
 
@@ -58,137 +89,42 @@ function formatDate(value) {
     }
 }
 
-function getLocalWorldDetails(world) {
+function worldMatchesSearch(world, searchText) {
+    const cleanSearchText = searchText.trim().toLowerCase();
+
+    if (!cleanSearchText) return true;
+
     const worldData = getWorldData(world);
+    const details = worldData.worldDetails || {};
 
-    return worldData.worldDetails || {};
+    const searchableText = [
+        world.name,
+        details.name,
+        details.description,
+        details.rulesNotes
+    ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+    return searchableText.includes(cleanSearchText);
 }
 
-function getLocalWorldDescription(world) {
-    const details = getLocalWorldDetails(world);
+function worldHasFeature(world, featureKey) {
+    if (featureKey === "all") return true;
 
-    return (
-        details.description ||
-        "No description yet. A mysterious world, which is either intriguing or badly documented."
-    );
-}
-
-function getLocalWorldRulesPreview(world) {
-    const details = getLocalWorldDetails(world);
-
-    return details.rulesNotes || "No rules summary yet.";
-}
-
-function getEnabledFeatureLabels(world) {
     const worldData = getWorldData(world);
     const features = worldData.worldFeatures || {};
 
-    const featureLabels = [
-        { key: "characters", label: "Characters" },
-        { key: "worldTokens", label: "Tokens" },
-        { key: "terrains", label: "Terrains" },
-        { key: "counters", label: "Counters" },
-        { key: "conditions", label: "Conditions" }
-    ];
-
-    return featureLabels
-        .filter((feature) => features[feature.key])
-        .map((feature) => feature.label);
-}
-
-function getCharacterCount(world) {
-    const worldData = getWorldData(world);
-    const characterLibrary = worldData.characterLibrary;
-
-    if (Array.isArray(characterLibrary)) {
-        return characterLibrary.length;
-    }
-
-    return Object.keys(characterLibrary || {}).length;
-}
-
-function getTerrainCount(world) {
-    const worldData = getWorldData(world);
-    const terrains = worldData.worldMechanics?.terrains;
-
-    return Array.isArray(terrains) ? terrains.length : 0;
-}
-
-function getCounterCount(world) {
-    const worldData = getWorldData(world);
-    const counters = worldData.worldMechanics?.counters;
-
-    return Array.isArray(counters) ? counters.length : 0;
-}
-
-function getConditionCount(world) {
-    const worldData = getWorldData(world);
-    const conditions = worldData.worldMechanics?.conditions;
-
-    return Array.isArray(conditions) ? conditions.length : 0;
-}
-
-function getTokenCount(world) {
-    const worldData = getWorldData(world);
-    const worldTokens = worldData.worldTokens;
-
-    return Object.keys(worldTokens || {}).length;
-}
-
-function getWorldStats(world) {
-    return [
-        {
-            label: "Characters",
-            value: getCharacterCount(world)
-        },
-        {
-            label: "Terrains",
-            value: getTerrainCount(world)
-        },
-        {
-            label: "Counters",
-            value: getCounterCount(world)
-        },
-        {
-            label: "Conditions",
-            value: getConditionCount(world)
-        },
-        {
-            label: "Tokens",
-            value: getTokenCount(world)
-        }
-    ];
-}
-
-function getWorldData(world) {
-    // Normal local saves use world.data.
-    // Some imported or older saves may be wrapped one level deeper.
-    // This keeps the Library tolerant instead of dramatic.
-    return world?.data?.data || world?.data || {};
-}
-
-function getWorldTheme(world) {
-    const worldData = getWorldData(world);
-
-    return (
-        worldData.worldTheme ||
-        worldData.theme ||
-        {}
-    );
-}
-
-function getWorldPreviewImages(world) {
-    const theme = getWorldTheme(world);
-
-    return {
-        backgroundImage: theme.backgroundImage || "",
-        boardSkinImage: theme.boardSkinImage || ""
-    };
+    return Boolean(features[featureKey]);
 }
 
 export default function WorldLibraryClient() {
     const [localWorlds, setLocalWorlds] = useState([]);
     const [importStatus, setImportStatus] = useState("");
+
+    const [worldSearchText, setWorldSearchText] = useState("");
+    const [selectedFeatureFilter, setSelectedFeatureFilter] = useState("all");
 
     function refreshLocalWorlds() {
         setLocalWorlds(getLocalItemList("worlds"));
@@ -223,6 +159,43 @@ export default function WorldLibraryClient() {
         }
     }
 
+    function handleDuplicateLocalWorld(world) {
+        const duplicateName = createDuplicateWorldName(world.name, localWorlds);
+
+        const worldData = getWorldData(world);
+
+        const duplicatedWorld = {
+            ...worldData,
+            worldDetails: {
+                ...(worldData.worldDetails || {}),
+                name: duplicateName
+            }
+        };
+
+        saveLocalItem("worlds", duplicateName, duplicatedWorld);
+        refreshLocalWorlds();
+
+        setImportStatus(`Duplicated "${world.name}" as "${duplicateName}".`);
+    }
+
+    function handleExportLocalWorld(world) {
+        const worldData = getWorldData(world);
+        const worldName = getWorldName(world);
+
+        const exportData = {
+            type: "chess-multiverse-world",
+            exportedAt: new Date().toISOString(),
+            version: 1,
+            data: worldData
+        };
+
+        const fileName = `${makeSafeFileName(worldName)}-world.json`;
+
+        downloadJsonFile(fileName, exportData);
+
+        setImportStatus(`Exported "${worldName}" as ${fileName}.`);
+    }
+
     function handleDeleteLocalWorld(worldId, worldName) {
         const confirmed = window.confirm(
             `Delete "${worldName}" from local worlds?`
@@ -235,6 +208,13 @@ export default function WorldLibraryClient() {
 
         setImportStatus(`Deleted "${worldName}" from Local Worlds.`);
     }
+
+    const filteredLocalWorlds = localWorlds.filter((world) => {
+        const matchesSearch = worldMatchesSearch(world, worldSearchText);
+        const matchesFeature = worldHasFeature(world, selectedFeatureFilter);
+
+        return matchesSearch && matchesFeature;
+    });
 
     return (
         <div className="world-library-content">
@@ -305,6 +285,26 @@ export default function WorldLibraryClient() {
                     </Link>
                 </div>
 
+                <div className="world-library-filter-bar">
+                    <input
+                        value={worldSearchText}
+                        placeholder="Search worlds..."
+                        onChange={(event) => setWorldSearchText(event.target.value)}
+                    />
+
+                    <select
+                        value={selectedFeatureFilter}
+                        onChange={(event) => setSelectedFeatureFilter(event.target.value)}
+                    >
+                        <option value="all">All systems</option>
+                        <option value="characters">Characters</option>
+                        <option value="worldTokens">Tokens</option>
+                        <option value="terrains">Terrains</option>
+                        <option value="counters">Counters</option>
+                        <option value="conditions">Conditions</option>
+                    </select>
+                </div>
+
                 {localWorlds.length === 0 ? (
                     <div className="empty-worlds-card">
                         <h3>No local worlds yet</h3>
@@ -314,13 +314,21 @@ export default function WorldLibraryClient() {
                             localStorage.
                         </p>
                     </div>
+                ) : filteredLocalWorlds.length === 0 ? (
+                    <div className="empty-worlds-card">
+                        <h3>No matching worlds</h3>
+                        <p>
+                            Try a different search or filter. The world may exist, but it is
+                            currently hiding in the fog like a dramatic bishop.
+                        </p>
+                    </div>
                 ) : (
                     <div className="world-card-grid">
-                        {localWorlds.map((world) => {
-                            const description = getLocalWorldDescription(world);
-                            const rulesPreview = getLocalWorldRulesPreview(world);
+                        {filteredLocalWorlds.map((world) => {
+                            const description = getWorldDescription(world);
+                            const rulesPreview = getWorldRulesPreview(world);
                             const enabledFeatures = getEnabledFeatureLabels(world);
-                            const worldStats = getWorldStats(world);
+                            const worldStats = getWorldCardStats(world);
                             const previewImages = getWorldPreviewImages(world);
 
                             return (
@@ -375,18 +383,15 @@ export default function WorldLibraryClient() {
                                             )}
                                         </div>
 
-                                        <div className="world-stat-list">
+                                        <div className="world-card-stat-strip">
                                             {worldStats.map((stat) => (
-                                                <div
-                                                    className={
-                                                        stat.value === 0
-                                                            ? "world-stat-row empty"
-                                                            : "world-stat-row"
-                                                    }
-                                                    key={stat.label}
-                                                >
-                                                    <span>{stat.label}</span>
-                                                    <strong>{stat.value}</strong>
+                                                <div className="world-card-stat" key={stat.label}>
+                                                    <span className="world-card-stat-icon">{stat.icon}</span>
+
+                                                    <span className="world-card-stat-text">
+                                                        <strong>{stat.value}</strong>
+                                                        <small>{stat.label}</small>
+                                                    </span>
                                                 </div>
                                             ))}
                                         </div>
@@ -397,10 +402,33 @@ export default function WorldLibraryClient() {
                                             <div className="world-card-action-row">
                                                 <Link
                                                     className="world-play-link"
+                                                    href={`/worlds/${world.id}`}
+                                                >
+                                                    View Details
+                                                </Link>
+
+                                                <Link
+                                                    className="world-play-link"
                                                     href={`/creator?world=${world.id}`}
                                                 >
                                                     Open in Creator
                                                 </Link>
+
+                                                <button
+                                                    type="button"
+                                                    className="world-card-secondary-action"
+                                                    onClick={() => handleExportLocalWorld(world)}
+                                                >
+                                                    Export
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    className="world-card-secondary-action"
+                                                    onClick={() => handleDuplicateLocalWorld(world)}
+                                                >
+                                                    Duplicate
+                                                </button>
 
                                                 <button
                                                     type="button"

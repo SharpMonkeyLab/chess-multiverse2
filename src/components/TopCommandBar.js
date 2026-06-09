@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import FeatureToggleEditor from "./FeatureToggleEditor";
 import ThemeEditor from "./ThemeEditor";
 
@@ -33,6 +34,8 @@ export default function TopCommandBar({
     onDeleteTestGame,
     onSelectedSavedTestGameChange
 }) {
+    const router = useRouter();
+
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const menuRef = useRef(null);
 
@@ -63,7 +66,7 @@ export default function TopCommandBar({
     }
 
     function handleExit() {
-        alert("Exit will return to the lobby later.");
+        router.push("/worlds");
     }
 
     return (

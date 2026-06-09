@@ -2157,36 +2157,28 @@ button:disabled {
   z-index: 1;
 
   -webkit-mask-image:
-    linear-gradient(
-      to right,
+    linear-gradient(to right,
       transparent 0%,
       black 14%,
       black 86%,
-      transparent 100%
-    ),
-    linear-gradient(
-      to bottom,
+      transparent 100%),
+    linear-gradient(to bottom,
       transparent 0%,
       black 14%,
       black 86%,
-      transparent 100%
-    );
+      transparent 100%);
 
   mask-image:
-    linear-gradient(
-      to right,
+    linear-gradient(to right,
       transparent 0%,
       black 14%,
       black 86%,
-      transparent 100%
-    ),
-    linear-gradient(
-      to bottom,
+      transparent 100%),
+    linear-gradient(to bottom,
       transparent 0%,
       black 14%,
       black 86%,
-      transparent 100%
-    );
+      transparent 100%);
 
   -webkit-mask-composite: source-in;
   mask-composite: intersect;
@@ -3701,11 +3693,9 @@ details>*:not(summary) {
   border-color: var(--arcane-violet);
 
   background:
-    linear-gradient(
-      180deg,
+    linear-gradient(180deg,
       rgba(168, 107, 255, 0.92),
-      rgba(92, 45, 158, 0.92)
-    );
+      rgba(92, 45, 158, 0.92));
 
   color: #ffffff;
 
@@ -3791,11 +3781,9 @@ details>*:not(summary) {
   border-color: var(--arcane-violet);
 
   background:
-    linear-gradient(
-      180deg,
+    linear-gradient(180deg,
       rgba(168, 107, 255, 0.92),
-      rgba(92, 45, 158, 0.92)
-    );
+      rgba(92, 45, 158, 0.92));
 
   color: #ffffff;
 
@@ -3969,11 +3957,9 @@ body {
   border-color: var(--arcane-violet);
 
   background:
-    linear-gradient(
-      180deg,
+    linear-gradient(180deg,
       rgba(168, 107, 255, 0.92),
-      rgba(92, 45, 158, 0.92)
-    );
+      rgba(92, 45, 158, 0.92));
 
   color: #ffffff;
 }
@@ -4098,8 +4084,8 @@ body {
 }
 
 .world-card-preview-board-img {
-  width: 128px;
-  height: 128px;
+  width: 142px;
+  height: 142px;
 
   position: relative;
   z-index: 2;
@@ -4112,8 +4098,7 @@ body {
   border-radius: 0px;
 
   filter:
-    drop-shadow(0 12px 18px rgba(0, 0, 0, 0.62))
-    drop-shadow(0 0 18px rgba(231, 201, 122, 0.18));
+    drop-shadow(0 12px 18px rgba(0, 0, 0, 0.62)) drop-shadow(0 0 18px rgba(231, 201, 122, 0.18));
 }
 
 .world-card-preview-fallback {
@@ -4207,11 +4192,9 @@ body {
   border-color: var(--arcane-violet);
 
   background:
-    linear-gradient(
-      180deg,
+    linear-gradient(180deg,
       rgba(168, 107, 255, 0.92),
-      rgba(92, 45, 158, 0.92)
-    );
+      rgba(92, 45, 158, 0.92));
 
   color: #ffffff;
 }
@@ -4234,6 +4217,36 @@ body {
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
+  align-items: center;
+}
+
+.world-card-secondary-action {
+  min-height: 32px;
+
+  display: inline-grid;
+  place-items: center;
+
+  padding: 7px 12px;
+
+  border: 1px solid rgba(231, 201, 122, 0.26);
+  border-radius: 999px;
+
+  background: rgba(17, 20, 27, 0.82);
+  color: var(--text);
+
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.world-card-secondary-action:hover {
+  border-color: var(--arcane-violet);
+
+  background:
+    linear-gradient(180deg,
+      rgba(168, 107, 255, 0.78),
+      rgba(92, 45, 158, 0.82));
+
+  color: #ffffff;
 }
 
 .world-delete-link {
@@ -4260,13 +4273,49 @@ body {
   border-color: var(--arcane-violet);
 
   background:
-    linear-gradient(
-      180deg,
+    linear-gradient(180deg,
       rgba(168, 107, 255, 0.92),
-      rgba(92, 45, 158, 0.92)
-    );
+      rgba(92, 45, 158, 0.92));
 
   color: #ffffff;
+}
+
+/* ================================
+   WORLD LIBRARY FILTERS
+   ================================ */
+
+.world-library-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 10px;
+
+  padding: 12px;
+
+  border: 1px solid rgba(231, 201, 122, 0.16);
+  border-radius: 18px;
+
+  background:
+    radial-gradient(circle at 0% 0%, rgba(231, 201, 122, 0.08), transparent 48%),
+    rgba(17, 20, 27, 0.72);
+
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.world-library-filter-bar input,
+.world-library-filter-bar select {
+  min-height: 40px;
+
+  border-radius: 999px;
+
+  font-size: 0.86rem;
+}
+
+@media (max-width: 640px) {
+  .world-library-filter-bar {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ================================
@@ -4585,6 +4634,7 @@ body {
 }
 
 @media (max-width: 860px) {
+
   .lobby-status-grid,
   .lobby-flow-grid {
     grid-template-columns: 1fr 1fr;
@@ -4597,6 +4647,7 @@ body {
 }
 
 @media (max-width: 560px) {
+
   .lobby-status-grid,
   .lobby-flow-grid {
     grid-template-columns: 1fr;
@@ -4604,10 +4655,10 @@ body {
 }
 
 /* ================================
-   WORLD LIBRARY STATS
+   WORLD CARD PLAYER STATS
    ================================ */
 
-.world-stat-list {
+.world-card-stat-strip {
   display: grid;
   gap: 5px;
 
@@ -4619,39 +4670,784 @@ body {
   background: rgba(5, 6, 10, 0.22);
 }
 
-.world-stat-row {
-  min-height: 24px;
+.world-card-stat {
+  min-width: 0;
+  min-height: 28px;
 
-  display: flex;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 8px;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
 
-  padding: 4px 8px;
+  padding: 5px 8px;
 
   border-radius: 999px;
 
   background: rgba(17, 20, 27, 0.62);
 }
 
-.world-stat-row span {
+.world-card-stat-icon {
+  width: 22px;
+  height: 22px;
+
+  display: grid;
+  place-items: center;
+
+  border: 1px solid rgba(231, 201, 122, 0.26);
+  border-radius: 999px;
+
+  background: rgba(231, 201, 122, 0.1);
+  color: var(--royal-gold, var(--gold));
+
+  font-size: 0.72rem;
+  line-height: 1;
+}
+
+.world-card-stat-text {
+  min-width: 0;
+
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.world-card-stat-text strong {
+  color: var(--royal-gold, var(--gold));
+  font-family: var(--font-heading);
+  font-size: 0.86rem;
+  line-height: 1;
+
+  white-space: nowrap;
+}
+
+.world-card-stat-text small {
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  text-transform: uppercase;
+
+  white-space: nowrap;
+}
+
+/* ================================
+   WORLD DETAILS PAGE
+   ================================ */
+
+.world-details-content {
+  width: min(1120px, 100%);
+
+  margin: 0 auto;
+
+  display: grid;
+  gap: 24px;
+}
+
+.world-details-hero {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.1fr);
+  gap: 24px;
+  align-items: stretch;
+}
+
+.world-details-preview {
+  position: relative;
+
+  min-height: 360px;
+
+  display: grid;
+  place-items: center;
+
+  overflow: hidden;
+
+  border: 1px solid rgba(231, 201, 122, 0.22);
+  border-radius: 24px;
+
+  background:
+    radial-gradient(circle at 50% 40%, rgba(231, 201, 122, 0.24), transparent 36%),
+    linear-gradient(135deg, rgba(168, 107, 255, 0.26), rgba(5, 6, 10, 0.72));
+
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.36),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.world-details-background-img {
+  position: absolute;
+  inset: 0;
+
+  width: 100%;
+  height: 100%;
+
+  display: block;
+
+  object-fit: cover;
+  object-position: center;
+
+  z-index: 0;
+}
+
+.world-details-preview-overlay {
+  position: absolute;
+  inset: 0;
+
+  z-index: 1;
+
+  background:
+    linear-gradient(rgba(5, 6, 10, 0.16), rgba(5, 6, 10, 0.5)),
+    radial-gradient(circle at 50% 50%, transparent 0%, rgba(5, 6, 10, 0.34) 72%);
+}
+
+.world-details-board-img {
+  width: min(260px, 72%);
+  max-width: 260px;
+  height: auto;
+
+  position: relative;
+  z-index: 2;
+
+  display: block;
+
+  object-fit: contain;
+  object-position: center;
+
+  filter:
+    drop-shadow(0 18px 28px rgba(0, 0, 0, 0.68)) drop-shadow(0 0 24px rgba(231, 201, 122, 0.2));
+}
+
+.world-details-preview-letter {
+  position: relative;
+  z-index: 2;
+
+  color: var(--royal-gold, var(--gold));
+  font-family: var(--font-heading);
+  font-size: 5rem;
+  font-weight: 900;
+}
+
+.world-details-main,
+.world-details-panel,
+.world-details-missing-card {
+  display: grid;
+  gap: 14px;
+
+  /* Keep content pinned to the top of each panel.
+     Without this, panels with less content can look vertically centred
+     beside taller neighbouring panels. */
+  align-content: start;
+
+  padding: 22px;
+
+  border: 1px solid rgba(231, 201, 122, 0.2);
+  border-radius: 24px;
+
+  background:
+    radial-gradient(circle at 0% 0%, rgba(231, 201, 122, 0.08), transparent 42%),
+    rgba(17, 20, 27, 0.78);
+
+  box-shadow:
+    0 14px 32px rgba(0, 0, 0, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.world-details-main {
+  align-content: center;
+}
+
+.world-details-main h1,
+.world-details-missing-card h1 {
+  margin: 0;
+
+  color: var(--royal-gold, var(--gold));
+  font-family: var(--font-heading);
+  font-size: clamp(2rem, 5vw, 4.2rem);
+  line-height: 0.95;
+}
+
+.world-details-main p,
+.world-details-panel p,
+.world-details-missing-card p {
+  margin: 0;
+
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.world-details-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+
+  margin-top: 8px;
+}
+
+.world-details-disabled-btn {
+  border-radius: 999px;
+
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+.world-details-disabled-btn:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.world-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.world-details-panel h2 {
+  margin: 0;
+
+  color: var(--royal-gold, var(--gold));
+  font-family: var(--font-heading);
+  font-size: 1.35rem;
+}
+
+.world-details-rules-panel p {
+  white-space: pre-wrap;
+}
+
+.world-details-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.world-details-stat-card {
+  display: grid;
+  gap: 5px;
+  place-items: center;
+
+  padding: 14px 10px;
+
+  border: 1px solid rgba(231, 201, 122, 0.16);
+  border-radius: 16px;
+
+  background: rgba(5, 6, 10, 0.32);
+}
+
+.world-details-stat-card strong {
+  color: var(--royal-gold, var(--gold));
+  font-family: var(--font-heading);
+  font-size: 1.7rem;
+  line-height: 1;
+}
+
+.world-details-stat-card span {
   color: var(--muted);
   font-size: 0.68rem;
   font-weight: 900;
   letter-spacing: 0.06em;
+  text-align: center;
   text-transform: uppercase;
 }
 
-.world-stat-row strong {
-  min-width: 28px;
-
-  color: var(--royal-gold, var(--gold));
-  font-family: var(--font-heading);
-  font-size: 0.92rem;
-  line-height: 1;
-  text-align: right;
+.world-details-stat-card.empty {
+  opacity: 0.52;
 }
 
-.world-stat-row.empty {
-  opacity: 0.52;
+.world-details-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(54px, 64px));
+  gap: 10px;
+
+  align-items: start;
+}
+
+.world-details-mini-card,
+.world-details-terrain-card {
+  aspect-ratio: 1 / 1;
+
+  display: grid;
+  place-items: center;
+
+  overflow: hidden;
+
+  border: 1px solid rgba(231, 201, 122, 0.22);
+  border-radius: 14px;
+
+  background: rgba(5, 6, 10, 0.34);
+}
+
+.world-details-mini-card img {
+  width: 100%;
+  height: 100%;
+
+  display: block;
+
+  object-fit: cover;
+  object-position: center;
+}
+
+.world-details-mini-card span {
+  color: var(--royal-gold, var(--gold));
+  font-family: var(--font-heading);
+  font-size: 1.4rem;
+  font-weight: 900;
+}
+
+.world-details-terrain-card {
+  background-color: var(--terrain-preview-color);
+  background-image: var(--terrain-preview-image);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.world-details-terrain-card span {
+  width: 100%;
+  height: 100%;
+
+  background:
+    radial-gradient(circle at 50% 30%, rgba(255, 255, 255, 0.12), transparent 62%);
+}
+
+.world-details-chip-row,
+.world-details-token-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.world-details-chip-row span,
+.world-details-token-row span {
+  display: inline-grid;
+  place-items: center;
+
+  min-height: 30px;
+
+  padding: 5px 10px;
+
+  border: 1px solid color-mix(in srgb, var(--chip-color, var(--gold)), transparent 58%);
+  border-radius: 999px;
+
+  background: rgba(5, 6, 10, 0.36);
+  color: var(--text);
+
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.world-details-condition-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.world-details-condition-row span {
+  width: 38px;
+  height: 38px;
+
+  display: grid;
+  place-items: center;
+
+  border: 1px solid rgba(231, 201, 122, 0.24);
+  border-radius: 999px;
+
+  background: rgba(5, 6, 10, 0.38);
+
+  font-size: 1.2rem;
+}
+
+@media (max-width: 880px) {
+
+  .world-details-hero,
+  .world-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .world-details-stat-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .world-details-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ================================
+   WORLD DETAILS ENTITY PANELS
+   ================================ */
+
+.world-entity-section {
+  display: grid;
+  gap: 14px;
+}
+
+.world-entity-detail-card {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+
+  padding: 12px;
+
+  overflow: hidden;
+
+  border: 1px solid rgba(231, 201, 122, 0.18);
+  border-radius: 18px;
+
+  background:
+    radial-gradient(circle at 0% 0%, rgba(231, 201, 122, 0.08), transparent 48%),
+    rgba(5, 6, 10, 0.28);
+}
+
+.character-detail-card {
+  height: 190px;
+}
+
+.world-entity-detail-card.compact {
+  height: 118px;
+
+  grid-template-columns: 58px minmax(0, 1fr);
+  align-items: center;
+}
+
+.world-entity-detail-image {
+  width: 120px;
+  height: 120px;
+
+  min-width: 120px;
+  min-height: 120px;
+  max-width: 120px;
+  max-height: 120px;
+
+  display: grid;
+  place-items: center;
+
+  overflow: hidden;
+
+  border: 1px solid rgba(231, 201, 122, 0.26);
+  border-radius: 16px;
+
+  background: rgba(17, 20, 27, 0.78);
+}
+
+.world-entity-detail-image img {
+  width: 100%;
+  height: 100%;
+
+  display: block;
+
+  object-fit: cover;
+  object-position: center;
+
+  /* Prevent large source images from pushing the detail card bigger. */
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.world-entity-detail-image span {
+  color: var(--royal-gold, var(--gold));
+  font-family: var(--font-heading);
+  font-size: 2.4rem;
+  font-weight: 900;
+}
+
+.terrain-detail-image {
+  width: 120px;
+  height: 120px;
+
+  min-width: 120px;
+  min-height: 120px;
+  max-width: 120px;
+  max-height: 120px;
+
+  background-color: var(--terrain-preview-color);
+  background-image: var(--terrain-preview-image);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.terrain-detail-image span {
+  width: 100%;
+  height: 100%;
+
+  background:
+    radial-gradient(circle at 50% 30%, rgba(255, 255, 255, 0.12), transparent 62%);
+}
+
+.world-entity-detail-icon {
+  width: 48px;
+  height: 48px;
+
+  display: grid;
+  place-items: center;
+
+  border: 1px solid color-mix(in srgb, var(--chip-color, var(--gold)), transparent 45%);
+  border-radius: 999px;
+
+  background:
+    radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--chip-color, var(--gold)), transparent 70%), transparent 62%),
+    rgba(5, 6, 10, 0.46);
+
+  color: var(--royal-gold, var(--gold));
+
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+
+.condition-detail-icon {
+  font-size: 1.4rem;
+}
+
+.world-entity-detail-text {
+  min-width: 0;
+  min-height: 0;
+
+  display: grid;
+  gap: 7px;
+  align-content: start;
+
+  overflow: hidden;
+}
+
+.world-entity-detail-text h3 {
+  margin: 0;
+
+  color: var(--text);
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+}
+
+.world-entity-detail-text p {
+  margin: 0;
+
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+/* The main description inside selected entity cards.
+   Long descriptions scroll instead of changing the card height. */
+.world-entity-detail-text>p:not(.world-entity-subtitle):not(.world-entity-meta) {
+  max-height: 74px;
+
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  padding-right: 6px;
+
+  scrollbar-width: thin;
+  scrollbar-color: rgba(231, 201, 122, 0.45) rgba(5, 6, 10, 0.18);
+}
+
+.world-entity-detail-text>p:not(.world-entity-subtitle):not(.world-entity-meta)::-webkit-scrollbar {
+  width: 6px;
+}
+
+.world-entity-detail-text>p:not(.world-entity-subtitle):not(.world-entity-meta)::-webkit-scrollbar-track {
+  background: rgba(5, 6, 10, 0.18);
+  border-radius: 999px;
+}
+
+.world-entity-detail-text>p:not(.world-entity-subtitle):not(.world-entity-meta)::-webkit-scrollbar-thumb {
+  background: rgba(231, 201, 122, 0.42);
+  border-radius: 999px;
+}
+
+.character-detail-card .world-entity-detail-text > p:not(.world-entity-subtitle):not(.world-entity-meta) {
+  max-height: 86px;
+}
+
+.world-entity-subtitle {
+  color: var(--royal-gold, var(--gold)) !important;
+  font-weight: 900;
+}
+
+.world-entity-meta {
+  color: var(--text) !important;
+  font-weight: 900;
+}
+
+.world-entity-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.world-entity-chip-row span {
+  min-height: 24px;
+
+  display: inline-grid;
+  place-items: center;
+
+  padding: 4px 8px;
+
+  border: 1px solid rgba(168, 107, 255, 0.28);
+  border-radius: 999px;
+
+  background: rgba(168, 107, 255, 0.12);
+  color: #eadcff;
+
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.world-details-mini-card,
+.world-details-terrain-card,
+.world-details-chip-button,
+.world-details-condition-button,
+.world-details-token-button {
+  cursor: pointer;
+}
+
+.world-details-mini-card,
+.world-details-terrain-card {
+  padding: 0;
+}
+
+.world-details-mini-card.selected,
+.world-details-terrain-card.selected,
+.world-details-chip-button.selected,
+.world-details-condition-button.selected,
+.world-details-token-button.selected {
+  border-color: var(--royal-gold, var(--gold));
+
+  box-shadow:
+    0 0 12px rgba(231, 201, 122, 0.42),
+    inset 0 0 0 2px rgba(231, 201, 122, 0.92),
+    inset 0 0 14px rgba(231, 201, 122, 0.16);
+}
+
+.world-details-chip-button,
+.world-details-token-button {
+  min-height: 30px;
+
+  display: inline-grid;
+  place-items: center;
+
+  padding: 5px 10px;
+
+  border: 1px solid color-mix(in srgb, var(--chip-color, var(--gold)), transparent 58%);
+  border-radius: 999px;
+
+  background: rgba(5, 6, 10, 0.36);
+  color: var(--text);
+
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.world-details-condition-button {
+  width: 38px;
+  height: 38px;
+
+  display: grid;
+  place-items: center;
+
+  padding: 0;
+
+  border: 1px solid rgba(231, 201, 122, 0.24);
+  border-radius: 999px;
+
+  background: rgba(5, 6, 10, 0.38);
+
+  font-size: 1.2rem;
+}
+
+@media (max-width: 560px) {
+
+  .world-entity-detail-card,
+  .world-entity-detail-card.compact {
+    grid-template-columns: 1fr;
+  }
+
+  .world-entity-detail-icon {
+    justify-self: start;
+  }
+}
+
+/* ================================
+   WORLD DETAILS CHARACTER ROSTER SCROLL
+   ================================ */
+
+.world-character-section {
+  align-content: start;
+}
+
+/* Keeps the selected character visible while the roster scrolls below it. */
+.world-character-scroll-grid {
+  max-height: 212px;
+
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  padding: 4px 6px 4px 2px;
+
+  scrollbar-width: thin;
+  scrollbar-color: rgba(231, 201, 122, 0.55) rgba(5, 6, 10, 0.22);
+}
+
+.world-character-scroll-grid::-webkit-scrollbar {
+  width: 8px;
+}
+
+.world-character-scroll-grid::-webkit-scrollbar-track {
+  background: rgba(5, 6, 10, 0.22);
+  border-radius: 999px;
+}
+
+.world-character-scroll-grid::-webkit-scrollbar-thumb {
+  background: rgba(231, 201, 122, 0.45);
+  border-radius: 999px;
+}
+
+.world-character-scroll-grid::-webkit-scrollbar-thumb:hover {
+  background: rgba(231, 201, 122, 0.7);
+}
+
+/* ================================
+   WORLD DETAILS LAYOUT REFINEMENT
+   ================================ */
+
+.world-details-single-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+}
+
+.world-details-three-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.9fr 0.9fr;
+  gap: 18px;
+  align-items: start;
+}
+
+@media (max-width: 980px) {
+  .world-details-three-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ================================
+   SITE FOOTER
+   ================================ */
+
+.site-footer {
+  width: min(1120px, calc(100vw - 32px));
+
+  margin: 44px auto 0;
+  padding: 18px 16px;
+
+  border-top: 1px solid rgba(231, 201, 122, 0.18);
+
+  text-align: center;
+}
+
+.site-footer p {
+  margin: 0;
+
+  color: rgba(201, 206, 217, 0.72);
+  font-size: 0.76rem;
+  line-height: 1.45;
 }

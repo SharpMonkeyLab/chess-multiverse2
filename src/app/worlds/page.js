@@ -1,4 +1,5 @@
 import SiteHeader from "@/components/SiteHeader";
+import SiteFooter from "@/components/SiteFooter";
 import WorldLibraryClient from "@/components/WorldLibraryClient";
 
 // World Library.
@@ -9,6 +10,7 @@ export default function WorldsPage() {
       <SiteHeader />
 
       <WorldLibraryClient />
+      <SiteFooter />
     </main>
   );
 }
