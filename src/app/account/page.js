@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
+
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
-import { hasSupabaseConfig } from "@/lib/supabaseClient";
+import { hasSupabaseConfig, supabase } from "@/lib/supabaseClient";
 
 const FUTURE_ACCOUNT_FEATURES = [
   {
@@ -25,6 +27,113 @@ const FUTURE_ACCOUNT_FEATURES = [
 ];
 
 export default function AccountPage() {
+  const [authMode, setAuthMode] = useState("sign-in");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authStatus, setAuthStatus] = useState("");
+
+  const isSupabaseReady = hasSupabaseConfig();
+
+  useEffect(() => {
+    if (!supabase) return;
+
+    async function loadCurrentUser() {
+      const {
+        data: { user },
+        error
+      } = await supabase.auth.getUser();
+
+      if (error) {
+        setCurrentUser(null);
+        return;
+      }
+
+      setCurrentUser(user);
+    }
+
+    loadCurrentUser();
+
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUser(session?.user || null);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  async function handleSignUp(event) {
+    event.preventDefault();
+
+    if (!supabase) {
+      setAuthStatus("Supabase is not configured yet.");
+      return;
+    }
+
+    setAuthStatus("Creating account...");
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password
+    });
+
+    if (error) {
+      setAuthStatus(error.message);
+      return;
+    }
+
+    setAuthStatus(
+      "Account created. Check your email if Supabase asks for confirmation."
+    );
+  }
+
+  async function handleSignIn(event) {
+    event.preventDefault();
+
+    if (!supabase) {
+      setAuthStatus("Supabase is not configured yet.");
+      return;
+    }
+
+    setAuthStatus("Signing in...");
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (error) {
+      setAuthStatus(error.message);
+      return;
+    }
+
+    setAuthStatus("Signed in successfully.");
+    setPassword("");
+  }
+
+  async function handleSignOut() {
+    if (!supabase) {
+      setAuthStatus("Supabase is not configured yet.");
+      return;
+    }
+
+    setAuthStatus("Signing out...");
+
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      setAuthStatus(error.message);
+      return;
+    }
+
+    setAuthStatus("Signed out.");
+    setPassword("");
+  }
+
   return (
     <main className="platform-page">
       <SiteHeader />
@@ -36,9 +145,9 @@ export default function AccountPage() {
           <h1>Your worlds will live here.</h1>
 
           <p>
-            Accounts are coming soon. For now, Chess Multiverse saves worlds
-            locally in this browser. Later, this page will connect to Supabase
-            so creators can save, publish, and manage their worlds online.
+            Accounts are now connected to Supabase Auth. World saving is still
+            local for now, but this is the first step toward online profiles,
+            online worlds, publishing, and multiplayer.
           </p>
 
           <div className="home-action-row">
@@ -54,39 +163,102 @@ export default function AccountPage() {
 
         <section className="account-grid">
           <article className="account-card account-signin-card">
-            <p className="home-kicker">Supabase Soon</p>
+            <p className="home-kicker">Supabase Auth</p>
 
-            <h2>Sign in placeholder</h2>
-
-            <p>
-              This panel will become the login and signup area. Later it will
-              support email/password or magic link authentication through
-              Supabase.
-            </p>
+            <h2>{currentUser ? "Signed in" : "Sign in or create account"}</h2>
 
             <div
               className={
-                hasSupabaseConfig()
+                isSupabaseReady
                   ? "account-supabase-status connected"
                   : "account-supabase-status missing"
               }
             >
               <strong>Supabase status:</strong>
               <span>
-                {hasSupabaseConfig()
+                {isSupabaseReady
                   ? "Environment variables found."
                   : "Environment variables missing."}
               </span>
             </div>
 
-            <div className="account-fake-form">
-              <input disabled placeholder="Email address" />
-              <input disabled placeholder="Password" type="password" />
+            {currentUser ? (
+              <div className="account-current-user-card">
+                <p className="home-kicker">Current User</p>
 
-              <button type="button" disabled>
-                Sign In Soon
-              </button>
-            </div>
+                <h3>{currentUser.email}</h3>
+
+                <p>
+                  You are signed in. Later, this account will own online worlds,
+                  published worlds, favourites, ratings, and play sessions.
+                </p>
+
+                <button type="button" onClick={handleSignOut}>
+                  Sign Out
+                </button>
+              </div>
+            ) : (
+              <form
+                className="account-auth-form"
+                onSubmit={
+                  authMode === "sign-in" ? handleSignIn : handleSignUp
+                }
+              >
+                <div className="account-auth-tabs">
+                  <button
+                    type="button"
+                    className={authMode === "sign-in" ? "active" : ""}
+                    onClick={() => {
+                      setAuthMode("sign-in");
+                      setAuthStatus("");
+                    }}
+                  >
+                    Sign In
+                  </button>
+
+                  <button
+                    type="button"
+                    className={authMode === "sign-up" ? "active" : ""}
+                    onClick={() => {
+                      setAuthMode("sign-up");
+                      setAuthStatus("");
+                    }}
+                  >
+                    Sign Up
+                  </button>
+                </div>
+
+                <label>Email</label>
+                <input
+                  value={email}
+                  type="email"
+                  placeholder="you@example.com"
+                  onChange={(event) => setEmail(event.target.value)}
+                  required
+                />
+
+                <label>Password</label>
+                <input
+                  value={password}
+                  type="password"
+                  placeholder="At least 6 characters"
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
+                />
+
+                <button
+                  type="submit"
+                  className="account-auth-submit"
+                  disabled={!isSupabaseReady}
+                >
+                  {authMode === "sign-in" ? "Sign In" : "Create Account"}
+                </button>
+              </form>
+            )}
+
+            {authStatus && (
+              <p className="account-auth-status">{authStatus}</p>
+            )}
           </article>
 
           <article className="account-card">
@@ -97,12 +269,12 @@ export default function AccountPage() {
             <p>
               Worlds currently save to localStorage. That means they belong to
               this browser and device only. Exporting JSON is still the safest
-              way to move worlds between devices before online accounts exist.
+              way to move worlds between devices before online saving exists.
             </p>
 
             <div className="account-storage-note">
               <strong>Current mode:</strong>
-              <span>Offline/local-first development</span>
+              <span>Hybrid: local worlds + Supabase accounts</span>
             </div>
           </article>
         </section>
