@@ -1,6 +1,8 @@
-// Shared world data helpers.
-// These helpers let localStorage worlds and future Supabase worlds
-// be read in the same way across the platform.
+// Shared world data reader helpers.
+// These helpers are designed to work with localStorage worlds now
+// and Supabase world rows later.
+//
+// See src/lib/supabasePlan.js for the future database model.
 
 export function getWorldData(world) {
   // Normal local saves use world.data.

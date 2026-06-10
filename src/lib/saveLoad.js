@@ -1,3 +1,11 @@
+// Local browser storage helpers.
+// These are used for offline/local-first world saving.
+//
+// Later, Supabase will become the online storage layer.
+// Local storage should remain useful for drafts, backups, and offline testing.
+//
+// See src/lib/supabasePlan.js for the future database model.
+
 const STORAGE_PREFIX = "chess-multiverse";
 
 function getCollectionKey(collectionName) {

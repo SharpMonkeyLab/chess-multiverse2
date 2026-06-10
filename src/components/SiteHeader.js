@@ -9,11 +9,17 @@ export default function SiteHeader() {
         Chess Multiverse
       </Link>
 
-      <nav className="site-nav" aria-label="Main navigation">
-        <Link href="/worlds">Worlds</Link>
-        <Link href="/lobby">Lobby</Link>
-        <Link href="/creator">Create</Link>
-      </nav>
+      <div className="site-header-right">
+        <nav className="site-nav" aria-label="Main navigation">
+          <Link href="/worlds">Worlds</Link>
+          <Link href="/lobby">Lobby</Link>
+          <Link href="/creator">Create</Link>
+        </nav>
+
+        <Link className="site-account-link" href="/account">
+          Account
+        </Link>
+      </div>
     </header>
   );
 }

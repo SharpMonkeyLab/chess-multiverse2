@@ -22,27 +22,48 @@ import {
     getWorldRulesPreview
 } from "@/lib/worldData";
 
-const FEATURED_WORLDS = [
+const COMMUNITY_WORLD_PREVIEWS = [
     {
         id: "elemental-chess",
         name: "Elemental Chess",
         tagline: "A tactical world of elemental powers, terrain, and pressure.",
         status: "Featured",
-        tags: ["Elemental", "Tactical", "Beginner Friendly"]
+        creator: "Chess Multiverse",
+        tags: ["Elemental", "Tactical", "Beginner Friendly"],
+        stats: [
+            { icon: "★", label: "Rating", value: "4.8" },
+            { icon: "👥", label: "Players", value: "12" },
+            { icon: "⚔", label: "Matches", value: "146" },
+            { icon: "🧠", label: "Complexity", value: "Standard" }
+        ]
     },
     {
         id: "material-chess",
         name: "Material Chess",
         tagline: "Science-fantasy chess inspired by states of matter.",
         status: "Concept",
-        tags: ["Science", "States of Matter", "Experimental"]
+        creator: "Chess Multiverse",
+        tags: ["Science", "States of Matter", "Experimental"],
+        stats: [
+            { icon: "★", label: "Rating", value: "New" },
+            { icon: "👥", label: "Players", value: "0" },
+            { icon: "⚔", label: "Matches", value: "0" },
+            { icon: "🧠", label: "Complexity", value: "Advanced" }
+        ]
     },
     {
         id: "shinobi-chess",
         name: "Shinobi Chess",
         tagline: "Character ability chess with chakra, counters, and conditions.",
         status: "Playtest",
-        tags: ["Abilities", "High Chaos", "Characters"]
+        creator: "Chess Multiverse",
+        tags: ["Abilities", "High Chaos", "Characters"],
+        stats: [
+            { icon: "★", label: "Rating", value: "4.6" },
+            { icon: "👥", label: "Players", value: "8" },
+            { icon: "⚔", label: "Matches", value: "92" },
+            { icon: "🧠", label: "Complexity", value: "Advanced" }
+        ]
     }
 ];
 
@@ -461,22 +482,26 @@ export default function WorldLibraryClient() {
             <section className="world-grid-section">
                 <div className="section-heading-row">
                     <div>
-                        <p className="home-kicker">Featured</p>
-                        <h2>Demo Worlds</h2>
+                        <p className="home-kicker">Future Online Library</p>
+                        <h2>Community Worlds Preview</h2>
                     </div>
+
+                    <button type="button" className="world-library-disabled-pill" disabled>
+                        Supabase Soon
+                    </button>
                 </div>
 
                 <div className="world-card-grid">
-                    {FEATURED_WORLDS.map((world) => (
-                        <article className="world-card" key={world.id}>
-                            <div className="world-card-preview">
+                    {COMMUNITY_WORLD_PREVIEWS.map((world) => (
+                        <article className="world-card community-world-card" key={world.id}>
+                            <div className="world-card-preview community-world-preview">
                                 <span>{world.name.slice(0, 1)}</span>
                             </div>
 
                             <div className="world-card-content">
                                 <div className="world-card-topline">
                                     <span>{world.status}</span>
-                                    <span>Preview</span>
+                                    <span>By {world.creator}</span>
                                 </div>
 
                                 <h3>{world.name}</h3>
@@ -489,12 +514,39 @@ export default function WorldLibraryClient() {
                                     ))}
                                 </div>
 
-                                <div className="world-card-footer">
-                                    <span>Sample</span>
+                                <div className="world-card-stat-strip">
+                                    {world.stats.map((stat) => (
+                                        <div className="world-card-stat" key={stat.label}>
+                                            <span className="world-card-stat-icon">{stat.icon}</span>
 
-                                    <Link className="world-play-link" href="/creator">
-                                        Recreate
-                                    </Link>
+                                            <span className="world-card-stat-text">
+                                                <strong>{stat.value}</strong>
+                                                <small>{stat.label}</small>
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="world-card-footer">
+                                    <span>Public Soon</span>
+
+                                    <div className="world-card-action-row">
+                                        <button
+                                            type="button"
+                                            className="world-card-secondary-action"
+                                            disabled
+                                        >
+                                            View Details Soon
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            className="world-soon-link"
+                                            disabled
+                                        >
+                                            Challenge Soon
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </article>
