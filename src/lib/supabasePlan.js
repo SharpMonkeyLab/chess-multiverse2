@@ -74,6 +74,10 @@
 // TABLE 2: worlds
 // ================================
 //
+// Status:
+// - Created in Supabase in Stage 3 — Lesson 24.
+// - App save/load connection still pending.
+//
 // Purpose:
 // Stores the main world data online.
 //
@@ -411,6 +415,12 @@
 // ================================
 // TABLE 8: world_assets
 // ================================
+//
+// Status:
+// - Storage bucket `world-assets` created in Stage 3 — Lesson 28.
+// - Storage policies created for public read and owner-folder write access.
+// - Asset upload helpers created in Stage 3 — Lesson 29.
+// - App Save Online image conversion still pending.
 //
 // Purpose:
 // Tracks uploaded images/assets once we use Supabase Storage.

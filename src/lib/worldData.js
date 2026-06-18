@@ -1,6 +1,7 @@
 // Shared world data reader helpers.
 // These helpers are designed to work with localStorage worlds now
 // and Supabase world rows later.
+// Future online worlds will come from public.worlds.world_data.
 //
 // See src/lib/supabasePlan.js for the future database model.
 

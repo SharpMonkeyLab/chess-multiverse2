@@ -10,11 +10,26 @@ import {
 } from "@/lib/defaultWorld";
 
 import { getCharacterByName } from "@/lib/csv";
+import {
+  GENERIC_PIECE_LABEL,
+  GENERIC_PIECE_SYMBOL,
+  isGenericPieceKey
+} from "@/lib/genericPiece";
 
 function getCharacterList(characterLibrary) {
-  return Array.isArray(characterLibrary)
-    ? characterLibrary
-    : Object.values(characterLibrary || {});
+  if (Array.isArray(characterLibrary)) {
+    return characterLibrary.map((character, index) => ({
+      ...character,
+      pickerKey: character.id || `${character.name || "character"}-${index}`
+    }));
+  }
+
+  return Object.entries(characterLibrary || {}).map(
+    ([characterKey, character], index) => ({
+      ...character,
+      pickerKey: character.id || `${characterKey}-${index}`
+    })
+  );
 }
 
 function getCharacterAbilityName(character) {
@@ -56,13 +71,19 @@ export default function CharacterCard({
   }
 
   const { team, pieceKey } = activePiece;
+  const isGenericPiece = isGenericPieceKey(pieceKey);
 
-  const piece = getPieceDefinition(pieceKey);
-  const pieceLabel = piece?.label || pieceKey;
-  const pieceSymbol = getPieceSymbol(team, pieceKey);
+  const piece = isGenericPiece ? null : getPieceDefinition(pieceKey);
+  const pieceLabel = isGenericPiece
+    ? GENERIC_PIECE_LABEL
+    : piece?.label || pieceKey;
 
-  const pieceName = pieceNames[team][pieceKey];
-  const isLocked = pieceNameLocked[team][pieceKey];
+  const pieceSymbol = isGenericPiece
+    ? GENERIC_PIECE_SYMBOL
+    : getPieceSymbol(team, pieceKey);
+
+  const pieceName = pieceNames?.[team]?.[pieceKey] || "";
+  const isLocked = Boolean(pieceNameLocked?.[team]?.[pieceKey]);
   const matchedCharacter = getCharacterByName(characterLibrary, pieceName);
 
   const abilityTokens = matchedCharacter?.tokens || [];
@@ -211,7 +232,7 @@ export default function CharacterCard({
             <div className="character-picker-grid">
               {characterOptions.map((character) => (
                 <button
-                  key={character.name}
+                  key={character.pickerKey}
                   type="button"
                   className={
                     matchedCharacter?.name === character.name
@@ -237,7 +258,7 @@ export default function CharacterCard({
             <div className="character-picker-list">
               {characterOptions.map((character) => (
                 <button
-                  key={character.name}
+                  key={character.pickerKey}
                   type="button"
                   className={
                     matchedCharacter?.name === character.name

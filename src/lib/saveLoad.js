@@ -1,15 +1,31 @@
 // Local browser storage helpers.
 // These are used for offline/local-first world saving.
 //
-// Later, Supabase will become the online storage layer.
-// Local storage should remain useful for drafts, backups, and offline testing.
+// Safer storage model:
+// - Each saved item gets its own localStorage key.
+// - Each collection has a small index for listing saved items.
+// - This avoids rewriting every saved world whenever one world is saved/deleted.
 //
-// See src/lib/supabasePlan.js for the future database model.
+// Important:
+// LocalStorage is not good for very large image-heavy worlds.
+// Big image worlds should eventually use Supabase Storage.
 
 const STORAGE_PREFIX = "chess-multiverse";
 
-function getCollectionKey(collectionName) {
+// Around 3.5 million characters is already very large for localStorage.
+// This protects the browser from saving giant base64 image worlds locally.
+const MAX_LOCAL_ITEM_CHARACTERS = 3_500_000;
+
+function getLegacyCollectionKey(collectionName) {
   return `${STORAGE_PREFIX}:${collectionName}`;
+}
+
+function getIndexKey(collectionName) {
+  return `${STORAGE_PREFIX}:${collectionName}:index`;
+}
+
+function getItemKey(collectionName, id) {
+  return `${STORAGE_PREFIX}:${collectionName}:item:${id}`;
 }
 
 function slugifyName(name) {
@@ -20,70 +36,133 @@ function slugifyName(name) {
     .replace(/^-+|-+$/g, "");
 }
 
-function loadCollection(collectionName) {
-  if (typeof window === "undefined") return {};
+function loadIndex(collectionName) {
+  if (typeof window === "undefined") return [];
 
-  const collectionKey = getCollectionKey(collectionName);
-  const rawData = window.localStorage.getItem(collectionKey);
+  const rawIndex = window.localStorage.getItem(getIndexKey(collectionName));
 
-  if (!rawData) return {};
+  if (!rawIndex) return [];
 
   try {
-    return JSON.parse(rawData);
+    const parsedIndex = JSON.parse(rawIndex);
+    return Array.isArray(parsedIndex) ? parsedIndex : [];
   } catch {
-    return {};
+    return [];
   }
 }
 
-function saveCollection(collectionName, collectionData) {
+function saveIndex(collectionName, indexData) {
   if (typeof window === "undefined") return;
 
-  const collectionKey = getCollectionKey(collectionName);
-  window.localStorage.setItem(collectionKey, JSON.stringify(collectionData));
+  window.localStorage.setItem(
+    getIndexKey(collectionName),
+    JSON.stringify(indexData)
+  );
+}
+
+function removeLegacyCollectionIfPresent(collectionName) {
+  if (typeof window === "undefined") return;
+
+  // Removes the old giant collection key.
+  window.localStorage.removeItem(getLegacyCollectionKey(collectionName));
+}
+
+function getUniqueId(baseId, existingItems) {
+  const existingIds = new Set(existingItems.map((item) => item.id));
+
+  if (!existingIds.has(baseId)) return baseId;
+
+  let copyNumber = 2;
+  let nextId = `${baseId}-${copyNumber}`;
+
+  while (existingIds.has(nextId)) {
+    copyNumber += 1;
+    nextId = `${baseId}-${copyNumber}`;
+  }
+
+  return nextId;
+}
+
+function assertLocalItemIsNotTooLarge(jsonText) {
+  if (jsonText.length <= MAX_LOCAL_ITEM_CHARACTERS) return;
+
+  throw new Error(
+    "This world is too large for safe local browser saving. Use Save Online Draft or export JSON instead."
+  );
 }
 
 export function saveLocalItem(collectionName, name, data) {
+  if (typeof window === "undefined") return null;
+
   const cleanName = name.trim() || "Untitled";
-  const id = slugifyName(cleanName) || `untitled-${Date.now()}`;
+  const baseId = slugifyName(cleanName) || `untitled-${Date.now()}`;
 
-  const collectionData = loadCollection(collectionName);
+  const currentIndex = loadIndex(collectionName);
+  const existingItem = currentIndex.find((item) => item.id === baseId);
 
-  collectionData[id] = {
+  const id = existingItem ? baseId : getUniqueId(baseId, currentIndex);
+  const updatedAt = new Date().toISOString();
+
+  const savedItem = {
     id,
     name: cleanName,
-    updatedAt: new Date().toISOString(),
+    updatedAt,
     data
   };
 
-  saveCollection(collectionName, collectionData);
+  const savedItemJson = JSON.stringify(savedItem);
 
-  return collectionData[id];
+  assertLocalItemIsNotTooLarge(savedItemJson);
+
+  window.localStorage.setItem(getItemKey(collectionName, id), savedItemJson);
+
+  const nextIndexWithoutItem = currentIndex.filter((item) => item.id !== id);
+
+  const nextIndex = [
+    ...nextIndexWithoutItem,
+    {
+      id,
+      name: cleanName,
+      updatedAt
+    }
+  ].sort((a, b) => a.name.localeCompare(b.name));
+
+  saveIndex(collectionName, nextIndex);
+  removeLegacyCollectionIfPresent(collectionName);
+
+  return savedItem;
 }
 
 export function loadLocalItem(collectionName, id) {
-  if (!id) return null;
+  if (typeof window === "undefined" || !id) return null;
 
-  const collectionData = loadCollection(collectionName);
+  const rawItem = window.localStorage.getItem(getItemKey(collectionName, id));
 
-  return collectionData[id] || null;
+  if (!rawItem) return null;
+
+  try {
+    return JSON.parse(rawItem);
+  } catch {
+    return null;
+  }
 }
 
 export function deleteLocalItem(collectionName, id) {
-  if (!id) return;
+  if (typeof window === "undefined" || !id) return;
 
-  const collectionData = loadCollection(collectionName);
+  window.localStorage.removeItem(getItemKey(collectionName, id));
 
-  delete collectionData[id];
+  const currentIndex = loadIndex(collectionName);
+  const nextIndex = currentIndex.filter((item) => item.id !== id);
 
-  saveCollection(collectionName, collectionData);
+  saveIndex(collectionName, nextIndex);
+  removeLegacyCollectionIfPresent(collectionName);
 }
 
 export function getLocalItemList(collectionName) {
-  const collectionData = loadCollection(collectionName);
+  const indexData = loadIndex(collectionName);
 
-  return Object.values(collectionData).sort((a, b) =>
-    a.name.localeCompare(b.name)
-  );
+  return indexData.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function downloadJsonFile(fileName, data) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 function readImageFile(file, onLoad) {
     if (!file) return;
@@ -29,7 +29,7 @@ function createEmptyCharacter() {
 
 function getCharacterTitle(character) {
     const name = character.name || "Unnamed Character";
-    const ability = character.abilityName || "No ability";
+    const ability = character.abilityName || character.ability || "No ability";
 
     return `${name}: ${ability}`;
 }
@@ -40,6 +40,14 @@ function getCharacterList(characterLibrary) {
         : Object.values(characterLibrary || {});
 }
 
+function getCharacterAbilityName(character) {
+    return character?.abilityName || character?.ability || "";
+}
+
+function getCharacterDescription(character) {
+    return character?.abilityDescription || character?.description || "";
+}
+
 export default function CharacterEditor({
     characterLibrary,
     characterUploadStatus,
@@ -48,23 +56,24 @@ export default function CharacterEditor({
 }) {
     const characterList = getCharacterList(characterLibrary);
 
-    const [selectedCharacterId, setSelectedCharacterId] = useState(
-        characterList[0]?.id || characterList[0]?.name || ""
-    );
+    const [selectedCharacterIndex, setSelectedCharacterIndex] = useState(0);
 
-    const selectedCharacter =
-        characterList.find(
-            (character) =>
-                character.id === selectedCharacterId ||
-                character.name === selectedCharacterId
-        ) || characterList[0];
+    const selectedCharacter = characterList[selectedCharacterIndex] || null;
 
-    function updateCharacter(characterId, field, value) {
-        const nextCharacters = characterList.map((character) => {
-            const isMatch =
-                character.id === characterId || character.name === characterId;
+    useEffect(() => {
+        if (characterList.length === 0) {
+            setSelectedCharacterIndex(0);
+            return;
+        }
 
-            if (!isMatch) return character;
+        if (selectedCharacterIndex > characterList.length - 1) {
+            setSelectedCharacterIndex(characterList.length - 1);
+        }
+    }, [characterList.length, selectedCharacterIndex]);
+
+    function updateCharacter(characterIndex, field, value) {
+        const nextCharacters = characterList.map((character, index) => {
+            if (index !== characterIndex) return character;
 
             return {
                 ...character,
@@ -77,23 +86,26 @@ export default function CharacterEditor({
 
     function addCharacter() {
         const newCharacter = createEmptyCharacter();
+        const nextCharacters = [...characterList, newCharacter];
 
-        onCharacterLibraryChange([...characterList, newCharacter]);
-        setSelectedCharacterId(newCharacter.id);
+        onCharacterLibraryChange(nextCharacters);
+        setSelectedCharacterIndex(nextCharacters.length - 1);
     }
 
-    function deleteCharacter(characterId) {
+    function deleteCharacter(characterIndex) {
         const nextCharacters = characterList.filter(
-            (character) =>
-                character.id !== characterId && character.name !== characterId
+            (_character, index) => index !== characterIndex
         );
 
         onCharacterLibraryChange(nextCharacters);
 
-        const nextSelectedCharacter = nextCharacters[0];
+        if (nextCharacters.length === 0) {
+            setSelectedCharacterIndex(0);
+            return;
+        }
 
-        setSelectedCharacterId(
-            nextSelectedCharacter?.id || nextSelectedCharacter?.name || ""
+        setSelectedCharacterIndex(
+            Math.min(characterIndex, nextCharacters.length - 1)
         );
     }
 
@@ -101,12 +113,15 @@ export default function CharacterEditor({
         if (!selectedCharacter) return;
 
         readImageFile(file, (imageData) => {
-            updateCharacter(
-                selectedCharacter.id || selectedCharacter.name,
-                "portrait",
-                imageData
-            );
+            updateCharacter(selectedCharacterIndex, "portrait", imageData);
         });
+    }
+
+    function handleCsvUpload(file) {
+        if (!file) return;
+
+        onCharacterCsvUpload(file);
+        setSelectedCharacterIndex(0);
     }
 
     return (
@@ -114,8 +129,10 @@ export default function CharacterEditor({
             <div className="creator-header-row">
                 <div>
                     <h3>Character Creator</h3>
-                    <p className="small muted">
-                        Create the characters available in this world.
+
+                    <p className="creator-header-note">
+                        Create characters manually, edit their abilities, or bulk import
+                        from CSV below.
                     </p>
                 </div>
 
@@ -124,47 +141,21 @@ export default function CharacterEditor({
                 </button>
             </div>
 
-            <div className="character-import-box">
-                <div className="character-import-title">
-                    Advanced CSV Import
-                </div>
-
-                <p className="small muted">
-                    Upload a CSV with character, ability, description, cost, portrait, and tokens.
-                </p>
-
-                <p className="character-import-warning">
-                    This replaces the current Character Library for this world.
-                </p>
-
-                <input
-                    type="file"
-                    accept=".csv"
-                    onChange={(event) => {
-                        onCharacterCsvUpload(event.target.files[0]);
-                        event.target.value = "";
-                    }}
-                />
-
-                <p className="small muted">
-                    {characterUploadStatus}
-                </p>
-            </div>
-
             <div className="character-gallery">
                 {characterList.length === 0 ? (
                     <p className="small muted">No characters yet.</p>
                 ) : (
-                    characterList.map((character) => {
-                        const characterId = character.id || character.name;
+                    characterList.map((character, characterIndex) => {
+                        const characterKey =
+                            character.id ||
+                            `${character.name || "character"}-${characterIndex}`;
+
                         const isSelected =
-                            selectedCharacter &&
-                            (selectedCharacter.id === characterId ||
-                                selectedCharacter.name === characterId);
+                            characterIndex === selectedCharacterIndex;
 
                         return (
                             <div
-                                key={characterId}
+                                key={characterKey}
                                 role="button"
                                 tabIndex={0}
                                 className={
@@ -173,11 +164,11 @@ export default function CharacterEditor({
                                         : "character-gallery-card"
                                 }
                                 title={getCharacterTitle(character)}
-                                onClick={() => setSelectedCharacterId(characterId)}
+                                onClick={() => setSelectedCharacterIndex(characterIndex)}
                                 onKeyDown={(event) => {
                                     if (event.key === "Enter" || event.key === " ") {
                                         event.preventDefault();
-                                        setSelectedCharacterId(characterId);
+                                        setSelectedCharacterIndex(characterIndex);
                                     }
                                 }}
                             >
@@ -197,7 +188,7 @@ export default function CharacterEditor({
                                     title={`Delete ${character.name || "character"}`}
                                     onClick={(event) => {
                                         event.stopPropagation();
-                                        deleteCharacter(characterId);
+                                        deleteCharacter(characterIndex);
                                     }}
                                 >
                                     ×
@@ -208,9 +199,25 @@ export default function CharacterEditor({
                 )}
             </div>
 
-            {selectedCharacter && (
+            {selectedCharacter ? (
                 <div className="character-edit-form">
-                    <h3>Edit Character</h3>
+                    <div className="character-edit-heading-row">
+                        <div>
+                            <h3>Edit Character</h3>
+
+                            <p className="character-edit-subtitle">
+                                {selectedCharacter.name || "Unnamed Character"}
+                            </p>
+                        </div>
+
+                        <button
+                            type="button"
+                            className="danger-button"
+                            onClick={() => deleteCharacter(selectedCharacterIndex)}
+                        >
+                            Delete
+                        </button>
+                    </div>
 
                     <div className="character-edit-preview">
                         {selectedCharacter.portrait ? (
@@ -231,7 +238,7 @@ export default function CharacterEditor({
                         placeholder="e.g. Kakashi"
                         onChange={(event) =>
                             updateCharacter(
-                                selectedCharacter.id || selectedCharacter.name,
+                                selectedCharacterIndex,
                                 "name",
                                 event.target.value
                             )
@@ -253,7 +260,7 @@ export default function CharacterEditor({
                             type="button"
                             onClick={() =>
                                 updateCharacter(
-                                    selectedCharacter.id || selectedCharacter.name,
+                                    selectedCharacterIndex,
                                     "portrait",
                                     ""
                                 )
@@ -265,11 +272,11 @@ export default function CharacterEditor({
 
                     <label>Ability Name</label>
                     <input
-                        value={selectedCharacter.abilityName || ""}
+                        value={getCharacterAbilityName(selectedCharacter)}
                         placeholder="e.g. Lightning Blade"
                         onChange={(event) =>
                             updateCharacter(
-                                selectedCharacter.id || selectedCharacter.name,
+                                selectedCharacterIndex,
                                 "abilityName",
                                 event.target.value
                             )
@@ -278,28 +285,62 @@ export default function CharacterEditor({
 
                     <label>Ability Description</label>
                     <textarea
-                        value={selectedCharacter.abilityDescription || ""}
+                        value={getCharacterDescription(selectedCharacter)}
                         placeholder="Describe what this character can do."
                         onChange={(event) =>
                             updateCharacter(
-                                selectedCharacter.id || selectedCharacter.name,
+                                selectedCharacterIndex,
                                 "abilityDescription",
                                 event.target.value
                             )
                         }
                     />
+                </div>
+            ) : (
+                <div className="character-edit-form character-empty-editor-card">
+                    <h3>Edit Character</h3>
 
-                    <button
-                        type="button"
-                        className="danger-button"
-                        onClick={() =>
-                            deleteCharacter(selectedCharacter.id || selectedCharacter.name)
-                        }
-                    >
-                        Delete Character
+                    <p className="small muted">
+                        Add a character to start building this world's roster.
+                    </p>
+
+                    <button type="button" onClick={addCharacter}>
+                        + Add First Character
                     </button>
                 </div>
             )}
+
+            <div className="character-import-divider">
+                <span>CSV Import</span>
+            </div>
+
+            <div className="character-import-box">
+                <div className="character-import-title">
+                    Advanced CSV Import
+                </div>
+
+                <p className="small muted">
+                    Upload a CSV with character, ability, description, cost, portrait,
+                    and tokens.
+                </p>
+
+                <p className="character-import-warning">
+                    This replaces the current Character Library for this world.
+                </p>
+
+                <input
+                    type="file"
+                    accept=".csv"
+                    onChange={(event) => {
+                        handleCsvUpload(event.target.files[0]);
+                        event.target.value = "";
+                    }}
+                />
+
+                <p className="small muted">
+                    {characterUploadStatus}
+                </p>
+            </div>
         </div>
     );
 }

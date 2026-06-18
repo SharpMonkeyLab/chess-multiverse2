@@ -5,6 +5,8 @@ import Link from "next/link";
 
 import { loadLocalItem } from "@/lib/saveLoad";
 
+import { hasSupabaseConfig, supabase } from "@/lib/supabaseClient";
+
 import {
     getCharacterList,
     getConditionList,
@@ -21,6 +23,7 @@ import {
 
 export default function WorldDetailsClient({ worldId }) {
     const [world, setWorld] = useState(null);
+    const [worldSource, setWorldSource] = useState("");
     const [status, setStatus] = useState("Loading world...");
 
     const [selectedCharacterIndex, setSelectedCharacterIndex] = useState(0);
@@ -30,16 +33,58 @@ export default function WorldDetailsClient({ worldId }) {
     const [selectedTokenIndex, setSelectedTokenIndex] = useState(0);
 
     useEffect(() => {
-        const savedWorld = loadLocalItem("worlds", worldId);
-
-        if (!savedWorld) {
-            setStatus("Could not find this local world.");
+        async function loadWorldDetails() {
+            setStatus("Loading world...");
             setWorld(null);
-            return;
+            setWorldSource("");
+
+            // Keep local support as a fallback for old links/dev use.
+            const savedWorld = loadLocalItem("worlds", worldId);
+
+            if (savedWorld) {
+                setWorld(savedWorld);
+                setWorldSource("local");
+                setStatus("");
+                return;
+            }
+
+            if (!hasSupabaseConfig() || !supabase) {
+                setStatus("Could not find this world.");
+                return;
+            }
+
+            try {
+                const { data: onlineWorld, error } = await supabase
+                    .from("worlds")
+                    .select("id, name, description, is_public, updated_at, world_data")
+                    .eq("id", worldId)
+                    .eq("is_public", true)
+                    .single();
+
+                if (error || !onlineWorld) {
+                    setStatus("Could not find this published world.");
+                    setWorld(null);
+                    return;
+                }
+
+                setWorld({
+                    id: onlineWorld.id,
+                    name: onlineWorld.name,
+                    updatedAt: onlineWorld.updated_at,
+                    isPublic: onlineWorld.is_public,
+                    data: onlineWorld.world_data
+                });
+
+                setWorldSource("online");
+                setStatus("");
+            } catch (error) {
+                console.error("Online world details load failed:", error);
+                setStatus("Could not reach Supabase to load this world.");
+                setWorld(null);
+            }
         }
 
-        setWorld(savedWorld);
-        setStatus("");
+        loadWorldDetails();
     }, [worldId]);
 
     if (!world) {
@@ -50,7 +95,7 @@ export default function WorldDetailsClient({ worldId }) {
                     <h1>{status}</h1>
 
                     <p>
-                        This world may have been deleted, renamed, or saved in another
+                        This world may be private, unpublished, deleted, or saved in another
                         browser.
                     </p>
 
@@ -112,7 +157,9 @@ export default function WorldDetailsClient({ worldId }) {
                 </div>
 
                 <div className="world-details-main">
-                    <p className="home-kicker">Local World</p>
+                    <p className="home-kicker">
+                        {worldSource === "online" ? "Published World" : "Local World"}
+                    </p>
 
                     <h1>{world.name}</h1>
 
@@ -123,12 +170,18 @@ export default function WorldDetailsClient({ worldId }) {
                             Back to Worlds
                         </Link>
 
-                        <Link
-                            className="home-primary-link"
-                            href={`/creator?world=${world.id}`}
-                        >
-                            Open in Creator
-                        </Link>
+                        {worldSource === "local" ? (
+                            <Link
+                                className="home-primary-link"
+                                href={`/creator?world=${world.id}`}
+                            >
+                                Open in Creator
+                            </Link>
+                        ) : (
+                            <button type="button" className="world-details-disabled-btn" disabled>
+                                Open in Creator for Owner Soon
+                            </button>
+                        )}
 
                         <button type="button" className="world-details-disabled-btn" disabled>
                             Create Challenge Soon

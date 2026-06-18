@@ -29,6 +29,14 @@ import {
   readJsonFile,
   saveLocalItem
 } from "@/lib/saveLoad";
+import { isImageDataUrl, uploadDataUrlAsset } from "@/lib/assetStorage";
+import { hasSupabaseConfig, supabase } from "@/lib/supabaseClient";
+import { getWorldComplexity } from "@/lib/worldData";
+import { uploadWorldAssets } from "@/lib/worldAssetStorage";
+import {
+  createGenericPieceInstanceKey,
+  GENERIC_PIECE_KEY
+} from "@/lib/genericPiece";
 
 const FALLBACK_STAGE_WIDTH = 1460;
 const FALLBACK_STAGE_HEIGHT = 840;
@@ -233,6 +241,10 @@ export default function WorldCreator() {
   const [selectedSavedTestGameId, setSelectedSavedTestGameId] = useState("");
 
   const [saveStatus, setSaveStatus] = useState("");
+  const [onlineSaveStatus, setOnlineSaveStatus] = useState("");
+  const [onlineWorldId, setOnlineWorldId] = useState(null);
+  const [isSavingOnline, setIsSavingOnline] = useState(false);
+  const [isSavingLocal, setIsSavingLocal] = useState(false);
 
   const [characterLibrary, setCharacterLibrary] = useState({});
   const [characterUploadStatus, setCharacterUploadStatus] = useState(
@@ -349,6 +361,350 @@ export default function WorldCreator() {
       pieceNames,
       pieceNameLocked
     };
+  }
+
+  function getOnlineWorldFields(worldData) {
+    const details = worldData.worldDetails || {};
+
+    const name = details.name?.trim() || "Untitled World";
+    const description = details.description || "";
+    const rulesNotes = details.rulesNotes || "";
+
+    return {
+      name,
+      description,
+      rules_notes: rulesNotes,
+      complexity_label: getWorldComplexity({ data: worldData })
+    };
+  }
+
+  function getTextByteSize(text) {
+    if (typeof TextEncoder !== "undefined") {
+      return new TextEncoder().encode(text).length;
+    }
+
+    return text.length;
+  }
+
+  function formatDataSize(bytes) {
+    if (bytes < 1024) {
+      return `${bytes} B`;
+    }
+
+    if (bytes < 1024 * 1024) {
+      return `${(bytes / 1024).toFixed(1)} KB`;
+    }
+
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  }
+
+  function findEmbeddedImageDataUrlPaths(value, currentPath = "worldData") {
+    if (typeof value === "string") {
+      return value.startsWith("data:image/") ? [currentPath] : [];
+    }
+
+    if (Array.isArray(value)) {
+      return value.flatMap((item, index) =>
+        findEmbeddedImageDataUrlPaths(item, `${currentPath}[${index}]`)
+      );
+    }
+
+    if (value && typeof value === "object") {
+      return Object.entries(value).flatMap(([key, nestedValue]) =>
+        findEmbeddedImageDataUrlPaths(nestedValue, `${currentPath}.${key}`)
+      );
+    }
+
+    return [];
+  }
+
+  function createOnlineWorldDataAudit(worldData) {
+    const jsonText = JSON.stringify(worldData);
+    const embeddedImagePaths = findEmbeddedImageDataUrlPaths(worldData);
+
+    return {
+      sizeBytes: getTextByteSize(jsonText),
+      sizeLabel: formatDataSize(getTextByteSize(jsonText)),
+      embeddedImageCount: embeddedImagePaths.length,
+      embeddedImagePaths
+    };
+  }
+
+  function getOnlineWorldAuditMessage(audit) {
+    if (audit.embeddedImageCount === 0) {
+      return `Online data: ${audit.sizeLabel}. No embedded images left.`;
+    }
+
+    return `Online data: ${audit.sizeLabel}. ${audit.embeddedImageCount} embedded image(s) still inside world_data.`;
+  }
+
+  async function uploadCharacterPortraitsForOnlineSave({
+    characterLibrary,
+    userId,
+    worldId
+  }) {
+    if (!characterLibrary) {
+      return characterLibrary;
+    }
+
+    const isLibraryArray = Array.isArray(characterLibrary);
+
+    const characterEntries = isLibraryArray
+      ? characterLibrary.map((character, index) => [String(index), character])
+      : Object.entries(characterLibrary);
+
+    let uploadedPortraitCount = 0;
+
+    const nextCharacterEntries = [];
+
+    for (const [characterKey, character] of characterEntries) {
+      if (!character || typeof character !== "object") {
+        nextCharacterEntries.push([characterKey, character]);
+        continue;
+      }
+
+      const portrait = character.portrait;
+
+      if (!isImageDataUrl(portrait)) {
+        nextCharacterEntries.push([characterKey, character]);
+        continue;
+      }
+
+      uploadedPortraitCount += 1;
+
+      setOnlineSaveStatus(
+        `Uploading character portrait ${uploadedPortraitCount}...`
+      );
+
+      const portraitUpload = await uploadDataUrlAsset({
+        userId,
+        worldId,
+        assetType: "character-portraits",
+        assetName: `${characterKey}-${character.name || "character"}`,
+        dataUrl: portrait
+      });
+
+      nextCharacterEntries.push([
+        characterKey,
+        {
+          ...character,
+          portrait: portraitUpload.publicUrl || portrait
+        }
+      ]);
+    }
+
+    if (isLibraryArray) {
+      return nextCharacterEntries.map(([, character]) => character);
+    }
+
+    return Object.fromEntries(nextCharacterEntries);
+  }
+
+  async function uploadTerrainImagesForOnlineSave({
+    worldMechanics,
+    userId,
+    worldId
+  }) {
+    if (!worldMechanics) {
+      return worldMechanics;
+    }
+
+    const terrains = Array.isArray(worldMechanics.terrains)
+      ? worldMechanics.terrains
+      : [];
+
+    let uploadedTerrainCount = 0;
+
+    const nextTerrains = [];
+
+    for (const [terrainIndex, terrain] of terrains.entries()) {
+      if (!terrain || typeof terrain !== "object") {
+        nextTerrains.push(terrain);
+        continue;
+      }
+
+      const terrainImage = terrain.image;
+
+      if (terrain.fillType !== "image" || !isImageDataUrl(terrainImage)) {
+        nextTerrains.push(terrain);
+        continue;
+      }
+
+      uploadedTerrainCount += 1;
+
+      setOnlineSaveStatus(
+        `Uploading terrain image ${uploadedTerrainCount}...`
+      );
+
+      const terrainUpload = await uploadDataUrlAsset({
+        userId,
+        worldId,
+        assetType: "terrain-images",
+        assetName: `${terrain.key || terrainIndex}-${terrain.label || "terrain"}`,
+        dataUrl: terrainImage
+      });
+
+      nextTerrains.push({
+        ...terrain,
+        image: terrainUpload.publicUrl || terrainImage
+      });
+    }
+
+    return {
+      ...worldMechanics,
+      terrains: nextTerrains
+    };
+  }
+
+  async function uploadPieceSkinsForOnlineSave({
+    worldTheme,
+    userId,
+    worldId
+  }) {
+    if (!worldTheme) {
+      return worldTheme;
+    }
+
+    const pieceSkins = worldTheme.pieceSkins || {};
+
+    const nextPieceSkins = {
+      ...pieceSkins,
+      white: {
+        ...(pieceSkins.white || {})
+      },
+      black: {
+        ...(pieceSkins.black || {})
+      }
+    };
+
+    let uploadedPieceSkinCount = 0;
+
+    for (const teamKey of ["white", "black"]) {
+      const teamPieceSkins = nextPieceSkins[teamKey] || {};
+
+      for (const [pieceKey, pieceSkinImage] of Object.entries(teamPieceSkins)) {
+        if (!isImageDataUrl(pieceSkinImage)) {
+          continue;
+        }
+
+        uploadedPieceSkinCount += 1;
+
+        setOnlineSaveStatus(
+          `Uploading piece skin ${uploadedPieceSkinCount}...`
+        );
+
+        const pieceSkinUpload = await uploadDataUrlAsset({
+          userId,
+          worldId,
+          assetType: "piece-skins",
+          assetName: `${teamKey}-${pieceKey}`,
+          dataUrl: pieceSkinImage
+        });
+
+        teamPieceSkins[pieceKey] = pieceSkinUpload.publicUrl || pieceSkinImage;
+      }
+
+      nextPieceSkins[teamKey] = teamPieceSkins;
+    }
+
+    return {
+      ...worldTheme,
+      pieceSkins: nextPieceSkins
+    };
+  }
+
+  async function prepareWorldDataForOnlineSave({ worldData, userId, worldId }) {
+    const originalWorldTheme = worldData.worldTheme || {};
+    const originalPieceSkins = originalWorldTheme.pieceSkins || {};
+
+    const nextWorldData = {
+      ...worldData,
+
+      worldTheme: {
+        ...originalWorldTheme,
+        pieceSkins: {
+          ...originalPieceSkins,
+          white: {
+            ...(originalPieceSkins.white || {})
+          },
+          black: {
+            ...(originalPieceSkins.black || {})
+          }
+        }
+      },
+
+      worldMechanics: {
+        ...(worldData.worldMechanics || {}),
+        terrains: Array.isArray(worldData.worldMechanics?.terrains)
+          ? [...worldData.worldMechanics.terrains]
+          : []
+      },
+
+      characterLibrary: Array.isArray(worldData.characterLibrary)
+        ? [...worldData.characterLibrary]
+        : {
+          ...(worldData.characterLibrary || {})
+        }
+    };
+
+    const backgroundImage = nextWorldData.worldTheme.backgroundImage;
+
+    if (backgroundImage) {
+      setOnlineSaveStatus("Uploading background image...");
+
+      const backgroundUpload = await uploadDataUrlAsset({
+        userId,
+        worldId,
+        assetType: "backgrounds",
+        assetName: "world-background",
+        dataUrl: backgroundImage
+      });
+
+      if (backgroundUpload.publicUrl) {
+        nextWorldData.worldTheme.backgroundImage = backgroundUpload.publicUrl;
+      }
+    }
+
+    const boardSkinImage = nextWorldData.worldTheme.boardSkinImage;
+
+    if (boardSkinImage) {
+      setOnlineSaveStatus("Uploading board skin...");
+
+      const boardSkinUpload = await uploadDataUrlAsset({
+        userId,
+        worldId,
+        assetType: "board-skins",
+        assetName: "board-skin",
+        dataUrl: boardSkinImage
+      });
+
+      if (boardSkinUpload.publicUrl) {
+        nextWorldData.worldTheme.boardSkinImage = boardSkinUpload.publicUrl;
+      }
+    }
+
+    nextWorldData.characterLibrary =
+      await uploadCharacterPortraitsForOnlineSave({
+        characterLibrary: nextWorldData.characterLibrary,
+        userId,
+        worldId
+      });
+
+    nextWorldData.worldMechanics =
+      await uploadTerrainImagesForOnlineSave({
+        worldMechanics: nextWorldData.worldMechanics,
+        userId,
+        worldId
+      });
+
+    nextWorldData.worldTheme =
+      await uploadPieceSkinsForOnlineSave({
+        worldTheme: nextWorldData.worldTheme,
+        userId,
+        worldId
+      });
+
+    return nextWorldData;
   }
 
   function createTestGameSaveData() {
@@ -948,15 +1304,116 @@ export default function WorldCreator() {
   }
 
   function handleSaveWorld() {
-    const savedWorld = saveLocalItem(
-      "worlds",
-      worldDetails.name,
-      createWorldSaveData()
-    );
+    if (isSavingLocal || isSavingOnline) {
+      setSaveStatus("Please wait for the current save to finish.");
+      return;
+    }
 
-    setSelectedSavedWorldId(savedWorld.id);
-    refreshSavedLists();
-    setSaveStatus(`World saved: ${savedWorld.name}`);
+    setIsSavingLocal(true);
+    setSaveStatus("Saving world locally...");
+
+    try {
+      const savedWorld = saveLocalItem(
+        "worlds",
+        worldDetails.name,
+        createWorldSaveData()
+      );
+
+      setSelectedSavedWorldId(savedWorld.id);
+      refreshSavedLists();
+      setSaveStatus(`Local backup saved: ${savedWorld.name}`);
+    } catch (error) {
+      console.error("Local world save failed:", error);
+      setSaveStatus("Could not save this world locally.");
+    } finally {
+      setIsSavingLocal(false);
+    }
+  }
+
+  async function handleSaveWorldOnline() {
+    if (!hasSupabaseConfig() || !supabase) {
+      setOnlineSaveStatus("Supabase is not configured.");
+      return;
+    }
+
+    if (isSavingOnline || isSavingLocal) {
+      setOnlineSaveStatus("Please wait for the current save to finish.");
+      return;
+    }
+
+    setIsSavingOnline(true);
+    setOnlineSaveStatus("Checking account...");
+
+    try {
+      const {
+        data: { user },
+        error: userError
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        setOnlineSaveStatus("Please sign in before saving online.");
+        return;
+      }
+
+      const targetOnlineWorldId = onlineWorldId || crypto.randomUUID();
+
+      const rawWorldData = createWorldSaveData();
+
+      const worldData = await prepareWorldDataForOnlineSave({
+        worldData: rawWorldData,
+        userId: user.id,
+        worldId: targetOnlineWorldId
+      });
+
+      const onlineFields = getOnlineWorldFields(worldData);
+
+      const onlineAudit = createOnlineWorldDataAudit(worldData);
+
+      if (onlineAudit.embeddedImageCount > 0) {
+        console.warn(
+          "Embedded images still inside online world_data:",
+          onlineAudit.embeddedImagePaths
+        );
+      }
+
+      const rowPayload = {
+        id: targetOnlineWorldId,
+        owner_id: user.id,
+        name: onlineFields.name,
+        slug: null,
+        description: onlineFields.description,
+        rules_notes: onlineFields.rules_notes,
+        world_data: worldData,
+        is_public: false,
+        complexity_label: onlineFields.complexity_label,
+        updated_at: new Date().toISOString()
+      };
+
+      setOnlineSaveStatus("Saving world data online...");
+
+      const { data: savedWorld, error } = await supabase
+        .from("worlds")
+        .upsert(rowPayload, {
+          onConflict: "id"
+        })
+        .select("*")
+        .single();
+
+      if (error) {
+        setOnlineSaveStatus(error.message);
+        return;
+      }
+
+      setOnlineWorldId(savedWorld.id);
+      setOnlineSaveStatus(
+        `World saved: ${savedWorld.name}. ${getOnlineWorldAuditMessage(onlineAudit)}`
+      );
+    } catch (error) {
+      console.error("Online world save failed:", error);
+      setOnlineSaveStatus("Could not reach Supabase to save this world.");
+    } finally {
+      setIsSavingOnline(false);
+    }
   }
 
   function handleLoadWorld() {
@@ -969,30 +1426,81 @@ export default function WorldCreator() {
 
     applyWorldSaveData(savedWorld.data);
 
-    setSaveStatus(`World loaded: ${savedWorld.name}. Board setup unchanged.`);
+    setSaveStatus(`Local backup loaded: ${savedWorld.name}. Board setup unchanged.`);
   }
 
   useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search);
-    const worldIdFromUrl = searchParams.get("world");
+    async function loadWorldFromUrl() {
+      const searchParams = new URLSearchParams(window.location.search);
 
-    if (!worldIdFromUrl) return;
+      const localWorldIdFromUrl = searchParams.get("world");
+      const onlineWorldIdFromUrl = searchParams.get("onlineWorld");
 
-    const savedWorld = loadLocalItem("worlds", worldIdFromUrl);
+      if (localWorldIdFromUrl) {
+        const savedWorld = loadLocalItem("worlds", localWorldIdFromUrl);
 
-    if (!savedWorld) {
-      setSaveStatus("Could not find that local world.");
-      return;
+        if (!savedWorld) {
+          setSaveStatus("Could not find that local world.");
+          return;
+        }
+
+        applyWorldSaveData(savedWorld.data);
+        setSelectedSavedWorldId(savedWorld.id);
+        refreshSavedLists();
+
+        setSaveStatus(`World loaded from Library: ${savedWorld.name}`);
+
+        window.history.replaceState({}, "", window.location.pathname);
+        return;
+      }
+
+      if (onlineWorldIdFromUrl) {
+        if (!hasSupabaseConfig() || !supabase) {
+          setSaveStatus("Supabase is not configured.");
+          return;
+        }
+
+        setSaveStatus("Loading online world...");
+
+        try {
+          const {
+            data: { user },
+            error: userError
+          } = await supabase.auth.getUser();
+
+          if (userError || !user) {
+            setSaveStatus("Please sign in before opening online worlds.");
+            return;
+          }
+
+          const { data: onlineWorld, error } = await supabase
+            .from("worlds")
+            .select("id, name, world_data, owner_id")
+            .eq("id", onlineWorldIdFromUrl)
+            .eq("owner_id", user.id)
+            .single();
+
+          if (error || !onlineWorld) {
+            setSaveStatus(
+              error?.message || "Could not find that online world."
+            );
+            return;
+          }
+
+          applyWorldSaveData(onlineWorld.world_data);
+          setOnlineWorldId(onlineWorld.id);
+
+          setSaveStatus(`Online world loaded: ${onlineWorld.name}`);
+
+          window.history.replaceState({}, "", window.location.pathname);
+        } catch (error) {
+          console.error("Online world load failed:", error);
+          setSaveStatus("Could not reach Supabase to load this online world.");
+        }
+      }
     }
 
-    applyWorldSaveData(savedWorld.data);
-    setSelectedSavedWorldId(savedWorld.id);
-    refreshSavedLists();
-
-    setSaveStatus(`World loaded from Library: ${savedWorld.name}`);
-
-    // Remove ?world=... from the URL after loading, so refreshing does not keep reloading it.
-    window.history.replaceState({}, "", window.location.pathname);
+    loadWorldFromUrl();
   }, []);
 
   function handleDeleteWorld() {
@@ -1005,7 +1513,7 @@ export default function WorldCreator() {
 
     setSelectedSavedWorldId("");
     refreshSavedLists();
-    setSaveStatus("Saved world deleted.");
+    setSaveStatus("Local backup deleted.");
   }
 
   function handleSaveTestGame() {
@@ -1053,15 +1561,31 @@ export default function WorldCreator() {
   // PIECE/TOKEN/CHARACTER HANDLERS
 
   function handleSelectPiece(team, pieceKey) {
+    if (!team || !pieceKey) return;
+
     setSelectedTeam(team);
     setSelectedPiece(pieceKey);
+
     setSelectedToken(null);
+
     setSelectedCounterDelta(null);
     setSelectedCounterAction(null);
+
     setSelectedCondition(null);
     setSelectedConditionAction(null);
+
     clearTerrainSelections();
+
     setMovingPiece(null);
+    setSelectedBoardAction(null);
+
+    // Generic pieces are placement templates.
+    // The real editable character card opens after the piece is placed on the board.
+    if (pieceKey === GENERIC_PIECE_KEY) {
+      setActivePiece(null);
+      return;
+    }
+
     setActivePiece({ team, pieceKey });
   }
 
@@ -1081,7 +1605,7 @@ export default function WorldCreator() {
     setPieceNames((currentNames) => ({
       ...currentNames,
       [team]: {
-        ...currentNames[team],
+        ...(currentNames[team] || {}),
         [pieceKey]: value
       }
     }));
@@ -1091,7 +1615,7 @@ export default function WorldCreator() {
     setPieceNameLocked((currentLocked) => ({
       ...currentLocked,
       [team]: {
-        ...currentLocked[team],
+        ...(currentLocked[team] || {}),
         [pieceKey]: true
       }
     }));
@@ -1101,7 +1625,7 @@ export default function WorldCreator() {
     setPieceNameLocked((currentLocked) => ({
       ...currentLocked,
       [team]: {
-        ...currentLocked[team],
+        ...(currentLocked[team] || {}),
         [pieceKey]: false
       }
     }));
@@ -1321,20 +1845,43 @@ export default function WorldCreator() {
         return;
       }
 
-      setCells((currentCells) => {
+      const placedPieceKey =
+        selectedPiece === GENERIC_PIECE_KEY
+          ? createGenericPieceInstanceKey()
+          : selectedPiece;
+
+      updateCellsWithHistory((currentCells) => {
         const nextCells = currentCells.map(cloneCell);
         const targetCell = nextCells[index];
 
         clearCellOccupant(targetCell);
-        targetCell.pieceType = selectedPiece;
+        targetCell.pieceType = placedPieceKey;
         targetCell.team = selectedTeam;
 
         return nextCells;
       });
 
+      if (selectedPiece === GENERIC_PIECE_KEY) {
+        setPieceNames((currentNames) => ({
+          ...currentNames,
+          [selectedTeam]: {
+            ...(currentNames[selectedTeam] || {}),
+            [placedPieceKey]: ""
+          }
+        }));
+
+        setPieceNameLocked((currentLocked) => ({
+          ...currentLocked,
+          [selectedTeam]: {
+            ...(currentLocked[selectedTeam] || {}),
+            [placedPieceKey]: false
+          }
+        }));
+      }
+
       setActivePiece({
         team: selectedTeam,
-        pieceKey: selectedPiece
+        pieceKey: placedPieceKey
       });
 
       if (!event?.shiftKey) {
@@ -1438,7 +1985,7 @@ export default function WorldCreator() {
     setPieceNames((currentNames) => ({
       ...currentNames,
       [team]: {
-        ...currentNames[team],
+        ...(currentNames[team] || {}),
         [pieceKey]: characterName
       }
     }));
@@ -1446,7 +1993,7 @@ export default function WorldCreator() {
     setPieceNameLocked((currentLocked) => ({
       ...currentLocked,
       [team]: {
-        ...currentLocked[team],
+        ...(currentLocked[team] || {}),
         [pieceKey]: true
       }
     }));
@@ -1553,6 +2100,11 @@ export default function WorldCreator() {
               onExportWorld={handleExportWorld}
               onImportWorld={handleImportWorld}
               onSelectedSavedWorldChange={setSelectedSavedWorldId}
+
+              onSaveWorldOnline={handleSaveWorldOnline}
+              onlineSaveStatus={onlineSaveStatus}
+              isSavingOnline={isSavingOnline}
+              isSavingLocal={isSavingLocal}
 
               onSaveTestGame={handleSaveTestGame}
               onLoadTestGame={handleLoadTestGame}

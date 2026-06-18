@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AccountNavButton from "./AccountNavButton";
 
 // Shared platform navigation.
 // This appears on normal website pages, but NOT inside the full-screen World Creator.
@@ -16,9 +17,7 @@ export default function SiteHeader() {
           <Link href="/creator">Create</Link>
         </nav>
 
-        <Link className="site-account-link" href="/account">
-          Account
-        </Link>
+        <AccountNavButton />
       </div>
     </header>
   );

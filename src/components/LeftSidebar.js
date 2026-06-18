@@ -9,6 +9,65 @@ import TerrainEditor from "./TerrainEditor";
 import CounterEditor from "./CounterEditor";
 import ConditionEditor from "./ConditionEditor";
 
+function parseCounterAmount(value) {
+  const numberValue = Number(value);
+
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function parseCounterAmountFromLabel(label) {
+  if (!label) return null;
+
+  const cleanedLabel = String(label).replace(/[^0-9.+-]/g, "");
+  const numberValue = Number(cleanedLabel);
+
+  return Number.isFinite(numberValue) && numberValue !== 0
+    ? numberValue
+    : null;
+}
+
+function getCounterActionAmount(counter, actionType) {
+  if (actionType === "decrease") {
+    const directAmount = parseCounterAmount(counter.decreaseAmount);
+
+    if (directAmount !== null && directAmount !== 0) {
+      return -Math.abs(directAmount);
+    }
+
+    const labelAmount = parseCounterAmountFromLabel(counter.decreaseLabel);
+
+    if (labelAmount !== null) {
+      return labelAmount < 0 ? labelAmount : -Math.abs(labelAmount);
+    }
+
+    return -1;
+  }
+
+  const directAmount = parseCounterAmount(counter.increaseAmount);
+
+  if (directAmount !== null && directAmount !== 0) {
+    return Math.abs(directAmount);
+  }
+
+  const labelAmount = parseCounterAmountFromLabel(counter.increaseLabel);
+
+  if (labelAmount !== null) {
+    return labelAmount > 0 ? labelAmount : Math.abs(labelAmount);
+  }
+
+  return 1;
+}
+
+function getCounterActionLabel(counter, actionType) {
+  if (actionType === "decrease") {
+    return counter.decreaseLabel || String(getCounterActionAmount(counter, "decrease"));
+  }
+
+  const amount = getCounterActionAmount(counter, "increase");
+
+  return counter.increaseLabel || `+${amount}`;
+}
+
 export default function LeftSidebar({
   worldDetails,
   worldTheme,
@@ -184,89 +243,94 @@ export default function LeftSidebar({
               <h2>Counters</h2>
 
               <div className="counter-tool-list">
-                {counterList.map((counter) => (
-                  <div
-                    key={counter.key}
-                    className="counter-tool-row"
-                    title={
-                      counter.description
-                        ? `${counter.label}: ${counter.description}`
-                        : counter.label
-                    }
-                  >
+                {counterList.map((counter) => {
+                  const decreaseAmount = getCounterActionAmount(counter, "decrease");
+                  const increaseAmount = getCounterActionAmount(counter, "increase");
+
+                  return (
                     <div
-                      className="counter-tool-dot"
-                      style={{ "--counter-tool-color": counter.color || "#e7c97a" }}
-                    />
-
-                    <div className="counter-tool-name">
-                      {counter.label}
-                    </div>
-
-                    <button
-                      type="button"
-                      className={
-                        selectedCounterKey === counter.key &&
-                          selectedCounterAction === "adjust" &&
-                          selectedCounterDelta === -1
-                          ? "counter-tool-btn active"
-                          : "counter-tool-btn"
+                      key={counter.key}
+                      className="counter-tool-row"
+                      title={
+                        counter.description
+                          ? `${counter.label}: ${counter.description}`
+                          : counter.label
                       }
-                      style={{ "--cell-counter-color": counter.color || "#e7c97a" }}
-                      onClick={() => onSelectCounterDelta(counter.key, -1)}
                     >
-                      {counter.decreaseLabel || "-1"}
-                    </button>
+                      <div
+                        className="counter-tool-dot"
+                        style={{ "--counter-tool-color": counter.color || "#e7c97a" }}
+                      />
 
-                    <button
-                      type="button"
-                      className={
-                        selectedCounterKey === counter.key &&
-                          selectedCounterAction === "adjust" &&
-                          selectedCounterDelta === 1
-                          ? "counter-tool-btn active"
-                          : "counter-tool-btn"
-                      }
-                      style={{ "--cell-counter-color": counter.color || "#e7c97a" }}
-                      onClick={() => onSelectCounterDelta(counter.key, 1)}
-                    >
-                      {counter.increaseLabel || "+1"}
-                    </button>
+                      <div className="counter-tool-name">
+                        {counter.label}
+                      </div>
 
-                    {counter.allowSetCounter && (
                       <button
                         type="button"
                         className={
                           selectedCounterKey === counter.key &&
-                            selectedCounterAction === "set"
+                            selectedCounterAction === "adjust" &&
+                            selectedCounterDelta === decreaseAmount
                             ? "counter-tool-btn active"
                             : "counter-tool-btn"
                         }
-                        title={
-                          counter.setDescription
-                            ? `${counter.setLabel || "Set"}: ${counter.setDescription}`
-                            : counter.setLabel || "Set"
-                        }
-                        onClick={() => onSelectSetCounter(counter.key)}
+                        style={{ "--cell-counter-color": counter.color || "#e7c97a" }}
+                        onClick={() => onSelectCounterDelta(counter.key, decreaseAmount)}
                       >
-                        {counter.setLabel || "Set"}
+                        {getCounterActionLabel(counter, "decrease")}
                       </button>
-                    )}
 
-                    <button
-                      type="button"
-                      className={
-                        selectedCounterKey === counter.key &&
-                          selectedCounterAction === "clear"
-                          ? "counter-clear-btn active"
-                          : "counter-clear-btn"
-                      }
-                      onClick={() => onSelectClearCounter(counter.key)}
-                    >
-                      Clear
-                    </button>
-                  </div>
-                ))}
+                      <button
+                        type="button"
+                        className={
+                          selectedCounterKey === counter.key &&
+                            selectedCounterAction === "adjust" &&
+                            selectedCounterDelta === increaseAmount
+                            ? "counter-tool-btn active"
+                            : "counter-tool-btn"
+                        }
+                        style={{ "--cell-counter-color": counter.color || "#e7c97a" }}
+                        onClick={() => onSelectCounterDelta(counter.key, increaseAmount)}
+                      >
+                        {getCounterActionLabel(counter, "increase")}
+                      </button>
+
+                      {counter.allowSetCounter && (
+                        <button
+                          type="button"
+                          className={
+                            selectedCounterKey === counter.key &&
+                              selectedCounterAction === "set"
+                              ? "counter-tool-btn active"
+                              : "counter-tool-btn"
+                          }
+                          title={
+                            counter.setDescription
+                              ? `${counter.setLabel || "Set"}: ${counter.setDescription}`
+                              : counter.setLabel || "Set"
+                          }
+                          onClick={() => onSelectSetCounter(counter.key)}
+                        >
+                          {counter.setLabel || "Set"}
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        className={
+                          selectedCounterKey === counter.key &&
+                            selectedCounterAction === "clear"
+                            ? "counter-clear-btn active"
+                            : "counter-clear-btn"
+                        }
+                        onClick={() => onSelectClearCounter(counter.key)}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
 
               {counterList.some((counter) => counter.allowSetCounter) && (

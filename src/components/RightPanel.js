@@ -1,9 +1,19 @@
+"use client";
+
+import { useState } from "react";
+
 import {
   DEFAULT_PIECES,
   GENERIC_TOKEN_SYMBOL,
   getPieceSkin,
   getPieceSymbol
 } from "@/lib/defaultWorld";
+
+import {
+  GENERIC_PIECE_KEY,
+  GENERIC_PIECE_LABEL,
+  GENERIC_PIECE_SYMBOL
+} from "@/lib/genericPiece";
 
 import CharacterCard from "./CharacterCard";
 
@@ -79,14 +89,72 @@ function TeamTray({
   );
 }
 
-function TokenTray({ worldTokens, selectedToken, onSelectToken }) {
+function TokenTray({
+  worldTokens,
+  selectedToken,
+  selectedTeam,
+  selectedPiece,
+  onSelectToken,
+  onSelectPiece
+}) {
+  const [isAddPieceOpen, setIsAddPieceOpen] = useState(false);
+
   const tokenList = Object.values(worldTokens).sort((a, b) =>
     a.label.localeCompare(b.label)
   );
 
+  const isWhiteGenericSelected =
+    selectedTeam === "white" && selectedPiece === GENERIC_PIECE_KEY;
+
+  const isBlackGenericSelected =
+    selectedTeam === "black" && selectedPiece === GENERIC_PIECE_KEY;
+
   return (
     <section className="panel-box">
       <h2>World Tokens</h2>
+
+      <div className="generic-piece-tray">
+        <button
+          type="button"
+          className={isAddPieceOpen ? "add-piece-toggle active" : "add-piece-toggle"}
+          onClick={() => setIsAddPieceOpen((current) => !current)}
+          aria-expanded={isAddPieceOpen}
+        >
+          + Add New Piece
+        </button>
+
+        {isAddPieceOpen && (
+          <div className="generic-piece-tray-grid">
+            <button
+              type="button"
+              className={
+                isWhiteGenericSelected
+                  ? "world-token-btn generic-piece-token-btn active"
+                  : "world-token-btn generic-piece-token-btn"
+              }
+              onClick={() => onSelectPiece("white", GENERIC_PIECE_KEY)}
+              title="Place a white generic piece. After placing it, click the piece to assign a character."
+            >
+              <span>{GENERIC_PIECE_SYMBOL}</span>
+              <strong>White {GENERIC_PIECE_LABEL}</strong>
+            </button>
+
+            <button
+              type="button"
+              className={
+                isBlackGenericSelected
+                  ? "world-token-btn generic-piece-token-btn active"
+                  : "world-token-btn generic-piece-token-btn"
+              }
+              onClick={() => onSelectPiece("black", GENERIC_PIECE_KEY)}
+              title="Place a black generic piece. After placing it, click the piece to assign a character."
+            >
+              <span>{GENERIC_PIECE_SYMBOL}</span>
+              <strong>Black {GENERIC_PIECE_LABEL}</strong>
+            </button>
+          </div>
+        )}
+      </div>
 
       {tokenList.length === 0 ? (
         <p className="small muted">No world tokens yet.</p>
@@ -229,7 +297,10 @@ export default function RightPanel({
         <TokenTray
           worldTokens={worldTokens}
           selectedToken={selectedToken}
+          selectedTeam={selectedTeam}
+          selectedPiece={selectedPiece}
           onSelectToken={onSelectToken}
+          onSelectPiece={onSelectPiece}
         />
       )}
     </aside>

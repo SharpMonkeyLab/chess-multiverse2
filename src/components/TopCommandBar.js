@@ -29,6 +29,11 @@ export default function TopCommandBar({
     onImportWorld,
     onSelectedSavedWorldChange,
 
+    onSaveWorldOnline,
+    onlineSaveStatus,
+    isSavingOnline,
+    isSavingLocal,
+
     onSaveTestGame,
     onLoadTestGame,
     onDeleteTestGame,
@@ -77,8 +82,14 @@ export default function TopCommandBar({
 
             <div className="top-command-actions">
                 <div className="top-command-button-row">
-                    <button type="button" className="primary-button" onClick={onSaveWorld}>
-                        Save World
+                    <button
+                        type="button"
+                        className="primary-button"
+                        onClick={onSaveWorldOnline}
+                        disabled={isSavingOnline || isSavingLocal}
+                        title="Save this world to your account."
+                    >
+                        {isSavingOnline ? "Saving..." : "Save World"}
                     </button>
 
                     <button type="button" onClick={handleExit}>
@@ -98,38 +109,20 @@ export default function TopCommandBar({
                         {isMenuOpen && (
                             <div className="command-menu">
                                 <details open>
-                                    <summary>Storage</summary>
+                                    <summary>Backup & Transfer</summary>
 
                                     <section className="command-menu-section">
-                                        <select
-                                            value={selectedSavedWorldId}
-                                            onChange={(event) =>
-                                                onSelectedSavedWorldChange(event.target.value)
-                                            }
-                                        >
-                                            <option value="">Saved worlds</option>
-                                            {savedWorlds.map((world) => (
-                                                <option key={world.id} value={world.id}>
-                                                    {world.name}
-                                                </option>
-                                            ))}
-                                        </select>
+                                        <p className="command-menu-help-text">
+                                            Export a JSON backup you can keep on your device, or import one to restore a world.
+                                        </p>
 
                                         <div className="menu-button-grid">
-                                            <button type="button" onClick={onLoadWorld}>
-                                                Load World
-                                            </button>
-
-                                            <button type="button" onClick={onDeleteWorld}>
-                                                Delete World
-                                            </button>
-
                                             <button type="button" onClick={onExportWorld}>
-                                                Export World
+                                                Export JSON
                                             </button>
 
                                             <label className="menu-file-button">
-                                                Import World
+                                                Import JSON
                                                 <input
                                                     type="file"
                                                     accept=".json,application/json"
@@ -237,12 +230,24 @@ export default function TopCommandBar({
                                         />
                                     </section>
                                 </details>
-
-                                {saveStatus && <p className="command-menu-status">{saveStatus}</p>}
                             </div>
                         )}
                     </div>
                 </div>
+
+                {(saveStatus || onlineSaveStatus) && (
+                    <div className="top-command-status-row" aria-live="polite">
+                        {saveStatus && (
+                            <p className="command-menu-status">{saveStatus}</p>
+                        )}
+
+                        {onlineSaveStatus && (
+                            <p className="command-menu-status online-save-status">
+                                {onlineSaveStatus}
+                            </p>
+                        )}
+                    </div>
+                )}
 
                 <input
                     className="world-name-input"

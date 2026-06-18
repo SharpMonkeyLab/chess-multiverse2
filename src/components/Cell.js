@@ -8,6 +8,10 @@ import {
   humanizeTokenName
 } from "@/lib/defaultWorld";
 import { getCharacterByName } from "@/lib/csv";
+import {
+  GENERIC_PIECE_SYMBOL,
+  isGenericPieceKey
+} from "@/lib/genericPiece";
 
 export default function Cell({
   coordinate,
@@ -64,13 +68,17 @@ export default function Cell({
       };
     });
 
+  const isGenericPiece = isGenericPieceKey(cellData.pieceType);
+
   const pieceSymbol =
     cellData.team && cellData.pieceType
-      ? getPieceSymbol(cellData.team, cellData.pieceType)
+      ? isGenericPiece
+        ? GENERIC_PIECE_SYMBOL
+        : getPieceSymbol(cellData.team, cellData.pieceType)
       : "";
 
   const pieceSkin =
-    cellData.team && cellData.pieceType
+    cellData.team && cellData.pieceType && !isGenericPiece
       ? getPieceSkin(worldTheme, cellData.team, cellData.pieceType)
       : "";
 
@@ -79,7 +87,7 @@ export default function Cell({
 
   const assignedCharacterName =
     cellData.team && cellData.pieceType
-      ? pieceNames[cellData.team][cellData.pieceType]
+      ? pieceNames?.[cellData.team]?.[cellData.pieceType] || ""
       : "";
 
   const assignedCharacter = getCharacterByName(
@@ -96,18 +104,20 @@ export default function Cell({
       style={terrainStyle}
       onClick={onClick}
     >
-
       {hasTerrain && (
         <div
-          className={`cell-terrain-layer ${terrain.fillType === "image" ? "terrain-image" : "terrain-color"}`}
+          className={`cell-terrain-layer ${terrain.fillType === "image" ? "terrain-image" : "terrain-color"
+            }`}
           style={terrainStyle}
         />
       )}
+
       {pieceSymbol && (
         <div
-          className={`cell-piece ${cellData.team} ${assignedCharacter?.portrait
-            ? `has-character ${characterDisplayMode}`
-            : ""
+          className={`cell-piece ${cellData.team} ${isGenericPiece ? "generic-piece" : ""
+            } ${assignedCharacter?.portrait
+              ? `has-character ${characterDisplayMode}`
+              : ""
             }`}
         >
           {assignedCharacter?.portrait &&
