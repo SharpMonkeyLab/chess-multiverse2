@@ -2,10 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { loadLocalItem } from "@/lib/saveLoad";
 
 import { hasSupabaseConfig, supabase } from "@/lib/supabaseClient";
+
+import {
+    createPieceRecord,
+    createStandardSetupCells
+} from "@/lib/defaultWorld";
 
 import {
     getCharacterList,
@@ -21,16 +27,91 @@ import {
     getWorldRulesPreview
 } from "@/lib/worldData";
 
+function createInitialPlaySessionState() {
+    return {
+        version: 1,
+
+        // Board state for this match.
+        cells: createStandardSetupCells(),
+
+        // Character assignments belong to the session, not the world template.
+        pieceNames: createPieceRecord(""),
+        pieceNameLocked: createPieceRecord(false),
+
+        // Later systems can use these.
+        turnTeam: "white",
+        moveNumber: 1,
+        createdFrom: "world"
+    };
+}
+
 export default function WorldDetailsClient({ worldId }) {
+    const router = useRouter();
     const [world, setWorld] = useState(null);
     const [worldSource, setWorldSource] = useState("");
     const [status, setStatus] = useState("Loading world...");
+    const [playStatus, setPlayStatus] = useState("");
+    const [isCreatingSession, setIsCreatingSession] = useState(false);
 
     const [selectedCharacterIndex, setSelectedCharacterIndex] = useState(0);
     const [selectedTerrainIndex, setSelectedTerrainIndex] = useState(0);
     const [selectedCounterIndex, setSelectedCounterIndex] = useState(0);
     const [selectedConditionIndex, setSelectedConditionIndex] = useState(0);
     const [selectedTokenIndex, setSelectedTokenIndex] = useState(0);
+
+    async function handleCreatePlaySession() {
+        if (worldSource !== "online") {
+            router.push(`/play?world=${encodeURIComponent(world.id)}`);
+            return;
+        }
+
+        if (!hasSupabaseConfig() || !supabase) {
+            setPlayStatus("Online play sessions are not available.");
+            return;
+        }
+
+        setIsCreatingSession(true);
+        setPlayStatus("Opening board...");
+
+        try {
+            const {
+                data: { user },
+                error: userError
+            } = await supabase.auth.getUser();
+
+            if (userError || !user) {
+                setPlayStatus("Sign in to start a play session.");
+                setIsCreatingSession(false);
+                return;
+            }
+
+            const { data: session, error: sessionError } = await supabase
+                .from("play_sessions")
+                .insert({
+                    world_id: world.id,
+                    host_id: user.id,
+                    status: "setup",
+                    visibility: "private",
+                    game_state: createInitialPlaySessionState()
+                })
+                .select("id")
+                .single();
+
+            if (sessionError || !session) {
+                setPlayStatus(
+                    sessionError?.message || "Could not create play session."
+                );
+                setIsCreatingSession(false);
+                return;
+            }
+
+            router.push(`/play?session=${session.id}`);
+        } catch (error) {
+            console.error("Create play session failed:", error);
+            setPlayStatus("Could not start this play session.");
+            setIsCreatingSession(false);
+        }
+    }
 
     useEffect(() => {
         async function loadWorldDetails() {
@@ -128,6 +209,8 @@ export default function WorldDetailsClient({ worldId }) {
     const selectedCondition = conditions[selectedConditionIndex] || conditions[0];
     const selectedToken = tokens[selectedTokenIndex] || tokens[0];
 
+    const playHref = `/play?world=${encodeURIComponent(world.id)}`;
+
     return (
         <div className="world-details-content">
             <section className="world-details-hero">
@@ -158,7 +241,7 @@ export default function WorldDetailsClient({ worldId }) {
 
                 <div className="world-details-main">
                     <p className="home-kicker">
-                        {worldSource === "online" ? "Published World" : "Local World"}
+                        {worldSource === "online" ? "Enter World" : "Local World"}
                     </p>
 
                     <h1>{world.name}</h1>
@@ -166,26 +249,33 @@ export default function WorldDetailsClient({ worldId }) {
                     <p>{description}</p>
 
                     <div className="world-details-action-row">
+                        <button
+                            type="button"
+                            className="home-primary-link world-details-play-button"
+                            onClick={handleCreatePlaySession}
+                            disabled={isCreatingSession}
+                        >
+                            {isCreatingSession ? "Opening Board..." : "Play This World"}
+                        </button>
+
+                        {playStatus && (
+                            <p className="world-details-play-status">
+                                {playStatus}
+                            </p>
+                        )}
+
                         <Link className="home-secondary-link" href="/worlds">
                             Back to Worlds
                         </Link>
 
-                        {worldSource === "local" ? (
+                        {worldSource === "local" && (
                             <Link
-                                className="home-primary-link"
+                                className="home-secondary-link"
                                 href={`/creator?world=${world.id}`}
                             >
                                 Open in Creator
                             </Link>
-                        ) : (
-                            <button type="button" className="world-details-disabled-btn" disabled>
-                                Open in Creator for Owner Soon
-                            </button>
                         )}
-
-                        <button type="button" className="world-details-disabled-btn" disabled>
-                            Create Challenge Soon
-                        </button>
                     </div>
                 </div>
             </section>

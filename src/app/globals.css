@@ -47,7 +47,7 @@
 
   /* Final visual nudges only. Default should be 0. */
   --board-nudge-x: 0px;
-  --board-nudge-y: -130px;
+  --board-nudge-y: -110px;
 
   /* Position of the playable 8×8 grid inside the board image */
   --board-playable-left-ratio: 0.083;
@@ -768,10 +768,10 @@ select {
 }
 
 .counter-tool-row {
-  display: grid;
-  grid-template-columns: 14px minmax(0, 1fr) auto auto auto auto;
-  gap: 6px;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  gap: 6px;
 
   padding: 7px;
 
@@ -782,6 +782,8 @@ select {
 }
 
 .counter-tool-dot {
+  flex: 0 0 12px;
+
   width: 12px;
   height: 12px;
 
@@ -794,6 +796,8 @@ select {
 }
 
 .counter-tool-name {
+  flex: 1 1 calc(100% - 24px);
+  max-width: calc(100% - 24px);
   min-width: 0;
 
   color: var(--text);
@@ -803,6 +807,16 @@ select {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.counter-tool-row .counter-tool-btn,
+.counter-tool-row .counter-clear-btn {
+  flex: 1 1 0;
+
+  min-width: 48px;
+  min-height: 30px;
+
+  padding-inline: 8px;
 }
 
 .counter-gallery {
@@ -2064,6 +2078,20 @@ textarea {
   width: 100%;
 }
 
+/* ================================
+   SELECTED TOOL / ACTIVE STATE
+   Clear gold outline for selected board tools.
+   ================================ */
+
+button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+button:focus-visible {
+  outline: 2px solid rgba(168, 107, 255, 0.78);
+  outline-offset: 2px;
+}
+
 .piece-tray-button.active,
 .counter-tool-btn.active,
 .counter-clear-btn.active,
@@ -2072,13 +2100,19 @@ textarea {
 .terrain-tool-btn.active,
 .terrain-clear-btn.active,
 .world-token-btn.active,
-.ability-token-btn.active {
+.ability-token-btn.active,
+.add-piece-toggle.active,
+.delete-piece-btn.active {
+  border-color: var(--gold);
+
   outline: 2px solid var(--gold);
   outline-offset: 2px;
 
+  background: rgba(17, 20, 27, 0.96);
+  color: var(--gold);
+
   box-shadow:
-    0 0 14px rgba(231, 201, 122, 0.45),
-    inset 0 0 12px rgba(231, 201, 122, 0.12);
+    inset 0 0 0 1px rgba(231, 201, 122, 0.26);
 }
 
 .world-details-form {
@@ -6428,11 +6462,7 @@ button:focus-visible {
 
 .counter-tool-row {
   grid-template-columns:
-    14px minmax(0, 1fr)
-    minmax(52px, auto)
-    minmax(52px, auto)
-    minmax(52px, auto)
-    minmax(52px, auto);
+    14px minmax(0, 1fr) minmax(52px, auto) minmax(52px, auto) minmax(52px, auto) minmax(52px, auto);
 }
 
 .counter-tool-btn,
@@ -6476,7 +6506,7 @@ button:focus-visible {
     rgba(5, 6, 10, 0.16);
 }
 
-.creator-header-row > div {
+.creator-header-row>div {
   display: grid;
   gap: 4px;
 }
@@ -6620,4 +6650,246 @@ button:focus-visible {
     radial-gradient(circle at 45% 25%, rgba(168, 107, 255, 0.88), rgba(17, 20, 27, 0.96));
 
   color: var(--gold);
+}
+
+/* ================================
+   OWNED PUBLIC WORLD HIGHLIGHT
+   ================================ */
+
+.published-world-card-owned {
+  border-color: rgba(231, 201, 122, 0.54);
+
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.34),
+    0 0 22px rgba(231, 201, 122, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.published-world-card-owned:hover {
+  border-color: var(--royal-gold, var(--gold));
+
+  box-shadow:
+    0 20px 48px rgba(0, 0, 0, 0.38),
+    0 0 28px rgba(231, 201, 122, 0.24),
+    0 0 16px rgba(168, 107, 255, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+.published-world-card .world-card-preview {
+  position: relative;
+}
+
+.world-card-preview .owned-world-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+
+  z-index: 6;
+
+  width: auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  max-width: max-content;
+
+  display: inline-grid;
+  place-items: center;
+
+  padding: 4px 8px;
+
+  border: 1px solid rgba(5, 6, 10, 0.48);
+  border-radius: 999px;
+
+  background:
+    linear-gradient(135deg, #f5de9f, #c89d46);
+
+  color: #05060a;
+
+  font-family: var(--font-body);
+  font-size: 0.62rem;
+  font-weight: 1000;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+
+  opacity: 1;
+
+  box-shadow:
+    0 3px 9px rgba(0, 0, 0, 0.44),
+    0 0 12px rgba(231, 201, 122, 0.24);
+
+  pointer-events: none;
+}
+
+/* ================================
+   PUBLIC WORLD CARD FOOTER
+   ================================ */
+
+.published-world-card .world-card-footer {
+  align-self: end;
+
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.published-world-card .world-card-action-row {
+  width: 100%;
+
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.published-world-card .world-play-link,
+.published-world-card .world-card-coming-soon-pill {
+  width: 100%;
+  min-height: 34px;
+}
+
+.world-card-coming-soon-pill {
+  display: inline-grid;
+  place-items: center;
+
+  padding: 7px 10px;
+
+  border: 1px solid rgba(201, 206, 217, 0.18);
+  border-radius: 999px;
+
+  background: rgba(17, 20, 27, 0.58);
+  color: rgba(244, 247, 251, 0.52);
+
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-align: center;
+
+  cursor: default;
+}
+
+/* ================================
+   ENTER WORLD ACTIONS
+   ================================ */
+
+.world-details-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.world-details-action-row .home-primary-link,
+.world-details-action-row .home-secondary-link {
+  min-width: 150px;
+}
+
+/* ================================
+   PLAY MODE
+   ================================ */
+
+.play-mode-frame {
+  background-color: #05060a;
+}
+
+.play-command-bar .world-title-block h1 {
+  color: var(--royal-gold, var(--gold));
+}
+
+.play-command-button-row {
+  grid-template-columns: 0.8fr 0.8fr 0.9fr 0.8fr;
+}
+
+.play-mode-status {
+  margin: 0;
+}
+
+.play-world-name-readonly {
+  min-height: 30px;
+
+  display: grid;
+  align-items: center;
+
+  padding: 7px 9px;
+
+  border: 1px solid rgba(231, 201, 122, 0.28);
+  border-radius: 10px;
+
+  background: rgba(5, 6, 10, 0.58);
+  color: var(--royal-gold, var(--gold));
+
+  font-size: 0.78rem;
+  font-weight: 900;
+
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.4);
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ================================
+   PLAY SESSION START
+   ================================ */
+
+.world-details-play-button {
+  border: 1px solid rgba(231, 201, 122, 0.62);
+  cursor: pointer;
+}
+
+.world-details-play-button:disabled {
+  opacity: 0.58;
+  cursor: wait;
+}
+
+.world-details-play-status {
+  width: 100%;
+  margin: 0;
+
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+/* ================================
+   PLAY MODE TOP BAR CLICK SAFETY
+   Lets board clicks pass through empty top-bar space.
+   Buttons still remain clickable.
+   ================================ */
+
+.play-command-bar {
+  pointer-events: none;
+}
+
+.play-command-bar .world-title-block,
+.play-command-bar .top-command-actions,
+.play-command-bar button,
+.play-command-bar input,
+.play-command-bar select,
+.play-command-bar textarea {
+  pointer-events: auto;
+}
+
+.play-mode-frame {
+  --board-nudge-y: -104px;
+}
+
+.play-mode-frame .world-title-block h1 {
+  font-size: 1.55rem;
+}
+
+.play-mode-frame .top-command-button-row>button {
+  min-height: 28px;
+  padding: 5px 7px;
+  font-size: 0.72rem;
+}
+
+.play-mode-frame .command-menu-status {
+  padding: 5px 7px;
+  font-size: 0.68rem;
+}
+
+.play-mode-frame .play-world-name-readonly {
+  min-height: 26px;
+  padding: 5px 7px;
+  font-size: 0.72rem;
 }

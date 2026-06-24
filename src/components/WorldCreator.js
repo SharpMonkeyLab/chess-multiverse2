@@ -351,15 +351,16 @@ export default function WorldCreator() {
 
   function createWorldSaveData() {
     return {
-      version: 1,
+      version: 2,
+
+      // Permanent world template data.
+      // This is what defines the world for browsing, publishing, and starting games.
       worldDetails,
       worldTheme,
       worldMechanics,
       worldFeatures,
       characterLibrary,
-      worldTokens,
-      pieceNames,
-      pieceNameLocked
+      worldTokens
     };
   }
 
@@ -709,10 +710,19 @@ export default function WorldCreator() {
 
   function createTestGameSaveData() {
     return {
-      version: 1,
+      version: 2,
       worldDetails,
+
+      // World template at the moment of testing.
       worldData: createWorldSaveData(),
-      cells
+
+      // Actual test-board state.
+      cells,
+
+      // Test-game character assignments.
+      // These are NOT part of the world template.
+      pieceNames,
+      pieceNameLocked
     };
   }
 
@@ -757,8 +767,12 @@ export default function WorldCreator() {
     setWorldFeatures(worldData.worldFeatures || DEFAULT_WORLD_FEATURES);
     setCharacterLibrary(worldData.characterLibrary || {});
     setWorldTokens(worldData.worldTokens || {});
-    setPieceNames(worldData.pieceNames || createPieceRecord(""));
-    setPieceNameLocked(worldData.pieceNameLocked || createPieceRecord(false));
+
+    // Important:
+    // Loading a world template should not restore old playtest character assignments.
+    // Those belong to test games / future play sessions, not to the world itself.
+    setPieceNames(createPieceRecord(""));
+    setPieceNameLocked(createPieceRecord(false));
 
     setMovingPiece(null);
     setSelectedTeam(null);
@@ -1079,8 +1093,9 @@ export default function WorldCreator() {
     setMovingPiece(null);
   }
 
-  function handleSelectSetCounter(counterKey) {
+  function handleSelectSetCounter(counterKey, nextSetValue = 0) {
     setSelectedCounterKey(counterKey);
+    setCounterSetValue(String(nextSetValue));
     setSelectedCounterAction("set");
     setSelectedCounterDelta(null);
 
@@ -1540,6 +1555,20 @@ export default function WorldCreator() {
 
     applyWorldSaveData(gameData.worldData);
     setCells(gameData.cells || createStandardSetupCells());
+
+    // Restore test-game assignments separately from the world template.
+    // The fallback keeps older saved test games working.
+    setPieceNames(
+      gameData.pieceNames ||
+      gameData.worldData?.pieceNames ||
+      createPieceRecord("")
+    );
+
+    setPieceNameLocked(
+      gameData.pieceNameLocked ||
+      gameData.worldData?.pieceNameLocked ||
+      createPieceRecord(false)
+    );
 
     setMovingPiece(null);
     setSaveStatus(`Test game loaded: ${savedGame.name}`);

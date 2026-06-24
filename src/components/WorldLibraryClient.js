@@ -95,6 +95,79 @@ export default function WorldLibraryClient() {
     const [publicWorldsStatus, setPublicWorldsStatus] = useState("");
     const [isLoadingPublicWorlds, setIsLoadingPublicWorlds] = useState(false);
 
+    const [currentUser, setCurrentUser] = useState(null);
+    const [creatorNamesById, setCreatorNamesById] = useState({});
+
+    async function loadCurrentLibraryUser() {
+        if (!hasSupabaseConfig() || !supabase) {
+            setCurrentUser(null);
+            return;
+        }
+
+        try {
+            const {
+                data: { user },
+                error
+            } = await supabase.auth.getUser();
+
+            if (error) {
+                console.warn("Could not load current library user:", error.message);
+                setCurrentUser(null);
+                return;
+            }
+
+            setCurrentUser(user || null);
+        } catch (error) {
+            console.warn("Could not reach Supabase for library user:", error);
+            setCurrentUser(null);
+        }
+    }
+
+    async function loadCreatorNamesForWorlds(worldRows) {
+        if (!hasSupabaseConfig() || !supabase) {
+            setCreatorNamesById({});
+            return;
+        }
+
+        const ownerIds = [
+            ...new Set(
+                (worldRows || [])
+                    .map((world) => world.owner_id)
+                    .filter(Boolean)
+            )
+        ];
+
+        if (ownerIds.length === 0) {
+            setCreatorNamesById({});
+            return;
+        }
+
+        try {
+            const { data: profiles, error } = await supabase
+                .from("profiles")
+                .select("id, display_name")
+                .in("id", ownerIds);
+
+            if (error) {
+                console.warn("Could not load creator names:", error.message);
+                setCreatorNamesById({});
+                return;
+            }
+
+            const nextCreatorNamesById = {};
+
+            for (const profile of profiles || []) {
+                nextCreatorNamesById[profile.id] =
+                    profile.display_name || "Unknown Creator";
+            }
+
+            setCreatorNamesById(nextCreatorNamesById);
+        } catch (error) {
+            console.warn("Could not reach Supabase for creator names:", error);
+            setCreatorNamesById({});
+        }
+    }
+
     async function loadPublicWorlds() {
         if (!hasSupabaseConfig() || !supabase) {
             setPublicWorlds([]);
@@ -109,7 +182,7 @@ export default function WorldLibraryClient() {
             const { data, error } = await supabase
                 .from("worlds")
                 .select(
-                    "id, name, description, is_public, complexity_label, rating_average, total_match_count, updated_at, world_data"
+                    "id, owner_id, name, description, is_public, complexity_label, rating_average, total_match_count, updated_at, world_data"
                 )
                 .eq("is_public", true)
                 .order("updated_at", { ascending: false })
@@ -121,8 +194,12 @@ export default function WorldLibraryClient() {
                 return;
             }
 
-            setPublicWorlds(data || []);
+            const nextPublicWorlds = data || [];
+
+            setPublicWorlds(nextPublicWorlds);
             setPublicWorldsStatus("");
+
+            await loadCreatorNamesForWorlds(nextPublicWorlds);
         } catch (error) {
             console.error("Public worlds fetch failed:", error);
 
@@ -134,7 +211,20 @@ export default function WorldLibraryClient() {
     }
 
     useEffect(() => {
+        loadCurrentLibraryUser();
         loadPublicWorlds();
+
+        if (!supabase) return;
+
+        const {
+            data: { subscription }
+        } = supabase.auth.onAuthStateChange((_event, session) => {
+            setCurrentUser(session?.user || null);
+        });
+
+        return () => {
+            subscription.unsubscribe();
+        };
     }, []);
 
     const filteredLocalWorlds = localWorlds.filter((world) => {
@@ -258,9 +348,21 @@ export default function WorldLibraryClient() {
                                 const previewImages = getWorldPreviewImages(worldForHelpers);
                                 const publicStats = getPublicWorldCardStats(world);
 
+                                const isOwnedByCurrentUser = Boolean(
+                                    currentUser?.id && world.owner_id === currentUser.id
+                                );
+
+                                const creatorDisplayName = isOwnedByCurrentUser
+                                    ? "You"
+                                    : creatorNamesById[world.owner_id] || "Unknown Creator";
+
                                 return (
                                     <article
-                                        className="world-card community-world-card published-world-card"
+                                        className={
+                                            isOwnedByCurrentUser
+                                                ? "world-card community-world-card published-world-card published-world-card-owned"
+                                                : "world-card community-world-card published-world-card"
+                                        }
                                         key={world.id}
                                     >
                                         <div className="world-card-preview world-card-preview-theme">
@@ -274,6 +376,12 @@ export default function WorldLibraryClient() {
                                             )}
 
                                             <div className="world-card-preview-overlay" />
+
+                                            {isOwnedByCurrentUser && (
+                                                <span className="owned-world-badge">
+                                                    Your World
+                                                </span>
+                                            )}
 
                                             {previewImages.boardSkinImage ? (
                                                 <img
@@ -290,7 +398,7 @@ export default function WorldLibraryClient() {
 
                                         <div className="world-card-content">
                                             <div className="world-card-topline">
-                                                <span>Published</span>
+                                                <span>{isOwnedByCurrentUser ? "Your World" : `By ${creatorDisplayName}`}</span>
                                                 <span>{formatDate(world.updated_at)}</span>
                                             </div>
 
@@ -315,24 +423,21 @@ export default function WorldLibraryClient() {
                                             </div>
 
                                             <div className="world-card-footer">
-                                                <span>Public</span>
-
                                                 <div className="world-card-action-row">
                                                     <Link
                                                         className="world-play-link"
                                                         href={`/worlds/${world.id}`}
+                                                        title={`Enter ${world.name}`}
                                                     >
-                                                        View Details
+                                                        Enter World
                                                     </Link>
 
-                                                    <button
-                                                        type="button"
-                                                        className="world-soon-link"
-                                                        disabled
+                                                    <span
+                                                        className="world-card-coming-soon-pill"
                                                         title="Later this will create or join a challenge from this world."
                                                     >
                                                         Challenge Soon
-                                                    </button>
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>

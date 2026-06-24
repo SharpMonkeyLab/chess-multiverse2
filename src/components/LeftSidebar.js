@@ -69,6 +69,8 @@ function getCounterActionLabel(counter, actionType) {
 }
 
 export default function LeftSidebar({
+  isPlayMode = false,
+
   worldDetails,
   worldTheme,
   worldFeatures,
@@ -149,7 +151,9 @@ export default function LeftSidebar({
       </header>
 
       <p className="sidebar-description">
-        Use play tools during testing, or edit the world systems below.
+        {isPlayMode
+          ? "Use this world's tools during play. World editing is disabled here."
+          : "Use play tools during testing, or edit the world systems below."}
       </p>
 
       {isHelpOpen && (
@@ -173,6 +177,7 @@ export default function LeftSidebar({
           </div>
         </section>
       )}
+
 
       <section className="sidebar-major-section">
         <h2 className="sidebar-major-title">Play Tools</h2>
@@ -310,7 +315,12 @@ export default function LeftSidebar({
                               ? `${counter.setLabel || "Set"}: ${counter.setDescription}`
                               : counter.setLabel || "Set"
                           }
-                          onClick={() => onSelectSetCounter(counter.key)}
+                          onClick={() =>
+                            onSelectSetCounter(
+                              counter.key,
+                              counter.initialValue ?? counter.setValue ?? 0
+                            )
+                          }
                         >
                           {counter.setLabel || "Set"}
                         </button>
@@ -387,74 +397,76 @@ export default function LeftSidebar({
         </div>
       </section >
 
-      <section className="sidebar-major-section">
-        <h2 className="sidebar-major-title">World Editors</h2>
+      {!isPlayMode && (
+        <section className="sidebar-major-section">
+          <h2 className="sidebar-major-title">World Editors</h2>
 
-        <div className="sidebar-major-content editor-section-content">
+          <div className="sidebar-major-content editor-section-content">
 
-          {worldFeatures.terrains && (
-            <details>
-              <summary>Terrain Editor</summary>
+            {worldFeatures.terrains && (
+              <details>
+                <summary>Terrain Editor</summary>
 
-              <TerrainEditor
-                terrains={worldMechanics.terrains}
-                onTerrainListChange={onTerrainListChange}
-              />
-            </details>
-          )}
+                <TerrainEditor
+                  terrains={worldMechanics.terrains}
+                  onTerrainListChange={onTerrainListChange}
+                />
+              </details>
+            )}
 
-          {worldFeatures.counters && (
-            <details>
-              <summary>Counter Editor</summary>
+            {worldFeatures.counters && (
+              <details>
+                <summary>Counter Editor</summary>
 
-              <CounterEditor
-                counters={worldMechanics.counters}
-                counter={worldMechanics.counter}
-                onCounterListChange={(nextCounters) =>
-                  onCounterSettingsChange(nextCounters)
-                }
-              />
-            </details>
-          )}
+                <CounterEditor
+                  counters={worldMechanics.counters}
+                  counter={worldMechanics.counter}
+                  onCounterListChange={(nextCounters) =>
+                    onCounterSettingsChange(nextCounters)
+                  }
+                />
+              </details>
+            )}
 
-          {worldFeatures.conditions && (
-            <details>
-              <summary>Condition Editor</summary>
+            {worldFeatures.conditions && (
+              <details>
+                <summary>Condition Editor</summary>
 
-              <ConditionEditor
-                conditions={worldMechanics.conditions}
-                onConditionListChange={onConditionListChange}
-              />
-            </details>
-          )}
+                <ConditionEditor
+                  conditions={worldMechanics.conditions}
+                  onConditionListChange={onConditionListChange}
+                />
+              </details>
+            )}
 
-          {worldFeatures.characters && (
-            <details>
-              <summary>Character Creator</summary>
+            {worldFeatures.characters && (
+              <details>
+                <summary>Character Creator</summary>
 
-              <CharacterEditor
-                characterLibrary={characterLibrary}
-                characterUploadStatus={characterUploadStatus}
-                onCharacterLibraryChange={onCharacterLibraryChange}
-                onCharacterCsvUpload={onCharacterCsvUpload}
-                onSaveCharacter={onSaveCharacter}
-              />
-            </details>
-          )}
+                <CharacterEditor
+                  characterLibrary={characterLibrary}
+                  characterUploadStatus={characterUploadStatus}
+                  onCharacterLibraryChange={onCharacterLibraryChange}
+                  onCharacterCsvUpload={onCharacterCsvUpload}
+                  onSaveCharacter={onSaveCharacter}
+                />
+              </details>
+            )}
 
-          {worldFeatures.worldTokens && (
-            <details>
-              <summary>Token Creator</summary>
+            {worldFeatures.worldTokens && (
+              <details>
+                <summary>Token Creator</summary>
 
-              <TokenEditor
-                worldTokens={worldTokens}
-                onAddWorldToken={onAddWorldToken}
-                onDeleteWorldToken={onDeleteWorldToken}
-              />
-            </details>
-          )}
-        </div>
-      </section>
+                <TokenEditor
+                  worldTokens={worldTokens}
+                  onAddWorldToken={onAddWorldToken}
+                  onDeleteWorldToken={onDeleteWorldToken}
+                />
+              </details>
+            )}
+          </div>
+        </section>
+      )}
     </aside >
   );
 }
