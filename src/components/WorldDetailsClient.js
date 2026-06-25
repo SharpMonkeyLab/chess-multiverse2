@@ -385,6 +385,30 @@ export default function WorldDetailsClient({ worldId }) {
                                             </p>
                                         )}
 
+                                        {Object.entries({
+                                            ...(selectedCharacter.meta || {}),
+                                            ...(selectedCharacter.customFields || {})
+                                        }).filter(([, value]) => String(value || "").trim()).length > 0 && (
+                                                <div className="world-character-meta-row">
+                                                    {Object.entries({
+                                                        ...(selectedCharacter.meta || {}),
+                                                        ...(selectedCharacter.customFields || {})
+                                                    })
+                                                        .filter(([, value]) => String(value || "").trim())
+                                                        .slice(0, 8)
+                                                        .map(([fieldName, fieldValue]) => (
+                                                            <span key={fieldName}>
+                                                                <strong>
+                                                                    {String(fieldName)
+                                                                        .replace(/[-_]+/g, " ")
+                                                                        .replace(/\b\w/g, (letter) => letter.toUpperCase())}
+                                                                </strong>
+                                                                {fieldValue}
+                                                            </span>
+                                                        ))}
+                                                </div>
+                                            )}
+
                                         {selectedCharacter.tokens?.length > 0 && (
                                             <div className="world-entity-chip-row">
                                                 {selectedCharacter.tokens.map((tokenName) => (

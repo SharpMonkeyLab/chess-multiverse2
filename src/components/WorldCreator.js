@@ -19,7 +19,12 @@ import {
   getCounterListFromMechanics,
   humanizeTokenName
 } from "@/lib/defaultWorld";
-import { buildCharacterLibraryFromCSV, normalizeName } from "@/lib/csv";
+import {
+  buildCharacterCsvFromLibrary,
+  buildCharacterImportFromCSV,
+  createDefaultCharacterFields,
+  normalizeName
+} from "@/lib/csv";
 import {
   deleteLocalItem,
   downloadJsonFile,
@@ -247,6 +252,10 @@ export default function WorldCreator() {
   const [isSavingLocal, setIsSavingLocal] = useState(false);
 
   const [characterLibrary, setCharacterLibrary] = useState({});
+  const [characterFields, setCharacterFields] = useState(() =>
+    createDefaultCharacterFields()
+  );
+
   const [characterUploadStatus, setCharacterUploadStatus] = useState(
     "No character spreadsheet uploaded."
   );
@@ -360,6 +369,7 @@ export default function WorldCreator() {
       worldMechanics,
       worldFeatures,
       characterLibrary,
+      characterFields,
       worldTokens
     };
   }
@@ -766,6 +776,11 @@ export default function WorldCreator() {
     setWorldMechanics(worldData.worldMechanics || DEFAULT_WORLD_MECHANICS);
     setWorldFeatures(worldData.worldFeatures || DEFAULT_WORLD_FEATURES);
     setCharacterLibrary(worldData.characterLibrary || {});
+    setCharacterFields(
+      Array.isArray(worldData.characterFields)
+        ? worldData.characterFields
+        : createDefaultCharacterFields()
+    );
     setWorldTokens(worldData.worldTokens || {});
 
     // Important:
@@ -779,6 +794,33 @@ export default function WorldCreator() {
     setSelectedPiece(null);
     setSelectedToken(null);
     setActivePiece(null);
+  }
+
+  function downloadTextFile(fileName, text, mimeType = "text/plain") {
+    const blob = new Blob([text], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+
+    document.body.appendChild(link);
+    link.click();
+
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  function handleExportCharacterCsv() {
+    const csvText = buildCharacterCsvFromLibrary(
+      characterLibrary,
+      characterFields
+    );
+
+    const fileName = `${makeSafeFileName(worldDetails.name)}-characters.csv`;
+
+    downloadTextFile(fileName, csvText, "text/csv;charset=utf-8");
+    setCharacterUploadStatus(`Character CSV exported: ${fileName}`);
   }
 
   function handleExportWorld() {
@@ -1995,14 +2037,25 @@ export default function WorldCreator() {
 
     reader.onload = function (event) {
       const csvText = event.target.result;
-      const nextCharacterLibrary = buildCharacterLibraryFromCSV(csvText);
-      const characterCount = Object.keys(nextCharacterLibrary).length;
+      const importResult = buildCharacterImportFromCSV(csvText);
+
+      const nextCharacterLibrary = importResult.characterLibrary;
+      const nextCharacterFields = importResult.characterFields;
+
+      const characterCount = Array.isArray(nextCharacterLibrary)
+        ? nextCharacterLibrary.length
+        : Object.keys(nextCharacterLibrary || {}).length;
+
+      const customFieldCount = nextCharacterFields.filter(
+        (field) => !field.core
+      ).length;
 
       setCharacterLibrary(nextCharacterLibrary);
+      setCharacterFields(nextCharacterFields);
 
       setCharacterUploadStatus(
         characterCount > 0
-          ? `${characterCount} characters imported. Previous character library replaced.`
+          ? `${characterCount} characters imported. ${customFieldCount} custom field(s) detected. Previous roster and fields replaced.`
           : "No valid characters found. Check the CSV headers."
       );
     };
@@ -2031,10 +2084,29 @@ export default function WorldCreator() {
   }
 
   function handleSaveCharacter(character) {
-    setCharacterLibrary((currentLibrary) => ({
-      ...currentLibrary,
-      [normalizeName(character.name)]: character
-    }));
+    setCharacterLibrary((currentLibrary) => {
+      const cleanName = normalizeName(character.name);
+
+      if (Array.isArray(currentLibrary)) {
+        const existingIndex = currentLibrary.findIndex(
+          (existingCharacter) =>
+            normalizeName(existingCharacter.name) === cleanName
+        );
+
+        if (existingIndex >= 0) {
+          return currentLibrary.map((existingCharacter, index) =>
+            index === existingIndex ? character : existingCharacter
+          );
+        }
+
+        return [...currentLibrary, character];
+      }
+
+      return {
+        ...currentLibrary,
+        [cleanName]: character
+      };
+    });
 
     setCharacterUploadStatus(`Saved character: ${character.name}`);
   }
@@ -2161,7 +2233,9 @@ export default function WorldCreator() {
               onConditionListChange={handleConditionListChange}
 
               characterLibrary={characterLibrary}
+              characterFields={characterFields}
               onCharacterLibraryChange={setCharacterLibrary}
+              onCharacterFieldsChange={setCharacterFields}
               characterUploadStatus={characterUploadStatus}
               worldTokens={worldTokens}
 
@@ -2178,6 +2252,7 @@ export default function WorldCreator() {
 
               onCounterSetValueChange={setCounterSetValue}
               onCharacterCsvUpload={handleCharacterCsvUpload}
+              onCharacterCsvExport={handleExportCharacterCsv}
               onSaveCharacter={handleSaveCharacter}
               onAddWorldToken={handleAddWorldToken}
               onDeleteWorldToken={handleDeleteWorldToken}

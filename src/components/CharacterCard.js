@@ -33,7 +33,7 @@ function getCharacterList(characterLibrary) {
 }
 
 function getCharacterAbilityName(character) {
-  return character?.ability || character?.abilityName || "No ability name";
+  return character?.ability || character?.abilityName || character?.name || "Character";
 }
 
 function getCharacterDescription(character) {
@@ -45,6 +45,26 @@ function getCharacterTitle(character) {
   const ability = getCharacterAbilityName(character);
 
   return `${name}: ${ability}`;
+}
+
+function humanizeFieldLabel(fieldKey) {
+  return String(fieldKey || "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function getVisibleCustomFields(character) {
+  return Object.entries({
+    ...(character?.meta || {}),
+    ...(character?.customFields || {})
+  })
+    .filter(([, value]) => String(value || "").trim())
+    .slice(0, 8)
+    .map(([fieldKey, value]) => ({
+      key: fieldKey,
+      label: humanizeFieldLabel(fieldKey),
+      value
+    }));
 }
 
 export default function CharacterCard({
@@ -87,6 +107,7 @@ export default function CharacterCard({
   const matchedCharacter = getCharacterByName(characterLibrary, pieceName);
 
   const abilityTokens = matchedCharacter?.tokens || [];
+  const visibleCustomFields = getVisibleCustomFields(matchedCharacter);
 
   const characterOptions = getCharacterList(characterLibrary).sort((a, b) =>
     (a.name || "").localeCompare(b.name || "")
@@ -171,6 +192,17 @@ export default function CharacterCard({
             {matchedCharacter.cost && (
               <div className="ability-cost">
                 Cost: {matchedCharacter.cost}
+              </div>
+            )}
+
+            {visibleCustomFields.length > 0 && (
+              <div className="character-meta-chip-row">
+                {visibleCustomFields.map((field) => (
+                  <span className="character-meta-chip" key={field.key}>
+                    <strong>{field.label}</strong>
+                    {field.value}
+                  </span>
+                ))}
               </div>
             )}
 

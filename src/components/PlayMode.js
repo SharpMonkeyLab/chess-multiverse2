@@ -274,6 +274,9 @@ export default function PlayMode() {
 
     const [playWorldId, setPlayWorldId] = useState("");
     const [playSessionId, setPlaySessionId] = useState("");
+    const [currentUserId, setCurrentUserId] = useState("");
+    const [sessionParticipants, setSessionParticipants] = useState([]);
+
     const [loadStatus, setLoadStatus] = useState("Opening board...");
     const [isWorldLoaded, setIsWorldLoaded] = useState(false);
 
@@ -383,6 +386,15 @@ export default function PlayMode() {
             setLoadStatus("Opening session...");
 
             try {
+                const {
+                    data: { user },
+                    error: userError
+                } = await supabase.auth.getUser();
+
+                if (!userError && user) {
+                    setCurrentUserId(user.id);
+                }
+
                 const { data: session, error: sessionError } = await supabase
                     .from("play_sessions")
                     .select("id, world_id, host_id, status, visibility, game_state")
@@ -409,6 +421,7 @@ export default function PlayMode() {
 
                 setPlayWorldId(onlineWorld.id);
                 applyWorldData(onlineWorld.world_data, session.game_state);
+                await loadSessionParticipants(sessionId);
                 setLoadStatus("Board ready.");
                 setIsWorldLoaded(true);
             } catch (error) {
@@ -476,6 +489,74 @@ export default function PlayMode() {
 
         loadPlayTarget();
     }, []);
+
+    async function loadSessionParticipants(sessionId) {
+        if (!sessionId || !hasSupabaseConfig() || !supabase) {
+            setSessionParticipants([]);
+            return;
+        }
+
+        try {
+            const { data: participantRows, error: participantError } = await supabase
+                .from("play_session_participants")
+                .select("id, session_id, user_id, role, team, conduct_score, joined_at")
+                .eq("session_id", sessionId)
+                .order("joined_at", { ascending: true });
+
+            if (participantError) {
+                console.warn("Could not load session participants:", participantError.message);
+                setSessionParticipants([]);
+                return;
+            }
+
+            const safeParticipantRows = Array.isArray(participantRows)
+                ? participantRows
+                : [];
+
+            const userIds = [
+                ...new Set(
+                    safeParticipantRows
+                        .map((participant) => participant.user_id)
+                        .filter(Boolean)
+                )
+            ];
+
+            let profilesByUserId = {};
+
+            if (userIds.length > 0) {
+                const { data: profiles, error: profilesError } = await supabase
+                    .from("profiles")
+                    .select("id, display_name")
+                    .in("id", userIds);
+
+                if (!profilesError && Array.isArray(profiles)) {
+                    profilesByUserId = Object.fromEntries(
+                        profiles.map((profile) => [profile.id, profile])
+                    );
+                }
+            }
+
+            const nextParticipants = safeParticipantRows.map((participant) => {
+                const profile = profilesByUserId[participant.user_id];
+                const displayName = profile?.display_name?.trim();
+
+                const fallbackName =
+                    participant.role === "host"
+                        ? "Host"
+                        : `Player ${participant.user_id?.slice(0, 4) || ""}`;
+
+                return {
+                    ...participant,
+                    displayName: displayName || fallbackName
+                };
+            });
+
+            setSessionParticipants(nextParticipants);
+        } catch (error) {
+            console.warn("Could not load session participants:", error);
+            setSessionParticipants([]);
+        }
+    }
 
     function applyWorldData(worldData, sessionGameState = null) {
         if (!worldData) return;
@@ -963,6 +1044,34 @@ export default function PlayMode() {
                     setCellFuture([]);
 
                     showSessionSyncStatus("Synced.");
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [playSessionId]);
+
+    useEffect(() => {
+        if (!playSessionId || !hasSupabaseConfig() || !supabase) {
+            return;
+        }
+
+        loadSessionParticipants(playSessionId);
+
+        const channel = supabase
+            .channel(`play-session-participants-${playSessionId}`)
+            .on(
+                "postgres_changes",
+                {
+                    event: "*",
+                    schema: "public",
+                    table: "play_session_participants",
+                    filter: `session_id=eq.${playSessionId}`
+                },
+                () => {
+                    loadSessionParticipants(playSessionId);
                 }
             )
             .subscribe();
@@ -1797,6 +1906,8 @@ export default function PlayMode() {
                             moveNumber={moveNumber}
                             onPassTurn={handlePassTurn}
                             actionLog={actionLog}
+                            sessionParticipants={sessionParticipants}
+                            currentUserId={currentUserId}
                             onClearSelections={clearAllSelections}
                             onSelectPiece={handleSelectPiece}
                             onSelectToken={handleSelectToken}

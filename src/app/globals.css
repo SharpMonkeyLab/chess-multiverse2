@@ -740,6 +740,99 @@ select {
   font-weight: 800;
 }
 
+/* ================================
+   MULTIPLAYER SESSION PANEL
+   ================================ */
+
+.session-panel-box {
+  border-color: rgba(231, 201, 122, 0.24);
+
+  background:
+    radial-gradient(circle at 50% 0%, rgba(168, 107, 255, 0.12), transparent 56%),
+    rgba(5, 6, 10, 0.22);
+}
+
+.session-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.session-panel-header h2 {
+  margin: 0;
+
+  color: var(--gold);
+  font-size: 0.88rem;
+}
+
+.session-panel-header p {
+  margin: 2px 0 0;
+
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.session-seat-list {
+  display: grid;
+  gap: 7px;
+}
+
+.session-seat {
+  display: grid;
+  gap: 2px;
+
+  padding: 8px;
+
+  border: 1px solid rgba(231, 201, 122, 0.14);
+  border-radius: 10px;
+
+  background: rgba(5, 6, 10, 0.18);
+}
+
+.session-seat-label {
+  color: var(--gold);
+  font-size: 0.62rem;
+  font-weight: 1000;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.session-seat strong {
+  color: var(--text);
+  font-size: 0.74rem;
+  line-height: 1.25;
+}
+
+.session-seat small {
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.session-spectator-list {
+  display: grid;
+  gap: 4px;
+
+  padding-top: 4px;
+}
+
+.session-spectator-list span {
+  color: var(--gold);
+  font-size: 0.62rem;
+  font-weight: 1000;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.session-spectator-list small {
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-weight: 800;
+}
+
 .sidebar-title-row {
   display: flex;
   align-items: center;
@@ -6990,4 +7083,243 @@ button:focus-visible {
   min-height: 26px;
   padding: 5px 7px;
   font-size: 0.72rem;
+}
+
+/* ================================
+   CHARACTER FIELDS FOUNDATION
+   Custom character/card/entity fields such as
+   Nation, Role, Type, Colour, Clan, Rarity.
+   ================================ */
+
+.character-field-manager {
+  display: grid;
+  gap: 9px;
+
+  padding: 10px;
+
+  border: 1px solid rgba(231, 201, 122, 0.16);
+  border-radius: 14px;
+
+  background: rgba(5, 6, 10, 0.12);
+}
+
+.character-field-manager-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.character-field-manager-header h3 {
+  margin: 0;
+
+  color: var(--gold);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.character-field-list {
+  display: grid;
+  gap: 7px;
+}
+
+.character-field-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+  align-items: center;
+}
+
+.character-field-row.core {
+  padding: 7px 8px;
+
+  border: 1px solid rgba(231, 201, 122, 0.14);
+  border-radius: 10px;
+
+  background: rgba(17, 20, 27, 0.42);
+}
+
+.character-field-row.core span {
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.character-field-row.core small {
+  color: var(--gold);
+  font-size: 0.62rem;
+  font-weight: 1000;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.character-field-row input {
+  min-height: 32px;
+  padding: 6px 8px;
+  font-size: 0.76rem;
+}
+
+.character-field-row button {
+  min-height: 32px;
+  padding: 6px 8px;
+  font-size: 0.7rem;
+}
+
+.character-custom-field-editor {
+  display: grid;
+  gap: 8px;
+
+  margin-top: 4px;
+  padding-top: 8px;
+
+  border-top: 1px solid rgba(231, 201, 122, 0.16);
+}
+
+.character-custom-field-editor h3 {
+  margin: 0;
+
+  color: var(--gold);
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.character-custom-field-input {
+  display: grid;
+  gap: 5px;
+}
+
+.character-meta-chip-row,
+.world-character-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  margin-top: 8px;
+}
+
+.character-meta-chip,
+.world-character-meta-row span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+
+  max-width: 100%;
+
+  padding: 5px 7px;
+
+  border: 1px solid rgba(231, 201, 122, 0.22);
+  border-radius: 999px;
+
+  background: rgba(17, 20, 27, 0.78);
+  color: var(--text);
+
+  font-size: 0.66rem;
+  font-weight: 800;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.character-meta-chip strong,
+.world-character-meta-row strong {
+  color: var(--gold);
+  font-size: 0.58rem;
+  font-weight: 1000;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ================================
+   CHARACTER EDITOR ADD TILES
+   ================================ */
+
+.character-gallery-add-card {
+  aspect-ratio: 1 / 1;
+
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 2px;
+
+  padding: 0;
+
+  border: 1px dashed rgba(231, 201, 122, 0.42);
+  border-radius: 12px;
+
+  background:
+    radial-gradient(circle at 50% 30%, rgba(231, 201, 122, 0.14), transparent 62%),
+    rgba(17, 20, 27, 0.58);
+
+  color: var(--gold);
+
+  cursor: pointer;
+}
+
+.character-gallery-add-card span {
+  font-size: 1.45rem;
+  font-weight: 1000;
+  line-height: 1;
+}
+
+.character-gallery-add-card strong {
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.character-gallery-add-card:hover {
+  border-color: var(--gold);
+
+  background:
+    radial-gradient(circle at 50% 30%, rgba(231, 201, 122, 0.22), transparent 62%),
+    rgba(17, 20, 27, 0.88);
+
+  box-shadow:
+    0 0 12px rgba(231, 201, 122, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.character-field-add-row {
+  min-height: 36px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+
+  padding: 7px 9px;
+
+  border: 1px dashed rgba(231, 201, 122, 0.34);
+  border-radius: 10px;
+
+  background: rgba(17, 20, 27, 0.42);
+  color: var(--gold);
+
+  cursor: pointer;
+}
+
+.character-field-add-row span {
+  font-size: 1rem;
+  font-weight: 1000;
+  line-height: 1;
+}
+
+.character-field-add-row strong {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.character-field-add-row:hover {
+  border-color: var(--gold);
+  background: rgba(231, 201, 122, 0.08);
 }

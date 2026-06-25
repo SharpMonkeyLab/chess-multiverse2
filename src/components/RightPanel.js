@@ -181,6 +181,84 @@ function TokenTray({
   );
 }
 
+function SessionPanel({
+  sessionParticipants = [],
+  currentUserId = ""
+}) {
+  const participants = Array.isArray(sessionParticipants)
+    ? sessionParticipants
+    : [];
+
+  const whitePlayer = participants.find(
+    (participant) => participant.team === "white"
+  );
+
+  const blackPlayer = participants.find(
+    (participant) => participant.team === "black"
+  );
+
+  const spectators = participants.filter(
+    (participant) => participant.team === "spectator"
+  );
+
+  function renderSeat(label, participant) {
+    const isCurrentUser =
+      participant?.user_id && participant.user_id === currentUserId;
+
+    return (
+      <div className="session-seat">
+        <span className="session-seat-label">{label}</span>
+
+        <strong>
+          {participant ? participant.displayName : "Open seat"}
+          {isCurrentUser ? " · You" : ""}
+        </strong>
+
+        {participant && (
+          <small>
+            {participant.role}
+            {Number.isFinite(Number(participant.conduct_score))
+              ? ` · Conduct ${participant.conduct_score}`
+              : ""}
+          </small>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <section className="panel-box session-panel-box">
+      <div className="session-panel-header">
+        <div>
+          <h2>Session</h2>
+          <p>
+            {participants.length} participant
+            {participants.length === 1 ? "" : "s"}
+          </p>
+        </div>
+      </div>
+
+      <div className="session-seat-list">
+        {renderSeat("White", whitePlayer)}
+        {renderSeat("Black", blackPlayer)}
+      </div>
+
+      {spectators.length > 0 && (
+        <div className="session-spectator-list">
+          <span>Spectators</span>
+
+          {spectators.map((spectator) => (
+            <small key={spectator.id}>
+              {spectator.displayName}
+              {spectator.user_id === currentUserId ? " · You" : ""}
+            </small>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function TurnControlPanel({ turnTeam, moveNumber, onPassTurn }) {
   const isWhiteTurn = turnTeam === "white";
 
@@ -253,6 +331,9 @@ export default function RightPanel({
   onPassTurn,
   actionLog = [],
 
+  sessionParticipants = [],
+  currentUserId = "",
+
   onClearSelections,
 
   onSelectPiece,
@@ -321,20 +402,25 @@ export default function RightPanel({
       </section>
 
       <TeamTray
-        team="black"
-        worldTheme={worldTheme}
-        pieceNames={pieceNames}
-        characterLibrary={characterLibrary}
-        selectedTeam={selectedTeam}
-        selectedPiece={selectedPiece}
-        onSelectPiece={onSelectPiece}
-      />
+  team="black"
+  worldTheme={worldTheme}
+  pieceNames={pieceNames}
+  characterLibrary={characterLibrary}
+  selectedTeam={selectedTeam}
+  selectedPiece={selectedPiece}
+  onSelectPiece={onSelectPiece}
+/>
 
-      <TurnControlPanel
-        turnTeam={turnTeam}
-        moveNumber={moveNumber}
-        onPassTurn={onPassTurn}
-      />
+<SessionPanel
+  sessionParticipants={sessionParticipants}
+  currentUserId={currentUserId}
+/>
+
+<TurnControlPanel
+  turnTeam={turnTeam}
+  moveNumber={moveNumber}
+  onPassTurn={onPassTurn}
+/>
 
       <TeamTray
         team="white"

@@ -89,7 +89,9 @@ export default function LeftSidebar({
   onConditionListChange,
 
   characterLibrary,
+  characterFields,
   onCharacterLibraryChange,
+  onCharacterFieldsChange,
   characterUploadStatus,
   worldTokens,
 
@@ -106,6 +108,7 @@ export default function LeftSidebar({
 
   onCounterSetValueChange,
   onCharacterCsvUpload,
+  onCharacterCsvExport,
   onSaveCharacter,
   onAddWorldToken,
   onDeleteWorldToken,
@@ -445,9 +448,12 @@ export default function LeftSidebar({
 
                 <CharacterEditor
                   characterLibrary={characterLibrary}
+                  characterFields={characterFields}
                   characterUploadStatus={characterUploadStatus}
                   onCharacterLibraryChange={onCharacterLibraryChange}
+                  onCharacterFieldsChange={onCharacterFieldsChange}
                   onCharacterCsvUpload={onCharacterCsvUpload}
+                  onCharacterCsvExport={onCharacterCsvExport}
                   onSaveCharacter={onSaveCharacter}
                 />
               </details>
