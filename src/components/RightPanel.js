@@ -181,6 +181,61 @@ function TokenTray({
   );
 }
 
+function TurnControlPanel({ turnTeam, moveNumber, onPassTurn }) {
+  const isWhiteTurn = turnTeam === "white";
+
+  return (
+    <section className="panel-box turn-control-box">
+      <div className="turn-control-header">
+        <span className="turn-arrow">
+          {isWhiteTurn ? "↓" : "↑"}
+        </span>
+
+        <div>
+          <h2>{isWhiteTurn ? "White Turn" : "Black Turn"}</h2>
+          <p>Move {moveNumber}</p>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        className="primary-button pass-turn-btn"
+        onClick={onPassTurn}
+      >
+        Pass Turn
+      </button>
+    </section>
+  );
+}
+
+function ActionLogPanel({ actionLog }) {
+  const visibleLog = Array.isArray(actionLog)
+    ? actionLog.slice(0, 8)
+    : [];
+
+  return (
+    <section className="panel-box action-log-box">
+      <h2>Action Log</h2>
+
+      {visibleLog.length === 0 ? (
+        <p className="small muted">No actions yet.</p>
+      ) : (
+        <div className="action-log-list">
+          {visibleLog.map((entry) => (
+            <article className="action-log-entry" key={entry.id}>
+              <strong>{entry.message}</strong>
+
+              <span>
+                Move {entry.moveNumber} · {entry.turnTeam === "black" ? "Black" : "White"}
+              </span>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function RightPanel({
   worldFeatures,
   worldTheme,
@@ -192,7 +247,14 @@ export default function RightPanel({
   activePiece,
   pieceNames,
   pieceNameLocked,
+
+  turnTeam = "white",
+  moveNumber = 1,
+  onPassTurn,
+  actionLog = [],
+
   onClearSelections,
+
   onSelectPiece,
   onSelectToken,
   onNameChange,
@@ -268,6 +330,12 @@ export default function RightPanel({
         onSelectPiece={onSelectPiece}
       />
 
+      <TurnControlPanel
+        turnTeam={turnTeam}
+        moveNumber={moveNumber}
+        onPassTurn={onPassTurn}
+      />
+
       <TeamTray
         team="white"
         worldTheme={worldTheme}
@@ -277,6 +345,8 @@ export default function RightPanel({
         selectedPiece={selectedPiece}
         onSelectPiece={onSelectPiece}
       />
+
+      <ActionLogPanel actionLog={actionLog} />
 
       {worldFeatures?.characters && (
         <CharacterCard

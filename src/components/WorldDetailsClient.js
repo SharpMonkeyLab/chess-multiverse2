@@ -105,6 +105,24 @@ export default function WorldDetailsClient({ worldId }) {
                 return;
             }
 
+            const { error: participantError } = await supabase
+                .from("play_session_participants")
+                .insert({
+                    session_id: session.id,
+                    user_id: user.id,
+                    role: "host",
+                    team: "white",
+                    conduct_score: 0
+                });
+
+            if (participantError) {
+                setPlayStatus(
+                    participantError.message || "Could not add host to session."
+                );
+                setIsCreatingSession(false);
+                return;
+            }
+
             router.push(`/play?session=${session.id}`);
         } catch (error) {
             console.error("Create play session failed:", error);

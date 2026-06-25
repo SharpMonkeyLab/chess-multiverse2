@@ -642,6 +642,104 @@ select {
   background: rgba(231, 201, 122, 0.72);
 }
 
+/* ================================
+   TURN CONTROL PANEL
+   ================================ */
+
+.turn-control-box {
+  border-color: rgba(231, 201, 122, 0.28);
+
+  background:
+    radial-gradient(circle at 50% 0%, rgba(231, 201, 122, 0.12), transparent 58%),
+    rgba(5, 6, 10, 0.26);
+}
+
+.turn-control-header {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.turn-arrow {
+  width: 34px;
+  height: 34px;
+
+  display: grid;
+  place-items: center;
+
+  border: 1px solid rgba(231, 201, 122, 0.38);
+  border-radius: 999px;
+
+  background: rgba(17, 20, 27, 0.88);
+  color: var(--gold);
+
+  font-size: 1.1rem;
+  font-weight: 1000;
+}
+
+.turn-control-header h2 {
+  margin: 0;
+
+  color: var(--gold);
+  font-size: 0.88rem;
+}
+
+.turn-control-header p {
+  margin: 2px 0 0;
+
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.pass-turn-btn {
+  width: 100%;
+  min-height: 34px;
+}
+
+/* ================================
+   ACTION LOG PANEL
+   ================================ */
+
+.action-log-box {
+  max-height: 210px;
+}
+
+.action-log-list {
+  display: grid;
+  gap: 7px;
+
+  max-height: 150px;
+  overflow-y: auto;
+
+  padding-right: 3px;
+}
+
+.action-log-entry {
+  display: grid;
+  gap: 2px;
+
+  padding: 7px;
+
+  border: 1px solid rgba(231, 201, 122, 0.14);
+  border-radius: 10px;
+
+  background: rgba(5, 6, 10, 0.18);
+}
+
+.action-log-entry strong {
+  color: var(--text);
+  font-size: 0.7rem;
+  line-height: 1.25;
+}
+
+.action-log-entry span {
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 800;
+}
+
 .sidebar-title-row {
   display: flex;
   align-items: center;
@@ -6795,7 +6893,7 @@ button:focus-visible {
 }
 
 .play-command-button-row {
-  grid-template-columns: 0.8fr 0.8fr 0.9fr 0.8fr;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .play-mode-status {

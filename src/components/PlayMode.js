@@ -30,6 +30,7 @@ import {
 const FALLBACK_STAGE_WIDTH = 1460;
 const FALLBACK_STAGE_HEIGHT = 840;
 const MAX_CELL_HISTORY = 30;
+const MAX_ACTION_LOG = 40;
 
 function getCellCounters(cell) {
     return {
@@ -173,10 +174,13 @@ function createMovingToken(cell, index) {
 function createSessionGameState({
     cells,
     pieceNames,
-    pieceNameLocked
+    pieceNameLocked,
+    turnTeam = "white",
+    moveNumber = 1,
+    actionLog = []
 }) {
     return {
-        version: 1,
+        version: 2,
 
         // Current match board.
         cells,
@@ -185,9 +189,12 @@ function createSessionGameState({
         pieceNames,
         pieceNameLocked,
 
-        // Future multiplayer systems.
-        turnTeam: "white",
-        moveNumber: 1
+        // Current turn state.
+        turnTeam,
+        moveNumber,
+
+        // Shared action history for this session.
+        actionLog: Array.isArray(actionLog) ? actionLog : []
     };
 }
 
@@ -271,6 +278,9 @@ export default function PlayMode() {
     const [isWorldLoaded, setIsWorldLoaded] = useState(false);
 
     const [sessionSyncStatus, setSessionSyncStatus] = useState("");
+    const [turnTeam, setTurnTeam] = useState("white");
+    const [moveNumber, setMoveNumber] = useState(1);
+    const [actionLog, setActionLog] = useState([]);
 
     const lastSavedGameStateJsonRef = useRef("");
     const saveSessionTimeoutRef = useRef(null);
@@ -514,6 +524,19 @@ export default function PlayMode() {
             sessionGameState?.pieceNameLocked || createPieceRecord(false)
         );
 
+        setTurnTeam(sessionGameState?.turnTeam || "white");
+        setMoveNumber(
+            Number.isFinite(Number(sessionGameState?.moveNumber))
+                ? Number(sessionGameState.moveNumber)
+                : 1
+        );
+
+        setActionLog(
+            Array.isArray(sessionGameState?.actionLog)
+                ? sessionGameState.actionLog
+                : []
+        );
+
         // Board state belongs to this play session.
         // New sessions start with standard setup.
         setCells(
@@ -525,12 +548,25 @@ export default function PlayMode() {
         setCellHistory([]);
         setCellFuture([]);
 
+        const startingTurnTeam = sessionGameState?.turnTeam || "white";
+
+        const startingMoveNumber = Number.isFinite(Number(sessionGameState?.moveNumber))
+            ? Number(sessionGameState.moveNumber)
+            : 1;
+
+        const startingActionLog = Array.isArray(sessionGameState?.actionLog)
+            ? sessionGameState.actionLog
+            : [];
+
         const startingGameState = createSessionGameState({
             cells: Array.isArray(sessionGameState?.cells)
                 ? sessionGameState.cells
                 : createStandardSetupCells(),
             pieceNames: sessionGameState?.pieceNames || createPieceRecord(""),
-            pieceNameLocked: sessionGameState?.pieceNameLocked || createPieceRecord(false)
+            pieceNameLocked: sessionGameState?.pieceNameLocked || createPieceRecord(false),
+            turnTeam: startingTurnTeam,
+            moveNumber: startingMoveNumber,
+            actionLog: startingActionLog
         });
 
         lastSavedGameStateJsonRef.current = getGameStateJson(startingGameState);
@@ -744,6 +780,46 @@ export default function PlayMode() {
         movingPiece
     ]);
 
+    function getTeamLabel(team) {
+        return team === "black" ? "Black" : "White";
+    }
+
+    function createActionLogEntry(message, category = "action") {
+        return {
+            id:
+                typeof crypto !== "undefined" && crypto.randomUUID
+                    ? crypto.randomUUID()
+                    : `${Date.now()}-${Math.random()}`,
+            message,
+            category,
+            turnTeam,
+            moveNumber,
+            createdAt: new Date().toISOString()
+        };
+    }
+
+    function addActionLogEntry(message, category = "action") {
+        const nextEntry = createActionLogEntry(message, category);
+
+        setActionLog((currentLog) => {
+            const nextLog = [nextEntry, ...(currentLog || [])];
+
+            return nextLog.slice(0, MAX_ACTION_LOG);
+        });
+    }
+
+    function getPieceLabel(team, pieceKey) {
+        if (!pieceKey) return "piece";
+
+        const assignedName = pieceNames?.[team]?.[pieceKey];
+
+        if (assignedName?.trim()) {
+            return assignedName.trim();
+        }
+
+        return pieceKey;
+    }
+
     function showSessionSyncStatus(message) {
         setSessionSyncStatus(message);
 
@@ -766,7 +842,10 @@ export default function PlayMode() {
         const nextGameState = createSessionGameState({
             cells,
             pieceNames,
-            pieceNameLocked
+            pieceNameLocked,
+            turnTeam,
+            moveNumber,
+            actionLog
         });
 
         const nextGameStateJson = getGameStateJson(nextGameState);
@@ -818,6 +897,9 @@ export default function PlayMode() {
         cells,
         pieceNames,
         pieceNameLocked,
+        turnTeam,
+        moveNumber,
+        actionLog,
         playSessionId,
         isWorldLoaded
     ]);
@@ -860,6 +942,19 @@ export default function PlayMode() {
                     setPieceNames(remoteGameState.pieceNames || createPieceRecord(""));
                     setPieceNameLocked(
                         remoteGameState.pieceNameLocked || createPieceRecord(false)
+                    );
+
+                    setTurnTeam(remoteGameState.turnTeam || "white");
+                    setMoveNumber(
+                        Number.isFinite(Number(remoteGameState.moveNumber))
+                            ? Number(remoteGameState.moveNumber)
+                            : 1
+                    );
+
+                    setActionLog(
+                        Array.isArray(remoteGameState.actionLog)
+                            ? remoteGameState.actionLog
+                            : []
                     );
 
                     setMovingPiece(null);
@@ -1097,12 +1192,14 @@ export default function PlayMode() {
 
     function handleStandardSetup() {
         updateCellsWithHistory(() => createStandardSetupCells());
+        addActionLogEntry("Board reset to standard setup.", "board");
         clearAllSelections();
         setActivePiece(null);
     }
 
     function handleClearBoard() {
         updateCellsWithHistory(() => createBoardCells());
+        addActionLogEntry("Board cleared.", "board");
         clearAllSelections();
         setActivePiece(null);
     }
@@ -1376,6 +1473,11 @@ export default function PlayMode() {
                     pieceKey: placedPieceKey
                 });
 
+                addActionLogEntry(
+                    `${getTeamLabel(selectedTeam)} placed ${getPieceLabel(selectedTeam, placedPieceKey)}.`,
+                    "piece"
+                );
+
                 if (!event?.shiftKey) {
                     setSelectedTeam(null);
                     setSelectedPiece(null);
@@ -1446,8 +1548,21 @@ export default function PlayMode() {
         });
 
         if (movingPiece.kind === "token") {
+            addActionLogEntry(
+                `Token moved.`,
+                "token"
+            );
+
             setActivePiece(null);
         } else {
+            addActionLogEntry(
+                `${getTeamLabel(movingPiece.team)} moved ${getPieceLabel(
+                    movingPiece.team,
+                    movingPiece.pieceType
+                )}.`,
+                "piece"
+            );
+
             setActivePiece({
                 team: movingPiece.team,
                 pieceKey: movingPiece.pieceType
@@ -1455,6 +1570,25 @@ export default function PlayMode() {
         }
 
         setMovingPiece(null);
+    }
+
+    function handlePassTurn() {
+        const currentTeamLabel = getTeamLabel(turnTeam);
+        const nextTurnTeam = turnTeam === "white" ? "black" : "white";
+        const nextMoveNumber =
+            turnTeam === "black" ? moveNumber + 1 : moveNumber;
+
+        addActionLogEntry(
+            `${currentTeamLabel} passed turn.`,
+            "turn"
+        );
+
+        setTurnTeam(nextTurnTeam);
+        setMoveNumber(nextMoveNumber);
+
+        setMovingPiece(null);
+        setSelectedBoardAction(null);
+        clearAllSelections();
     }
 
     function handleToggleCharacterDisplayMode() {
@@ -1472,6 +1606,23 @@ export default function PlayMode() {
                 characterDisplayMode: nextMode
             };
         });
+    }
+
+    async function handleCopyInviteLink() {
+        if (!playSessionId) {
+            showSessionSyncStatus("No session link yet.");
+            return;
+        }
+
+        const inviteUrl = `${window.location.origin}/join?session=${playSessionId}`;
+
+        try {
+            await navigator.clipboard.writeText(inviteUrl);
+            showSessionSyncStatus("Invite link copied.");
+        } catch (error) {
+            console.warn("Could not copy invite link:", error);
+            showSessionSyncStatus("Copy failed.");
+        }
     }
 
     function handleBackToWorld() {
@@ -1548,6 +1699,10 @@ export default function PlayMode() {
                                 <div className="top-command-button-row play-command-button-row">
                                     <button type="button" onClick={handleBackToWorld}>
                                         Back
+                                    </button>
+
+                                    <button type="button" onClick={handleCopyInviteLink}>
+                                        Invite
                                     </button>
 
                                     <button type="button" onClick={handleStandardSetup}>
@@ -1638,6 +1793,10 @@ export default function PlayMode() {
                             activePiece={activePiece}
                             pieceNames={pieceNames}
                             pieceNameLocked={pieceNameLocked}
+                            turnTeam={turnTeam}
+                            moveNumber={moveNumber}
+                            onPassTurn={handlePassTurn}
+                            actionLog={actionLog}
                             onClearSelections={clearAllSelections}
                             onSelectPiece={handleSelectPiece}
                             onSelectToken={handleSelectToken}
