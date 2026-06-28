@@ -22,154 +22,36 @@ import {
 import { loadLocalItem } from "@/lib/saveLoad";
 import { hasSupabaseConfig, supabase } from "@/lib/supabaseClient";
 
+import MatchmakingReadyButton from "./MatchmakingReadyButton";
+
+import {
+    MATCHMAKING_EVENT_NAME,
+    readStoredWaitingMatch
+} from "@/lib/matchmakingClient";
+
 import {
     createGenericPieceInstanceKey,
     GENERIC_PIECE_KEY
 } from "@/lib/genericPiece";
 
-const FALLBACK_STAGE_WIDTH = 1460;
-const FALLBACK_STAGE_HEIGHT = 840;
+import {
+    adjustCounterOnCell,
+    cellHasOccupant,
+    clearCounterOnCell,
+    clearConditionsOnCell,
+    clearPieceFromCell,
+    cloneCell,
+    createMovingPiece,
+    createMovingToken,
+    getPrimaryToken,
+    setCounterOnCell,
+    toggleConditionOnCell
+} from "@/lib/boardCellActions";
+
+import { useResponsiveStageLayout } from "@/lib/useResponsiveStageLayout";
+
 const MAX_CELL_HISTORY = 30;
 const MAX_ACTION_LOG = 40;
-
-function getCellCounters(cell) {
-    return {
-        ...(cell.counters || {})
-    };
-}
-
-function cleanCounterValue(value) {
-    const numberValue = Number(value);
-
-    if (!Number.isFinite(numberValue) || numberValue === 0) {
-        return null;
-    }
-
-    return numberValue;
-}
-
-function adjustCounterOnCell(cell, counterKey, delta) {
-    if (!counterKey) return;
-
-    const counters = getCellCounters(cell);
-    const currentValue = Number(counters[counterKey] || 0);
-    const nextValue = cleanCounterValue(currentValue + delta);
-
-    if (nextValue === null) {
-        delete counters[counterKey];
-    } else {
-        counters[counterKey] = nextValue;
-    }
-
-    cell.counters = counters;
-}
-
-function setCounterOnCell(cell, counterKey, value) {
-    if (!counterKey) return;
-
-    const counters = getCellCounters(cell);
-    const nextValue = cleanCounterValue(value);
-
-    if (nextValue === null) {
-        delete counters[counterKey];
-    } else {
-        counters[counterKey] = nextValue;
-    }
-
-    cell.counters = counters;
-}
-
-function clearCounterOnCell(cell, counterKey) {
-    if (!counterKey) return;
-
-    const counters = getCellCounters(cell);
-    delete counters[counterKey];
-
-    cell.counters = counters;
-}
-
-function toggleConditionOnCell(cell, conditionKey, shouldStack = false) {
-    if (!conditionKey) return;
-
-    const currentConditions = cell.conditions || [];
-
-    if (shouldStack) {
-        cell.conditions = [...currentConditions, conditionKey];
-        return;
-    }
-
-    const alreadyHasCondition = currentConditions.includes(conditionKey);
-
-    if (alreadyHasCondition) {
-        cell.conditions = currentConditions.filter(
-            (condition) => condition !== conditionKey
-        );
-        return;
-    }
-
-    cell.conditions = [...currentConditions, conditionKey];
-}
-
-function clearConditionsOnCell(cell) {
-    cell.conditions = [];
-}
-
-function cloneCell(cell) {
-    return {
-        ...cell,
-        conditions: [...(cell.conditions || [])],
-        tokens: [...(cell.tokens || [])],
-        counters: {
-            ...(cell.counters || {})
-        }
-    };
-}
-
-function clearPieceFromCell(cell) {
-    cell.pieceType = null;
-    cell.team = null;
-    cell.counter = "";
-    cell.counterColor = "neutral";
-    cell.counters = {};
-    cell.conditions = [];
-    cell.tokens = [];
-}
-
-function getPrimaryToken(cell) {
-    if (!cell.tokens || cell.tokens.length === 0) return null;
-
-    return cell.tokens[0];
-}
-
-function cellHasOccupant(cell) {
-    return Boolean(cell.pieceType || getPrimaryToken(cell));
-}
-
-function createMovingPiece(cell, index) {
-    return {
-        kind: "piece",
-        fromIndex: index,
-        pieceType: cell.pieceType,
-        team: cell.team,
-        counters: {
-            ...(cell.counters || {})
-        },
-        conditions: [...(cell.conditions || [])],
-        tokens: [...(cell.tokens || [])]
-    };
-}
-
-function createMovingToken(cell, index) {
-    return {
-        kind: "token",
-        fromIndex: index,
-        tokenName: getPrimaryToken(cell),
-        counters: {
-            ...(cell.counters || {})
-        },
-        conditions: [...(cell.conditions || [])]
-    };
-}
 
 function createSessionGameState({
     cells,
@@ -273,7 +155,11 @@ export default function PlayMode() {
     const [activePiece, setActivePiece] = useState(null);
 
     const [playWorldId, setPlayWorldId] = useState("");
+    const [playWorldSource, setPlayWorldSource] = useState("");
     const [playSessionId, setPlaySessionId] = useState("");
+    const [sessionLifecycleStatus, setSessionLifecycleStatus] = useState("open");
+    const [sessionEndReason, setSessionEndReason] = useState("");
+    const [isEndingSession, setIsEndingSession] = useState(false);
     const [currentUserId, setCurrentUserId] = useState("");
     const [sessionParticipants, setSessionParticipants] = useState([]);
 
@@ -281,6 +167,7 @@ export default function PlayMode() {
     const [isWorldLoaded, setIsWorldLoaded] = useState(false);
 
     const [sessionSyncStatus, setSessionSyncStatus] = useState("");
+    const [matchmakingStatus, setMatchmakingStatus] = useState("");
     const [turnTeam, setTurnTeam] = useState("white");
     const [moveNumber, setMoveNumber] = useState(1);
     const [actionLog, setActionLog] = useState([]);
@@ -295,84 +182,10 @@ export default function PlayMode() {
     // Keeps status messages temporary instead of permanently screaming.
     const sessionSyncStatusTimeoutRef = useRef(null);
 
-    const [stageLayout, setStageLayout] = useState({
-        scale: 1,
-        width: FALLBACK_STAGE_WIDTH,
-        height: FALLBACK_STAGE_HEIGHT
+    const stageLayout = useResponsiveStageLayout({
+        fallbackWidth: 1460,
+        fallbackHeight: 840
     });
-
-    const baseDevicePixelRatioRef = useRef(null);
-
-    useEffect(() => {
-        function readCssPixelValue(variableName, fallbackValue) {
-            const rootStyles = getComputedStyle(document.documentElement);
-            const rawValue = rootStyles.getPropertyValue(variableName).trim();
-            const parsedValue = Number.parseFloat(rawValue);
-
-            return Number.isFinite(parsedValue) ? parsedValue : fallbackValue;
-        }
-
-        function getZoomCompensatedViewportSize() {
-            if (baseDevicePixelRatioRef.current === null) {
-                baseDevicePixelRatioRef.current = window.devicePixelRatio || 1;
-            }
-
-            const baseDevicePixelRatio = baseDevicePixelRatioRef.current || 1;
-            const currentDevicePixelRatio =
-                window.devicePixelRatio || baseDevicePixelRatio;
-
-            const browserZoomRatio = currentDevicePixelRatio / baseDevicePixelRatio;
-
-            return {
-                width: window.innerWidth * browserZoomRatio,
-                height: window.innerHeight * browserZoomRatio
-            };
-        }
-
-        function updateStageScale() {
-            const designWidth = readCssPixelValue(
-                "--stage-design-width",
-                FALLBACK_STAGE_WIDTH
-            );
-
-            const designHeight = readCssPixelValue(
-                "--stage-design-height",
-                FALLBACK_STAGE_HEIGHT
-            );
-
-            const viewportPadding = readCssPixelValue("--viewport-padding", 0);
-            const viewportSize = getZoomCompensatedViewportSize();
-
-            const availableWidth = Math.max(
-                viewportSize.width - viewportPadding * 2,
-                1
-            );
-
-            const availableHeight = Math.max(
-                viewportSize.height - viewportPadding * 2,
-                1
-            );
-
-            const nextScale = Math.min(
-                availableWidth / designWidth,
-                availableHeight / designHeight
-            );
-
-            setStageLayout({
-                scale: nextScale,
-                width: designWidth * nextScale,
-                height: designHeight * nextScale
-            });
-        }
-
-        updateStageScale();
-
-        window.addEventListener("resize", updateStageScale);
-
-        return () => {
-            window.removeEventListener("resize", updateStageScale);
-        };
-    }, []);
 
     useEffect(() => {
         async function loadPlaySession(sessionId) {
@@ -383,6 +196,7 @@ export default function PlayMode() {
             }
 
             setPlaySessionId(sessionId);
+            setPlayWorldSource("online");
             setLoadStatus("Opening session...");
 
             try {
@@ -397,7 +211,7 @@ export default function PlayMode() {
 
                 const { data: session, error: sessionError } = await supabase
                     .from("play_sessions")
-                    .select("id, world_id, host_id, status, visibility, game_state")
+                    .select("id, world_id, host_id, status, visibility, game_state, lifecycle_status, ended_at, end_reason")
                     .eq("id", sessionId)
                     .single();
 
@@ -419,10 +233,22 @@ export default function PlayMode() {
                     return;
                 }
 
+                const nextLifecycleStatus =
+                    session.lifecycle_status || (session.ended_at ? "ended" : "open");
+
                 setPlayWorldId(onlineWorld.id);
+                setSessionLifecycleStatus(nextLifecycleStatus);
+                setSessionEndReason(session.end_reason || "");
+
                 applyWorldData(onlineWorld.world_data, session.game_state);
                 await loadSessionParticipants(sessionId);
-                setLoadStatus("Board ready.");
+
+                setLoadStatus(
+                    nextLifecycleStatus === "open"
+                        ? "Board ready."
+                        : "This session has ended."
+                );
+
                 setIsWorldLoaded(true);
             } catch (error) {
                 console.warn("Could not load play session:", error);
@@ -433,6 +259,10 @@ export default function PlayMode() {
 
         async function loadWorldForPlay(worldId) {
             setPlayWorldId(worldId);
+            setPlayWorldSource("");
+            setPlaySessionId("");
+            setSessionLifecycleStatus("open");
+            setSessionEndReason("");
             setLoadStatus("Opening board...");
 
             if (hasSupabaseConfig() && supabase) {
@@ -445,6 +275,7 @@ export default function PlayMode() {
                         .single();
 
                     if (!error && onlineWorld?.world_data) {
+                        setPlayWorldSource("online");
                         applyWorldData(onlineWorld.world_data);
                         setLoadStatus("Board ready.");
                         setIsWorldLoaded(true);
@@ -458,6 +289,7 @@ export default function PlayMode() {
             const localWorld = loadLocalItem("worlds", worldId);
 
             if (localWorld?.data) {
+                setPlayWorldSource("local");
                 applyWorldData(localWorld.data);
                 setLoadStatus("Local board ready.");
                 setIsWorldLoaded(true);
@@ -499,7 +331,7 @@ export default function PlayMode() {
         try {
             const { data: participantRows, error: participantError } = await supabase
                 .from("play_session_participants")
-                .select("id, session_id, user_id, role, team, conduct_score, joined_at")
+                .select("id, session_id, user_id, role, team, conduct_score, joined_at, participant_status, left_at")
                 .eq("session_id", sessionId)
                 .order("joined_at", { ascending: true });
 
@@ -916,7 +748,13 @@ export default function PlayMode() {
     }
 
     useEffect(() => {
-        if (!playSessionId || !isWorldLoaded || !hasSupabaseConfig() || !supabase) {
+        if (
+            !playSessionId ||
+            !isWorldLoaded ||
+            sessionLifecycleStatus !== "open" ||
+            !hasSupabaseConfig() ||
+            !supabase
+        ) {
             return;
         }
 
@@ -982,7 +820,8 @@ export default function PlayMode() {
         moveNumber,
         actionLog,
         playSessionId,
-        isWorldLoaded
+        isWorldLoaded,
+        sessionLifecycleStatus
     ]);
 
     useEffect(() => {
@@ -1002,6 +841,18 @@ export default function PlayMode() {
                 },
                 (payload) => {
                     const remoteGameState = payload.new?.game_state;
+
+                    const nextLifecycleStatus =
+                        payload.new?.lifecycle_status ||
+                        (payload.new?.ended_at ? "ended" : "open");
+
+                    setSessionLifecycleStatus(nextLifecycleStatus);
+                    setSessionEndReason(payload.new?.end_reason || "");
+
+                    if (nextLifecycleStatus !== "open") {
+                        showSessionSyncStatus("Session ended.");
+                        return;
+                    }
 
                     if (!remoteGameState) return;
 
@@ -1090,6 +941,43 @@ export default function PlayMode() {
             if (sessionSyncStatusTimeoutRef.current) {
                 clearTimeout(sessionSyncStatusTimeoutRef.current);
             }
+        };
+    }, []);
+
+    useEffect(() => {
+        function syncPlayModeStatusWithGlobalMatchmaking() {
+            const waitingMatch = readStoredWaitingMatch();
+
+            if (!waitingMatch) {
+                setMatchmakingStatus((currentStatus) =>
+                    currentStatus === "Waiting for opponent..." ||
+                        currentStatus === "Looking for opponent..."
+                        ? ""
+                        : currentStatus
+                );
+            }
+        }
+
+        window.addEventListener(
+            MATCHMAKING_EVENT_NAME,
+            syncPlayModeStatusWithGlobalMatchmaking
+        );
+
+        window.addEventListener(
+            "storage",
+            syncPlayModeStatusWithGlobalMatchmaking
+        );
+
+        return () => {
+            window.removeEventListener(
+                MATCHMAKING_EVENT_NAME,
+                syncPlayModeStatusWithGlobalMatchmaking
+            );
+
+            window.removeEventListener(
+                "storage",
+                syncPlayModeStatusWithGlobalMatchmaking
+            );
         };
     }, []);
 
@@ -1734,6 +1622,79 @@ export default function PlayMode() {
         }
     }
 
+    async function handleLeaveMatch() {
+        if (!playSessionId || !hasSupabaseConfig() || !supabase) return;
+
+        const shouldLeave = window.confirm(
+            "Leave this match? For now, leaving also ends the session."
+        );
+
+        if (!shouldLeave) return;
+
+        setIsEndingSession(true);
+        showSessionSyncStatus("Leaving match...");
+
+        try {
+            const { error } = await supabase.rpc("leave_play_session", {
+                target_session_id: playSessionId
+            });
+
+            if (error) {
+                console.warn("Could not leave match:", error.message);
+                showSessionSyncStatus("Leave failed.");
+                setIsEndingSession(false);
+                return;
+            }
+
+            setSessionLifecycleStatus("ended");
+            setSessionEndReason("player_left");
+            showSessionSyncStatus("Match ended.");
+
+            router.push(playWorldId ? `/worlds/${playWorldId}` : "/worlds");
+        } catch (error) {
+            console.warn("Could not leave match:", error);
+            showSessionSyncStatus("Leave failed.");
+            setIsEndingSession(false);
+        }
+    }
+
+    async function handleEndMatch() {
+        if (!playSessionId || !hasSupabaseConfig() || !supabase) return;
+
+        const shouldEnd = window.confirm(
+            "End this match for all players?"
+        );
+
+        if (!shouldEnd) return;
+
+        setIsEndingSession(true);
+        showSessionSyncStatus("Ending match...");
+
+        try {
+            const { error } = await supabase.rpc("end_play_session", {
+                target_session_id: playSessionId,
+                reason: "ended_by_player"
+            });
+
+            if (error) {
+                console.warn("Could not end match:", error.message);
+                showSessionSyncStatus("End failed.");
+                setIsEndingSession(false);
+                return;
+            }
+
+            setSessionLifecycleStatus("ended");
+            setSessionEndReason("ended_by_player");
+            showSessionSyncStatus("Match ended.");
+
+            router.push(playWorldId ? `/worlds/${playWorldId}` : "/worlds");
+        } catch (error) {
+            console.warn("Could not end match:", error);
+            showSessionSyncStatus("End failed.");
+            setIsEndingSession(false);
+        }
+    }
+
     function handleBackToWorld() {
         if (playWorldId) {
             router.push(`/worlds/${playWorldId}`);
@@ -1810,6 +1771,17 @@ export default function PlayMode() {
                                         Back
                                     </button>
 
+                                    <MatchmakingReadyButton
+                                        className="play-ready-button"
+                                        worldId={playWorldId}
+                                        worldName={worldDetails.name}
+                                        disabled={Boolean(playSessionId) || playWorldSource !== "online"}
+                                        disabledLabel={playSessionId ? "Matched" : "Online Only"}
+                                        readyLabel="Ready"
+                                        loadingLabel="Ready..."
+                                        onStatusChange={setMatchmakingStatus}
+                                    />
+
                                     <button type="button" onClick={handleCopyInviteLink}>
                                         Invite
                                     </button>
@@ -1827,10 +1799,35 @@ export default function PlayMode() {
                                     </button>
                                 </div>
 
-                                <p className="command-menu-status play-mode-status">
-                                    {loadStatus}
-                                    {sessionSyncStatus ? ` · ${sessionSyncStatus}` : ""}
-                                </p>
+                                {playSessionId && (
+                                    <div className="play-session-lifecycle-row">
+                                        {sessionLifecycleStatus === "open" ? (
+                                            <>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleLeaveMatch}
+                                                    disabled={isEndingSession}
+                                                >
+                                                    Leave Match
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    className="danger-button"
+                                                    onClick={handleEndMatch}
+                                                    disabled={isEndingSession}
+                                                >
+                                                    End Match
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <span>
+                                                Match ended
+                                                {sessionEndReason ? ` · ${sessionEndReason}` : ""}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
 
                                 <div className="world-name-input play-world-name-readonly">
                                     {worldDetails.name}

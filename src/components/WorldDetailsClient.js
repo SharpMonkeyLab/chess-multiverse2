@@ -2,16 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 import { loadLocalItem } from "@/lib/saveLoad";
 
 import { hasSupabaseConfig, supabase } from "@/lib/supabaseClient";
 
 import {
-    createPieceRecord,
-    createStandardSetupCells
-} from "@/lib/defaultWorld";
+    MATCHMAKING_EVENT_NAME,
+    readStoredWaitingMatch
+} from "@/lib/matchmakingClient";
 
 import {
     getCharacterList,
@@ -27,109 +26,19 @@ import {
     getWorldRulesPreview
 } from "@/lib/worldData";
 
-function createInitialPlaySessionState() {
-    return {
-        version: 1,
-
-        // Board state for this match.
-        cells: createStandardSetupCells(),
-
-        // Character assignments belong to the session, not the world template.
-        pieceNames: createPieceRecord(""),
-        pieceNameLocked: createPieceRecord(false),
-
-        // Later systems can use these.
-        turnTeam: "white",
-        moveNumber: 1,
-        createdFrom: "world"
-    };
-}
+import MatchmakingReadyButton from "@/components/MatchmakingReadyButton";
 
 export default function WorldDetailsClient({ worldId }) {
-    const router = useRouter();
     const [world, setWorld] = useState(null);
     const [worldSource, setWorldSource] = useState("");
     const [status, setStatus] = useState("Loading world...");
     const [playStatus, setPlayStatus] = useState("");
-    const [isCreatingSession, setIsCreatingSession] = useState(false);
 
     const [selectedCharacterIndex, setSelectedCharacterIndex] = useState(0);
     const [selectedTerrainIndex, setSelectedTerrainIndex] = useState(0);
     const [selectedCounterIndex, setSelectedCounterIndex] = useState(0);
     const [selectedConditionIndex, setSelectedConditionIndex] = useState(0);
     const [selectedTokenIndex, setSelectedTokenIndex] = useState(0);
-
-    async function handleCreatePlaySession() {
-        if (worldSource !== "online") {
-            router.push(`/play?world=${encodeURIComponent(world.id)}`);
-            return;
-        }
-
-        if (!hasSupabaseConfig() || !supabase) {
-            setPlayStatus("Online play sessions are not available.");
-            return;
-        }
-
-        setIsCreatingSession(true);
-        setPlayStatus("Opening board...");
-
-        try {
-            const {
-                data: { user },
-                error: userError
-            } = await supabase.auth.getUser();
-
-            if (userError || !user) {
-                setPlayStatus("Sign in to start a play session.");
-                setIsCreatingSession(false);
-                return;
-            }
-
-            const { data: session, error: sessionError } = await supabase
-                .from("play_sessions")
-                .insert({
-                    world_id: world.id,
-                    host_id: user.id,
-                    status: "setup",
-                    visibility: "private",
-                    game_state: createInitialPlaySessionState()
-                })
-                .select("id")
-                .single();
-
-            if (sessionError || !session) {
-                setPlayStatus(
-                    sessionError?.message || "Could not create play session."
-                );
-                setIsCreatingSession(false);
-                return;
-            }
-
-            const { error: participantError } = await supabase
-                .from("play_session_participants")
-                .insert({
-                    session_id: session.id,
-                    user_id: user.id,
-                    role: "host",
-                    team: "white",
-                    conduct_score: 0
-                });
-
-            if (participantError) {
-                setPlayStatus(
-                    participantError.message || "Could not add host to session."
-                );
-                setIsCreatingSession(false);
-                return;
-            }
-
-            router.push(`/play?session=${session.id}`);
-        } catch (error) {
-            console.error("Create play session failed:", error);
-            setPlayStatus("Could not start this play session.");
-            setIsCreatingSession(false);
-        }
-    }
 
     useEffect(() => {
         async function loadWorldDetails() {
@@ -185,6 +94,43 @@ export default function WorldDetailsClient({ worldId }) {
 
         loadWorldDetails();
     }, [worldId]);
+
+    useEffect(() => {
+        function syncLocalPlayStatusWithGlobalMatchmaking() {
+            const waitingMatch = readStoredWaitingMatch();
+
+            if (!waitingMatch) {
+                setPlayStatus((currentStatus) =>
+                    currentStatus === "Waiting for opponent..." ||
+                        currentStatus === "Looking for opponent..."
+                        ? ""
+                        : currentStatus
+                );
+            }
+        }
+
+        window.addEventListener(
+            MATCHMAKING_EVENT_NAME,
+            syncLocalPlayStatusWithGlobalMatchmaking
+        );
+
+        window.addEventListener(
+            "storage",
+            syncLocalPlayStatusWithGlobalMatchmaking
+        );
+
+        return () => {
+            window.removeEventListener(
+                MATCHMAKING_EVENT_NAME,
+                syncLocalPlayStatusWithGlobalMatchmaking
+            );
+
+            window.removeEventListener(
+                "storage",
+                syncLocalPlayStatusWithGlobalMatchmaking
+            );
+        };
+    }, []);
 
     if (!world) {
         return (
@@ -267,14 +213,23 @@ export default function WorldDetailsClient({ worldId }) {
                     <p>{description}</p>
 
                     <div className="world-details-action-row">
-                        <button
-                            type="button"
+                        <Link
                             className="home-primary-link world-details-play-button"
-                            onClick={handleCreatePlaySession}
-                            disabled={isCreatingSession}
+                            href={playHref}
                         >
-                            {isCreatingSession ? "Opening Board..." : "Play This World"}
-                        </button>
+                            Visit Board
+                        </Link>
+
+                        <MatchmakingReadyButton
+                            className="home-secondary-link world-details-ready-button"
+                            worldId={world.id}
+                            worldName={world.name}
+                            disabled={worldSource !== "online"}
+                            disabledLabel="Online Only"
+                            readyLabel="Ready"
+                            loadingLabel="Finding Match..."
+                            onStatusChange={setPlayStatus}
+                        />
 
                         {playStatus && (
                             <p className="world-details-play-status">

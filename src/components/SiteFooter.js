@@ -4,7 +4,7 @@ export default function SiteFooter() {
   return (
     <footer className="site-footer">
       <p>
-        © {currentYear} Manuel Azancot de Menezes & Francisco Arroyo. Chess
+        © {currentYear} Manuel Azancot de Menezes & Francisco José Mayor Arroyo. Chess
         Multiverse. All rights reserved.
       </p>
     </footer>

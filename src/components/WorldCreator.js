@@ -1,10 +1,6 @@
 "use client";
 
-// **************************************************************
-// IMPORTS
-// **************************************************************
-
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import TopCommandBar from "./TopCommandBar";
 import LeftSidebar from "./LeftSidebar";
 import Workspace from "./Workspace";
@@ -19,12 +15,14 @@ import {
   getCounterListFromMechanics,
   humanizeTokenName
 } from "@/lib/defaultWorld";
+
 import {
   buildCharacterCsvFromLibrary,
   buildCharacterImportFromCSV,
   createDefaultCharacterFields,
   normalizeName
 } from "@/lib/csv";
+
 import {
   deleteLocalItem,
   downloadJsonFile,
@@ -34,6 +32,7 @@ import {
   readJsonFile,
   saveLocalItem
 } from "@/lib/saveLoad";
+
 import { isImageDataUrl, uploadDataUrlAsset } from "@/lib/assetStorage";
 import { hasSupabaseConfig, supabase } from "@/lib/supabaseClient";
 import { getWorldComplexity } from "@/lib/worldData";
@@ -43,173 +42,26 @@ import {
   GENERIC_PIECE_KEY
 } from "@/lib/genericPiece";
 
-const FALLBACK_STAGE_WIDTH = 1460;
-const FALLBACK_STAGE_HEIGHT = 840;
-const STAGE_SCREEN_PADDING = 12;
+import {
+  adjustCounterOnCell,
+  cellHasOccupant,
+  clearAllCountersOnCell,
+  clearCellOccupant,
+  clearCounterOnCell,
+  clearConditionsOnCell,
+  clearOccupantMarkers,
+  clearPieceFromCell,
+  cloneCell,
+  createMovingPiece,
+  createMovingToken,
+  getPrimaryToken,
+  setCounterOnCell,
+  toggleConditionOnCell
+} from "@/lib/boardCellActions";
+
+import { useResponsiveStageLayout } from "@/lib/useResponsiveStageLayout";
+
 const MAX_CELL_HISTORY = 30;
-
-// **************************************************************
-// HELPER FUNCTIONS
-// **************************************************************
-
-function getCellCounters(cell) {
-  return {
-    ...(cell.counters || {})
-  };
-}
-
-function cleanCounterValue(value) {
-  const numberValue = Number(value);
-
-  if (!Number.isFinite(numberValue) || numberValue === 0) {
-    return null;
-  }
-
-  return numberValue;
-}
-
-function adjustCounterOnCell(cell, counterKey, delta) {
-  if (!counterKey) return;
-
-  const counters = getCellCounters(cell);
-  const currentValue = Number(counters[counterKey] || 0);
-  const nextValue = cleanCounterValue(currentValue + delta);
-
-  if (nextValue === null) {
-    delete counters[counterKey];
-  } else {
-    counters[counterKey] = nextValue;
-  }
-
-  cell.counters = counters;
-}
-
-function setCounterOnCell(cell, counterKey, value) {
-  if (!counterKey) return;
-
-  const counters = getCellCounters(cell);
-  const nextValue = cleanCounterValue(value);
-
-  if (nextValue === null) {
-    delete counters[counterKey];
-  } else {
-    counters[counterKey] = nextValue;
-  }
-
-  cell.counters = counters;
-}
-
-function clearCounterOnCell(cell, counterKey) {
-  if (!counterKey) return;
-
-  const counters = getCellCounters(cell);
-
-  delete counters[counterKey];
-
-  cell.counters = counters;
-}
-
-function clearAllCountersOnCell(cell) {
-  cell.counters = {};
-
-  // Legacy cleanup
-  cell.counter = "";
-  cell.counterColor = "neutral";
-}
-
-function toggleConditionOnCell(cell, conditionKey, shouldStack = false) {
-  if (!conditionKey) return;
-
-  const currentConditions = cell.conditions || [];
-
-  if (shouldStack) {
-    cell.conditions = [...currentConditions, conditionKey];
-    return;
-  }
-
-  const alreadyHasCondition = currentConditions.includes(conditionKey);
-
-  if (alreadyHasCondition) {
-    cell.conditions = currentConditions.filter(
-      (condition) => condition !== conditionKey
-    );
-    return;
-  }
-
-  cell.conditions = [...currentConditions, conditionKey];
-}
-
-function clearConditionsOnCell(cell) {
-  cell.conditions = [];
-}
-
-function cloneCell(cell) {
-  return {
-    ...cell,
-    conditions: [...(cell.conditions || [])],
-    tokens: [...(cell.tokens || [])],
-    counters: {
-      ...(cell.counters || {})
-    }
-  };
-}
-
-function clearPieceFromCell(cell) {
-  cell.pieceType = null;
-  cell.team = null;
-  cell.counter = "";
-  cell.counterColor = "neutral";
-  cell.counters = {};
-  cell.conditions = [];
-  cell.tokens = [];
-}
-
-function createMovingPiece(cell, index) {
-  return {
-    kind: "piece",
-    fromIndex: index,
-    pieceType: cell.pieceType,
-    team: cell.team,
-    counters: {
-      ...(cell.counters || {})
-    },
-    conditions: [...(cell.conditions || [])],
-    tokens: [...(cell.tokens || [])]
-  };
-}
-
-function getPrimaryToken(cell) {
-  if (!cell.tokens || cell.tokens.length === 0) return null;
-
-  return cell.tokens[0];
-}
-
-function createMovingToken(cell, index) {
-  return {
-    kind: "token",
-    fromIndex: index,
-    tokenName: getPrimaryToken(cell),
-    counter: cell.counter,
-    counterColor: cell.counterColor,
-    conditions: [...cell.conditions]
-  };
-}
-
-function clearCellOccupant(cell) {
-  cell.pieceType = null;
-  cell.team = null;
-  cell.tokens = [];
-}
-
-function cellHasOccupant(cell) {
-  return Boolean(cell.pieceType || getPrimaryToken(cell));
-}
-
-function clearOccupantMarkers(cell) {
-  cell.counter = "";
-  cell.counterColor = "neutral";
-  cell.conditions = [];
-}
 
 // **************************************************************
 // WORLD CREATOR COMPONENT
@@ -231,13 +83,10 @@ export default function WorldCreator() {
 
   const [worldMechanics, setWorldMechanics] = useState(DEFAULT_WORLD_MECHANICS);
 
-  const [stageLayout, setStageLayout] = useState({
-    scale: 1,
-    width: FALLBACK_STAGE_WIDTH,
-    height: FALLBACK_STAGE_HEIGHT
+  const stageLayout = useResponsiveStageLayout({
+    fallbackWidth: 1460,
+    fallbackHeight: 840
   });
-
-  const baseDevicePixelRatioRef = useRef(null);
 
   const [savedWorlds, setSavedWorlds] = useState([]);
   const [selectedSavedWorldId, setSelectedSavedWorldId] = useState("");
@@ -290,70 +139,6 @@ export default function WorldCreator() {
 
   useEffect(() => {
     refreshSavedLists();
-  }, []);
-
-  useEffect(() => {
-    function readCssPixelValue(variableName, fallbackValue) {
-      const rootStyles = getComputedStyle(document.documentElement);
-      const rawValue = rootStyles.getPropertyValue(variableName).trim();
-      const parsedValue = Number.parseFloat(rawValue);
-
-      return Number.isFinite(parsedValue) ? parsedValue : fallbackValue;
-    }
-
-    function getZoomCompensatedViewportSize() {
-      if (baseDevicePixelRatioRef.current === null) {
-        baseDevicePixelRatioRef.current = window.devicePixelRatio || 1;
-      }
-
-      const baseDevicePixelRatio = baseDevicePixelRatioRef.current || 1;
-      const currentDevicePixelRatio = window.devicePixelRatio || baseDevicePixelRatio;
-
-      const browserZoomRatio = currentDevicePixelRatio / baseDevicePixelRatio;
-
-      return {
-        width: window.innerWidth * browserZoomRatio,
-        height: window.innerHeight * browserZoomRatio
-      };
-    }
-
-    function updateStageScale() {
-      const designWidth = readCssPixelValue(
-        "--stage-design-width",
-        FALLBACK_STAGE_WIDTH
-      );
-
-      const designHeight = readCssPixelValue(
-        "--stage-design-height",
-        FALLBACK_STAGE_HEIGHT
-      );
-
-      const viewportPadding = readCssPixelValue("--viewport-padding", 0);
-
-      const viewportSize = getZoomCompensatedViewportSize();
-
-      const availableWidth = Math.max(viewportSize.width - viewportPadding * 2, 1);
-      const availableHeight = Math.max(viewportSize.height - viewportPadding * 2, 1);
-
-      const nextScale = Math.min(
-        availableWidth / designWidth,
-        availableHeight / designHeight
-      );
-
-      setStageLayout({
-        scale: nextScale,
-        width: designWidth * nextScale,
-        height: designHeight * nextScale
-      });
-    }
-
-    updateStageScale();
-
-    window.addEventListener("resize", updateStageScale);
-
-    return () => {
-      window.removeEventListener("resize", updateStageScale);
-    };
   }, []);
 
   //  SAVE DATA

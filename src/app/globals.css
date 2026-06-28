@@ -50,12 +50,12 @@
   --board-nudge-y: -110px;
 
   /* Position of the playable 8×8 grid inside the board image */
-  --board-playable-left-ratio: 0.083;
-  --board-playable-top-ratio: 0.081;
+  --board-playable-left-ratio: 0.08203125;
+  --board-playable-top-ratio: 0.08203125;
 
   /* Size of the playable 8×8 grid inside the board image */
-  --board-playable-width-ratio: 0.834;
-  --board-playable-height-ratio: 0.837;
+  --board-playable-width-ratio: 0.8359375;
+  --board-playable-height-ratio: 0.8359375;
 
   /* Calculated playable grid geometry */
   --board-playable-left: calc(var(--board-shell-size) * var(--board-playable-left-ratio));
@@ -7322,4 +7322,197 @@ button:focus-visible {
 .character-field-add-row:hover {
   border-color: var(--gold);
   background: rgba(231, 201, 122, 0.08);
+}
+
+/* ================================
+   MATCHMAKING READY BUTTONS
+   ================================ */
+
+.world-details-cancel-ready-button {
+  border: 1px solid rgba(231, 201, 122, 0.28);
+  border-radius: 999px;
+
+  background: rgba(17, 20, 27, 0.72);
+  color: var(--muted);
+
+  cursor: pointer;
+}
+
+.world-details-cancel-ready-button:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+/* ================================
+   GLOBAL MATCHMAKING BAR
+   ================================ */
+
+.global-matchmaking-bar {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  z-index: 1000;
+
+  transform: translateX(-50%);
+
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  max-width: min(760px, calc(100vw - 24px));
+
+  padding: 8px 12px;
+
+  border: 1px solid rgba(231, 201, 122, 0.34);
+  border-radius: 999px;
+
+  background:
+    radial-gradient(circle at 50% 0%, rgba(168, 107, 255, 0.16), transparent 64%),
+    rgba(5, 6, 10, 0.92);
+
+  color: var(--text);
+
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.42),
+    0 0 16px rgba(231, 201, 122, 0.10);
+
+  backdrop-filter: blur(8px);
+}
+
+.global-matchmaking-bar strong {
+  color: var(--gold);
+  font-size: 0.72rem;
+  font-weight: 1000;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.global-matchmaking-bar span {
+  color: var(--text);
+  font-size: 0.74rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.global-matchmaking-world {
+  max-width: 180px;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.global-matchmaking-bar button {
+  min-height: 28px;
+
+  padding: 5px 9px;
+
+  border: 1px solid rgba(248, 113, 113, 0.42);
+  border-radius: 999px;
+
+  background: rgba(69, 10, 10, 0.78);
+  color: #fecaca;
+
+  font-size: 0.68rem;
+  font-weight: 900;
+
+  cursor: pointer;
+}
+
+.global-matchmaking-bar button:hover {
+  border-color: rgba(248, 113, 113, 0.72);
+  color: #ffffff;
+}
+
+.global-matchmaking-bar button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+/* ================================
+   PLAY MODE MATCHMAKING
+   ================================ */
+
+.play-command-button-row {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.play-ready-button {
+  border-color: rgba(74, 222, 128, 0.44);
+
+  background:
+    radial-gradient(circle at 50% 0%, rgba(74, 222, 128, 0.18), transparent 62%),
+    linear-gradient(180deg, rgba(22, 101, 52, 0.92), rgba(5, 46, 22, 0.92));
+
+  color: #bbf7d0;
+}
+
+.play-ready-button:hover {
+  border-color: var(--gold);
+
+  background:
+    radial-gradient(circle at 50% 0%, rgba(231, 201, 122, 0.22), transparent 62%),
+    linear-gradient(180deg, rgba(148, 112, 38, 0.95), rgba(17, 20, 27, 0.95));
+
+  color: #ffffff;
+}
+
+.play-ready-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ================================
+   WORLD DETAILS MATCHMAKING ACTION
+   ================================ */
+
+.world-details-ready-button {
+  border-color: rgba(74, 222, 128, 0.34);
+
+  background:
+    radial-gradient(circle at 50% 0%, rgba(74, 222, 128, 0.14), transparent 62%),
+    rgba(17, 20, 27, 0.88);
+
+  color: #bbf7d0;
+}
+
+.world-details-ready-button:hover {
+  border-color: var(--gold);
+  color: #ffffff;
+}
+
+/* ================================
+   PLAY SESSION LIFECYCLE
+   ================================ */
+
+.play-session-lifecycle-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.play-session-lifecycle-row button {
+  min-height: 30px;
+  padding: 6px 8px;
+
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+
+.play-session-lifecycle-row span {
+  min-height: 30px;
+
+  display: grid;
+  place-items: center;
+
+  padding: 6px 8px;
+
+  border: 1px solid rgba(231, 201, 122, 0.22);
+  border-radius: 10px;
+
+  background: rgba(5, 6, 10, 0.32);
+  color: var(--gold);
+
+  font-size: 0.72rem;
+  font-weight: 900;
 }
