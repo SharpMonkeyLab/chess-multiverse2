@@ -8,37 +8,18 @@ import SiteFooter from "@/components/SiteFooter";
 import { hasSupabaseConfig, supabase } from "@/lib/supabaseClient";
 import { getWorldPreviewImages } from "@/lib/worldData";
 
-const FUTURE_ACCOUNT_FEATURES = [
+const COMING_SOON_ACCOUNT_FEATURES = [
   {
-    title: "Manage My Worlds",
-    text: "Create, edit, save, and later publish worlds from your account."
+    title: "Match History",
+    text: "Review past play sessions, results, and universes you have played."
   },
   {
-    title: "Publish Worlds",
-    text: "Share selected worlds publicly so other players can discover and play them."
+    title: "Favourites & Ratings",
+    text: "Save universes you like and rate public universes for the community."
   },
   {
-    title: "Join Challenges",
-    text: "Create or join lobby challenges using public or private worlds."
-  },
-  {
-    title: "Track Play History",
-    text: "View matches, favourites, ratings, and world activity later."
-  }
-];
-
-const ONLINE_WORLD_PLACEHOLDERS = [
-  {
-    title: "Private Drafts",
-    text: "Worlds saved online but not published will appear here."
-  },
-  {
-    title: "Published Worlds",
-    text: "Worlds shared with the community will appear here."
-  },
-  {
-    title: "World Backups",
-    text: "Online saves will eventually work alongside local JSON export/import."
+    title: "Public Challenge Tables",
+    text: "Host or join open lobby tables without leaving the lobby page."
   }
 ];
 
@@ -302,7 +283,7 @@ export default function AccountPage() {
     }
 
     setIsLoadingOnlineWorlds(true);
-    setOnlineWorldsStatus("Loading online worlds...");
+    setOnlineWorldsStatus("Loading online universes…");
 
     try {
       const { data, error } = await supabase
@@ -325,7 +306,7 @@ export default function AccountPage() {
       console.error("Online worlds fetch failed:", error);
 
       setOnlineWorlds([]);
-      setOnlineWorldsStatus("Could not reach Supabase to load online worlds.");
+      setOnlineWorldsStatus("Could not reach Supabase to load online universes.");
     } finally {
       setIsLoadingOnlineWorlds(false);
     }
@@ -333,7 +314,7 @@ export default function AccountPage() {
 
   async function handleTogglePublishWorld(world) {
     if (!supabase || !currentUser) {
-      setOnlineWorldsStatus("You must be signed in to publish worlds.");
+      setOnlineWorldsStatus("You must be signed in to publish universes.");
       return;
     }
 
@@ -349,7 +330,7 @@ export default function AccountPage() {
 
     setPublishingWorldId(world.id);
     setOnlineWorldsStatus(
-      nextIsPublic ? "Publishing world..." : "Unpublishing world..."
+      nextIsPublic ? "Publishing universe..." : "Unpublishing universe..."
     );
 
     try {
@@ -384,7 +365,7 @@ export default function AccountPage() {
       );
     } catch (error) {
       console.error("Publish toggle failed:", error);
-      setOnlineWorldsStatus("Could not reach Supabase to update this world.");
+      setOnlineWorldsStatus("Could not reach Supabase to update this universe.");
     } finally {
       setPublishingWorldId("");
     }
@@ -392,7 +373,7 @@ export default function AccountPage() {
 
   async function handleDeleteOnlineWorld(world) {
     if (!supabase || !currentUser) {
-      setOnlineWorldsStatus("You must be signed in to delete online worlds.");
+      setOnlineWorldsStatus("You must be signed in to delete online universes.");
       return;
     }
 
@@ -424,7 +405,7 @@ export default function AccountPage() {
       setOnlineWorldsStatus(`Deleted online draft: ${world.name}`);
     } catch (error) {
       console.error("Online world delete failed:", error);
-      setOnlineWorldsStatus("Could not reach Supabase to delete this world.");
+      setOnlineWorldsStatus("Could not reach Supabase to delete this universe.");
     } finally {
       setDeletingOnlineWorldId("");
     }
@@ -480,21 +461,21 @@ export default function AccountPage() {
         <section className="platform-hero account-hero">
           <p className="home-kicker">Account</p>
 
-          <h1>Your worlds will live here.</h1>
+          <h1>Your universes will live here.</h1>
 
           <p>
-            Accounts are now connected to Supabase Auth. Worlds can be saved to
-            your account, edited later, and prepared for future publishing,
-            challenges, and multiplayer.
+            Accounts are connected to Supabase Auth. Save universes online, publish
+            them for the community, and open them again in the Creator from this
+            page.
           </p>
 
           <div className="home-action-row">
             <Link className="home-primary-link" href="/worlds">
-              Browse Worlds
+              Browse Universes
             </Link>
 
             <Link className="home-secondary-link" href="/creator">
-              Create World
+              Create Universe
             </Link>
           </div>
         </section>
@@ -618,17 +599,17 @@ export default function AccountPage() {
           <article className="account-card">
             <p className="home-kicker">Storage</p>
 
-            <h2>Account worlds + JSON backups</h2>
+            <h2>Account universes + JSON backups</h2>
 
             <p>
-              Worlds saved from the Creator now live in your account. Exporting
-              JSON is still useful as a personal backup or for transferring a world
+              Universes saved from the Creator now live in your account. Exporting
+              JSON is still useful as a personal backup or for transferring a universe
               manually.
             </p>
 
             <div className="account-storage-note">
               <strong>Current mode:</strong>
-              <span>Online worlds with optional JSON backup</span>
+              <span>Online universes with optional JSON backup</span>
             </div>
           </article>
         </section>
@@ -638,22 +619,22 @@ export default function AccountPage() {
             <div className="account-section-heading-row">
               <div>
                 <p className="home-kicker">Creator Library</p>
-                <h2>My Worlds</h2>
+                <h2>My Universes</h2>
               </div>
 
               <Link className="home-secondary-link" href="/creator">
-                Create New World
+                Create New Universe
               </Link>
             </div>
 
             <p>
-              These are worlds saved to your account. They are private drafts for now.
+              These are universes saved to your account. They are private drafts for now.
               You can open them in the Creator, keep editing them, and later publish
-              selected worlds for the community.
+              selected universes for the community.
             </p>
 
             {isLoadingOnlineWorlds && (
-              <p className="account-auth-status">Loading online worlds...</p>
+              <p className="account-auth-status">Loading online universes…</p>
             )}
 
             {onlineWorldsStatus && (
@@ -664,9 +645,9 @@ export default function AccountPage() {
               !onlineWorldsStatus &&
               onlineWorlds.length === 0 && (
                 <div className="account-online-world-empty">
-                  <h3>No online worlds yet</h3>
+                  <h3>No online universes yet</h3>
                   <p>
-                    Open the Creator, sign in, and click Save World. Then your worlds
+                    Open the Creator, sign in, and click Save Universe. Then your worlds
                     will appear here.
                   </p>
                 </div>
@@ -714,11 +695,11 @@ export default function AccountPage() {
 
                         <p>
                           {world.description ||
-                            "No description yet. This world is online, mysterious, and possibly plotting."}
+                            "No description yet. This universe is online, mysterious, and possibly plotting."}
                         </p>
 
                         <div className="account-online-world-meta-row">
-                          <span>{world.complexity_label || "Simple"}</span>
+                          <span>{world.complexity_label || "Basic"}</span>
                           <span>{world.total_match_count || 0} matches</span>
                           <span>★ {world.rating_average || 0}</span>
                         </div>
@@ -751,8 +732,8 @@ export default function AccountPage() {
                             onClick={() => handleTogglePublishWorld(world)}
                             title={
                               world.is_public
-                                ? "Return this world to Private Draft."
-                                : "Mark this world as public."
+                                ? "Return this universe to Private Draft."
+                                : "Mark this universe as public."
                             }
                           >
                             {publishingWorldId === world.id
@@ -773,12 +754,12 @@ export default function AccountPage() {
         )}
 
         <section className="account-card">
-          <p className="home-kicker">Future Features</p>
+          <p className="home-kicker">Coming Soon</p>
 
-          <h2>What accounts will unlock</h2>
+          <h2>Still on the account roadmap</h2>
 
           <div className="account-feature-grid">
-            {FUTURE_ACCOUNT_FEATURES.map((feature) => (
+            {COMING_SOON_ACCOUNT_FEATURES.map((feature) => (
               <article className="account-feature-card" key={feature.title}>
                 <h3>{feature.title}</h3>
                 <p>{feature.text}</p>

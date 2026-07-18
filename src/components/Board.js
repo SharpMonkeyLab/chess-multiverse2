@@ -1,5 +1,6 @@
 import Cell from "./Cell";
 import { BOARD_SIZE } from "@/lib/defaultWorld";
+import { isPieceHiddenByFog } from "@/lib/worldSystems";
 
 export default function Board({
   cells,
@@ -8,6 +9,9 @@ export default function Board({
   characterLibrary,
   worldTheme,
   worldMechanics,
+  fogCells = [],
+  viewerTeam = "",
+  revealOwnPiecesInFog = true,
   onCellClick
 }) {
   return (
@@ -30,6 +34,14 @@ export default function Board({
 
           const isLightSquare = (row + col) % 2 === 1;
           const isSelected = movingPiece?.fromIndex === index;
+          const isFogged = Array.isArray(fogCells) && fogCells.includes(index);
+          const hideOccupants = isPieceHiddenByFog({
+            cellIndex: index,
+            cellTeam: cellData.team,
+            viewerTeam,
+            fogCells,
+            revealOwnPieces: revealOwnPiecesInFog
+          });
 
           return (
             <Cell
@@ -43,6 +55,8 @@ export default function Board({
               worldMechanics={worldMechanics}
               worldTheme={worldTheme}
               hasBoardSkin={Boolean(worldTheme?.boardSkinImage)}
+              isFogged={isFogged}
+              hideOccupants={hideOccupants}
               onClick={(event) => onCellClick(index, event)}
             />
           );

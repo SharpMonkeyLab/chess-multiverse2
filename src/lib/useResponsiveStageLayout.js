@@ -2,8 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 
-const DEFAULT_FALLBACK_STAGE_WIDTH = 1460;
-const DEFAULT_FALLBACK_STAGE_HEIGHT = 840;
+import {
+    STAGE_DESIGN_HEIGHT,
+    STAGE_DESIGN_WIDTH
+} from "@/lib/stageLayoutConfig";
+
+const DEFAULT_FALLBACK_STAGE_WIDTH = STAGE_DESIGN_WIDTH;
+const DEFAULT_FALLBACK_STAGE_HEIGHT = STAGE_DESIGN_HEIGHT;
 
 function readCssPixelValue(variableName, fallbackValue) {
     const rootStyles = getComputedStyle(document.documentElement);

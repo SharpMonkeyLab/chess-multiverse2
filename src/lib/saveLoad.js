@@ -4,7 +4,7 @@
 // Safer storage model:
 // - Each saved item gets its own localStorage key.
 // - Each collection has a small index for listing saved items.
-// - This avoids rewriting every saved world whenever one world is saved/deleted.
+// - This avoids rewriting every saved universe whenever one world is saved/deleted.
 //
 // Important:
 // LocalStorage is not good for very large image-heavy worlds.
@@ -87,7 +87,7 @@ function assertLocalItemIsNotTooLarge(jsonText) {
   if (jsonText.length <= MAX_LOCAL_ITEM_CHARACTERS) return;
 
   throw new Error(
-    "This world is too large for safe local browser saving. Use Save Online Draft or export JSON instead."
+    "This universe is too large for safe local browser saving. Use Save Online Draft or export JSON instead."
   );
 }
 

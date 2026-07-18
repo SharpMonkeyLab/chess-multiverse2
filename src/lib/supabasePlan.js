@@ -155,7 +155,7 @@
 //
 // complexity_label
 // - text
-// - Simple / Standard / Advanced
+// - Basic / Moderate / Advanced (legacy: Simple / Standard)
 // - can be user-chosen later or calculated
 //
 // created_at
@@ -521,4 +521,78 @@
 // 1. Supabase Storage for images.
 // 2. Lobby challenges.
 // 3. Play sessions.
-// 4. Real-time multiplayer.npm.cmd run dev
+// 4. Real-time multiplayer.
+
+
+// ================================
+// TABLE: lobby_messages (Social v1)
+// ================================
+//
+// Purpose:
+// Global lobby chat shown on /lobby.
+//
+// See supabase/social_v1.sql for CREATE + RLS.
+//
+// Columns:
+// - id uuid pk
+// - author_id → profiles.id
+// - body text (1–500 chars)
+// - created_at
+//
+// RLS: anyone can select; insert only as auth.uid() = author_id
+// Realtime: enable INSERT on this table
+
+
+// ================================
+// TABLE: world_posts (Social v1)
+// ================================
+//
+// Purpose:
+// Creator update posts per published world (Enter World + Worlds card teaser).
+// v1 authors = world owner only (cocreators later).
+//
+// Columns:
+// - id uuid pk
+// - world_id → worlds.id
+// - author_id → profiles.id
+// - body text (1–2000 chars)
+// - created_at / updated_at
+//
+// RLS: select if world public or owner; insert if author is world owner
+
+
+// ================================
+// TABLE: world_post_replies (Social v1)
+// ================================
+//
+// Purpose:
+// Player replies under a world post.
+//
+// Columns:
+// - id uuid pk
+// - post_id → world_posts.id
+// - author_id → profiles.id
+// - body text (1–1000 chars)
+// - created_at
+//
+// RLS: select with parent post visibility; any signed-in user may insert as self
+
+
+// ================================
+// TABLE: play_session_messages (In-match chat)
+// ================================
+//
+// Purpose:
+// Private chat for players in a live play session.
+//
+// See supabase/match_chat_v1.sql for CREATE + RLS.
+//
+// Columns:
+// - id uuid pk
+// - session_id → play_sessions.id
+// - author_id → profiles.id
+// - body text (1–500 chars)
+// - created_at
+//
+// RLS: select/insert only if user is a participant on that session
+// Realtime: enable INSERT on play_session_messages

@@ -23,9 +23,12 @@ export default function Cell({
   worldTheme,
   worldMechanics,
   hasBoardSkin,
+  isFogged = false,
+  hideOccupants = false,
   onClick
 }) {
   const squareClass = isLightSquare ? "light-square" : "dark-square";
+  const fogClass = isFogged ? "has-fog" : "";
 
   const terrain = getTerrainDefinitionFromMechanics(
     worldMechanics,
@@ -99,7 +102,7 @@ export default function Cell({
 
   return (
     <div
-      className={`cell ${squareClass} ${terrainClass} ${hasBoardSkin ? "board-skin-cell" : ""
+      className={`cell ${squareClass} ${terrainClass} ${fogClass} ${hasBoardSkin ? "board-skin-cell" : ""
         } ${isSelected ? "selected-moving" : ""}`}
       style={terrainStyle}
       onClick={onClick}
@@ -112,7 +115,9 @@ export default function Cell({
         />
       )}
 
-      {pieceSymbol && (
+      {isFogged && <div className="cell-fog-layer" aria-hidden="true" />}
+
+      {!hideOccupants && pieceSymbol && (
         <div
           className={`cell-piece ${cellData.team} ${isGenericPiece ? "generic-piece" : ""
             } ${assignedCharacter?.portrait
@@ -168,7 +173,7 @@ export default function Cell({
         </div>
       )}
 
-      {tokenName && (
+      {!hideOccupants && tokenName && (
         <div className="board-token">
           <span className="board-token-symbol">{GENERIC_TOKEN_SYMBOL}</span>
           <span className="board-token-label">
@@ -177,7 +182,7 @@ export default function Cell({
         </div>
       )}
 
-      {visibleCounters.length > 0 && (
+      {!hideOccupants && visibleCounters.length > 0 && (
         <div className="cell-counter-stack">
           {visibleCounters.map((counter) => (
             <span
@@ -194,7 +199,7 @@ export default function Cell({
         </div>
       )}
 
-      {cellData.conditions?.length > 0 && (
+      {!hideOccupants && cellData.conditions?.length > 0 && (
         <div className="cell-condition-stack">
           {cellData.conditions.map((conditionKey, conditionIndex) => {
             const condition = getConditionDefinitionFromMechanics(

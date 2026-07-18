@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 
 import {
     MATCHMAKING_EVENT_NAME,
@@ -18,9 +17,9 @@ export default function MatchmakingReadyButton({
     readyLabel = "Ready",
     loadingLabel = "Finding Match...",
     disabledLabel = "Unavailable",
+    description = "",
     onStatusChange = () => { }
 }) {
-    const router = useRouter();
     const [isJoiningMatchmaking, setIsJoiningMatchmaking] = useState(false);
     const [storedWaitingMatch, setStoredWaitingMatch] = useState(null);
 
@@ -43,21 +42,21 @@ export default function MatchmakingReadyButton({
     async function handleReadyClick() {
         if (storedWaitingMatch?.queueId) {
             if (storedWaitingMatch.worldId === worldId) {
-                onStatusChange("Already waiting for opponent...");
+                onStatusChange("Already waiting for an opponent…");
                 return;
             }
 
-            onStatusChange("You are already queued for another world.");
+            onStatusChange("You’re already queued in another universe.");
             return;
         }
 
         if (!worldId) {
-            onStatusChange("No world selected for matchmaking.");
+            onStatusChange("No universe selected.");
             return;
         }
 
         setIsJoiningMatchmaking(true);
-        onStatusChange("Looking for opponent...");
+        onStatusChange("Looking for an opponent…");
 
         try {
             const matchResult = await readyForMatch({
@@ -67,13 +66,16 @@ export default function MatchmakingReadyButton({
 
             if (matchResult.status === "matched" && matchResult.sessionId) {
                 clearStoredWaitingMatch();
-                onStatusChange("Match found. Opening board...");
-                router.push(`/play?session=${matchResult.sessionId}`);
+                onStatusChange("Match found. Opening board…");
+
+                // Last player to Ready gets an immediate hard navigation.
+                // location.replace avoids a stuck loading button on back-nav.
+                window.location.replace(`/play?session=${matchResult.sessionId}`);
                 return;
             }
 
             if (matchResult.status === "waiting") {
-                onStatusChange("Waiting for opponent...");
+                onStatusChange("Waiting for an opponent…");
                 setIsJoiningMatchmaking(false);
                 return;
             }
@@ -114,7 +116,14 @@ export default function MatchmakingReadyButton({
                 Boolean(storedWaitingMatch?.queueId)
             }
         >
-            {buttonLabel}
+            {description ? (
+                <span className="world-details-choice-copy">
+                    <strong>{buttonLabel}</strong>
+                    <small>{description}</small>
+                </span>
+            ) : (
+                buttonLabel
+            )}
         </button>
     );
 }

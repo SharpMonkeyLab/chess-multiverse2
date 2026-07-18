@@ -15,13 +15,12 @@ export const DEFAULT_TERRAIN_IMAGES = {
 
 export const DEFAULT_WORLD_FEATURES = {
   characters: true,
-  worldTokens: true,
+  worldTokens: false,
   counters: true,
   conditions: true,
   terrains: true,
 
-  // Future systems
-  playerStats: false,
+  // Advanced systems
   cardDecks: false,
   diceSystem: false,
   timers: false,
@@ -37,11 +36,6 @@ export const WORLD_FEATURE_GROUPS = [
         key: "characters",
         label: "Characters",
         description: "Allow pieces to be assigned characters and abilities."
-      },
-      {
-        key: "worldTokens",
-        label: "World Tokens",
-        description: "Allow general tokens created by the world creator."
       }
     ]
   },
@@ -66,37 +60,37 @@ export const WORLD_FEATURE_GROUPS = [
     ]
   },
   {
-    title: "Future Systems",
+    title: "Advanced Systems",
     features: [
       {
-        key: "playerStats",
-        label: "Player HP / Energy",
-        description: "Future system for player-level health, energy, mana, etc."
-      },
-      {
         key: "cardDecks",
-        label: "Decks of Cards",
-        description: "Future system for event, item, or ability decks."
+        label: "Deck of Cards",
+        description:
+          "Players build decks from this universe's card set, then draw and play cards that change the board."
       },
       {
         key: "diceSystem",
         label: "Dice System",
-        description: "Future system for dice-based world rules."
+        description:
+          "Add dice to play. Creator sets dice type/count as fixed or player-editable at setup."
       },
       {
         key: "timers",
         label: "Timers",
-        description: "Future system for timed games or turn clocks."
+        description:
+          "Turn or side clocks. Creator sets defaults and whether players may edit times at setup."
       },
       {
         key: "objectives",
         label: "Objectives",
-        description: "Future system for win conditions and missions."
+        description:
+          "Creator missions chosen or randomized by players when starting a game."
       },
       {
         key: "fogOfWar",
         label: "Fog of War",
-        description: "Future system for hidden information."
+        description:
+          "Hide pieces inside fog zones from the opponent. Creator sets rules and edit rights."
       }
     ]
   }
@@ -191,7 +185,37 @@ export const DEFAULT_WORLD_MECHANICS = {
       description: "This piece is affected by fire.",
       icon: "🔥"
     }
-  ]
+  ],
+
+  cardDecks: {
+    cards: [],
+    deckSize: 30,
+    startingHandSize: 5,
+    allowPlayerDeckBuilding: true
+  },
+
+  diceSystem: {
+    dice: [{ key: "d6", label: "D6", sides: 6, count: 1 }],
+    mode: "fixed",
+    allowReroll: false
+  },
+
+  timers: {
+    mode: "per_turn",
+    seconds: 90,
+    allowPlayerEdit: false
+  },
+
+  objectives: {
+    selectionMode: "player_choice",
+    items: []
+  },
+
+  fogOfWar: {
+    revealOwnPieces: true,
+    allowPlayerEdit: false,
+    defaultFogCells: []
+  }
 };
 
 export const DEFAULT_CONDITIONS = [

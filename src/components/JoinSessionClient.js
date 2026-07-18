@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import SiteHeader from "./SiteHeader";
 
-import { hasSupabaseConfig, supabase } from "@/lib/supabaseClient";
+import { joinPlaySessionByInvite } from "@/lib/joinSessionClient";
 
 export default function JoinSessionClient() {
     const router = useRouter();
@@ -14,61 +14,42 @@ export default function JoinSessionClient() {
 
     const sessionId = searchParams.get("session");
 
-    const [status, setStatus] = useState("Preparing invite...");
+    const [status, setStatus] = useState("Opening invite...");
     const [isJoining, setIsJoining] = useState(false);
+    const [needsAuth, setNeedsAuth] = useState(false);
 
     useEffect(() => {
         async function joinSession() {
             if (!sessionId) {
-                setStatus("No session invite was found.");
-                return;
-            }
-
-            if (!hasSupabaseConfig() || !supabase) {
-                setStatus("Online sessions are not available.");
+                setStatus("This invite link is missing a session.");
                 return;
             }
 
             setIsJoining(true);
-            setStatus("Checking account...");
+            setNeedsAuth(false);
+            setStatus("Joining session...");
 
             try {
-                const {
-                    data: { user },
-                    error: userError
-                } = await supabase.auth.getUser();
+                const result = await joinPlaySessionByInvite(sessionId);
 
-                if (userError || !user) {
-                    setStatus("Sign in first, then open this invite link again.");
+                if (result.status === "auth_required") {
+                    setNeedsAuth(true);
+                    setStatus(result.message);
                     setIsJoining(false);
                     return;
                 }
 
-                setStatus("Joining session...");
-
-                const { error: participantError } = await supabase
-                    .from("play_session_participants")
-                    .insert({
-                        session_id: sessionId,
-                        user_id: user.id,
-                        role: "player",
-                        team: "black",
-                        conduct_score: 0
-                    });
-
-                // PostgreSQL unique violation.
-                // This means the user is already in the session, which is fine.
-                if (participantError && participantError.code !== "23505") {
-                    setStatus(participantError.message || "Could not join this session.");
+                if (result.status !== "joined") {
+                    setStatus(result.message || "Could not join this session.");
                     setIsJoining(false);
                     return;
                 }
 
-                setStatus("Session joined. Opening board...");
+                setStatus(result.message || "Joined. Opening board...");
                 router.push(`/play?session=${sessionId}`);
             } catch (error) {
                 console.error("Join session failed:", error);
-                setStatus("Could not join this session.");
+                setStatus("Could not join this session. Try the invite again.");
                 setIsJoining(false);
             }
         }
@@ -90,10 +71,17 @@ export default function JoinSessionClient() {
                 {!isJoining && (
                     <div className="home-action-row">
                         <Link className="home-primary-link" href="/worlds">
-                            Browse Worlds
+                            Browse Universes
                         </Link>
 
-                        <Link className="home-secondary-link" href="/account">
+                        <Link
+                            className="home-secondary-link"
+                            href={
+                                needsAuth
+                                    ? `/account?next=${encodeURIComponent(`/join?session=${sessionId || ""}`)}`
+                                    : "/account"
+                            }
+                        >
                             Account
                         </Link>
                     </div>

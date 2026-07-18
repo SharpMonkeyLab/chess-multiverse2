@@ -2,21 +2,14 @@
 // WORLD ASSET STORAGE HELPERS
 // ================================
 //
-// This file moves heavy base64 image strings out of world_data
-// and into Supabase Storage.
-//
-// Database:
-// - stores normal world data and image URLs
-//
-// Storage:
-// - stores image files such as backgrounds, board skins,
-//   piece skins, portraits, and terrain images
+// Moves heavy base64 image strings out of world_data into Supabase Storage.
+// Low-level upload helpers live in assetStorage.js.
 
-export const WORLD_ASSET_BUCKET = "world-assets";
-
-function isDataUrl(value) {
-  return typeof value === "string" && value.startsWith("data:");
-}
+import {
+  isDataUrl,
+  isImageDataUrl,
+  uploadDataUrlAsset as uploadDataUrlAssetCore
+} from "@/lib/assetStorage";
 
 function cloneWorldData(worldData) {
   if (typeof structuredClone === "function") {
@@ -24,41 +17,6 @@ function cloneWorldData(worldData) {
   }
 
   return JSON.parse(JSON.stringify(worldData));
-}
-
-function getMimeTypeFromDataUrl(dataUrl) {
-  const match = dataUrl.match(/^data:([^;]+);base64,/);
-
-  return match?.[1] || "image/png";
-}
-
-function getFileExtensionFromMimeType(mimeType) {
-  if (mimeType === "image/jpeg") return "jpg";
-  if (mimeType === "image/png") return "png";
-  if (mimeType === "image/webp") return "webp";
-  if (mimeType === "image/gif") return "gif";
-  if (mimeType === "image/svg+xml") return "svg";
-
-  return "png";
-}
-
-function makeStorageSafePart(value) {
-  return String(value || "asset")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48) || "asset";
-}
-
-async function dataUrlToBlob(dataUrl) {
-  const response = await fetch(dataUrl);
-
-  if (!response.ok) {
-    throw new Error("Could not convert image data for upload.");
-  }
-
-  return response.blob();
 }
 
 async function uploadDataUrlAsset({
@@ -69,45 +27,22 @@ async function uploadDataUrlAsset({
   assetName,
   dataUrl
 }) {
-  if (!isDataUrl(dataUrl)) {
+  if (!isDataUrl(dataUrl) || !isImageDataUrl(dataUrl)) {
     return dataUrl;
   }
 
-  const mimeType = getMimeTypeFromDataUrl(dataUrl);
-  const extension = getFileExtensionFromMimeType(mimeType);
-  const blob = await dataUrlToBlob(dataUrl);
+  // supabase client is already configured inside assetStorage via supabaseClient.
+  void supabase;
 
-  const safeAssetType = makeStorageSafePart(assetType);
-  const safeAssetName = makeStorageSafePart(assetName);
-
-  // Folder structure:
-  // userId/worldId/assetType/fileName.ext
-  //
-  // The first folder is the user id because our Supabase Storage
-  // policy uses that folder to check ownership.
-  const storagePath = [
+  const result = await uploadDataUrlAssetCore({
     userId,
     worldId,
-    safeAssetType,
-    `${safeAssetName}-${Date.now()}.${extension}`
-  ].join("/");
+    assetType,
+    assetName,
+    dataUrl
+  });
 
-  const { error } = await supabase.storage
-    .from(WORLD_ASSET_BUCKET)
-    .upload(storagePath, blob, {
-      contentType: mimeType,
-      upsert: true
-    });
-
-  if (error) {
-    throw new Error(error.message || "Could not upload world asset.");
-  }
-
-  const { data } = supabase.storage
-    .from(WORLD_ASSET_BUCKET)
-    .getPublicUrl(storagePath);
-
-  return data.publicUrl;
+  return result.publicUrl || dataUrl;
 }
 
 async function replaceImageField({

@@ -1,39 +1,47 @@
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
+import HomeFeaturedWorlds from "@/components/HomeFeaturedWorlds";
 
-// Home page for the Chess Multiverse platform.
 export default function Home() {
   return (
-    <main className="home-page">
+    <main className="home-page home-page-scroll">
       <SiteHeader />
 
-      <section className="home-hero">
-        <p className="home-kicker">Chess Multiverse</p>
+      <section className="home-hero-bleed">
+        <div className="home-hero-bleed-atmosphere" aria-hidden="true" />
+        <div className="home-hero-bleed-grid" aria-hidden="true" />
 
-        <h1>Create worlds. Choose fighters. Play Chess Multiverse.</h1>
+        <div className="home-hero-bleed-inner">
+          <p className="home-brand-signal">Chess Multiverse</p>
 
-        <p className="home-description">
-          Browse custom chess-inspired worlds, join live challenges, or build
-          your own universe with characters, terrain, counters, conditions,
-          board skins, and rules.
-        </p>
+          <h1>Every board is a new universe.</h1>
 
-        <div className="home-action-row">
-          <Link className="home-primary-link" href="/worlds">
-            Play Now
-          </Link>
+          <p className="home-description">
+            Create your own Universe, Ready up for a match, and fight across
+            the Multiverse.
+          </p>
 
-          <Link className="home-secondary-link" href="/lobby">
-            Open Lobby
-          </Link>
-
-          <Link className="home-secondary-link" href="/creator">
-            Create World
-          </Link>
+          <div className="home-action-row">
+            <Link className="home-primary-link" href="/worlds">
+              Play Now
+            </Link>
+            <Link className="home-secondary-link" href="/lobby">
+              Enter Lobby
+            </Link>
+          </div>
         </div>
       </section>
-      
+
+      <section className="home-section home-featured-section">
+        <div className="home-section-heading">
+          <p className="home-kicker">Featured</p>
+          <h2>Universes calling for challengers</h2>
+        </div>
+
+        <HomeFeaturedWorlds />
+      </section>
+
       <SiteFooter />
     </main>
   );

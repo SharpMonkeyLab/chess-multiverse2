@@ -7,8 +7,9 @@
 
 export function getWorldData(world) {
   // Normal local saves use world.data.
+  // Online rows use world.world_data.
   // Some imported/exported worlds can be wrapped one level deeper.
-  return world?.data?.data || world?.data || world || {};
+  return world?.data?.data || world?.data || world?.world_data || world || {};
 }
 
 export function getWorldDetails(world) {
@@ -20,7 +21,7 @@ export function getWorldDetails(world) {
 export function getWorldName(world) {
   const details = getWorldDetails(world);
 
-  return details.name || world?.name || "Untitled World";
+  return details.name || world?.name || "Unnamed Universe";
 }
 
 export function getWorldDescription(world) {
@@ -28,7 +29,7 @@ export function getWorldDescription(world) {
 
   return (
     details.description ||
-    "No description yet. This world is choosing mystery over documentation."
+    "No description yet. This universe is choosing mystery over documentation."
   );
 }
 
@@ -42,6 +43,32 @@ export function getWorldTheme(world) {
   const worldData = getWorldData(world);
 
   return worldData.worldTheme || worldData.theme || {};
+}
+
+export function normalizeWorldTheme(savedTheme = {}, defaultTheme) {
+  const baseTheme = defaultTheme || {};
+  const theme = savedTheme || {};
+
+  return {
+    ...baseTheme,
+    ...theme,
+    backgroundImage: theme.backgroundImage || baseTheme.backgroundImage || "",
+    boardSkinImage: theme.boardSkinImage || baseTheme.boardSkinImage || "",
+    pieceSkins: {
+      ...(baseTheme.pieceSkins || {}),
+      ...(theme.pieceSkins || {}),
+      white: {
+        ...(baseTheme.pieceSkins?.white || {}),
+        ...(theme.pieceSkins?.white || {})
+      },
+      black: {
+        ...(baseTheme.pieceSkins?.black || {}),
+        ...(theme.pieceSkins?.black || {})
+      }
+    },
+    characterDisplayMode:
+      theme.characterDisplayMode || baseTheme.characterDisplayMode || "piece-with-portrait"
+  };
 }
 
 export function getWorldPreviewImages(world) {
@@ -100,7 +127,12 @@ export function getEnabledFeatureLabels(world) {
     { key: "worldTokens", label: "Tokens" },
     { key: "terrains", label: "Terrains" },
     { key: "counters", label: "Counters" },
-    { key: "conditions", label: "Conditions" }
+    { key: "conditions", label: "Conditions" },
+    { key: "cardDecks", label: "Cards" },
+    { key: "diceSystem", label: "Dice" },
+    { key: "timers", label: "Timers" },
+    { key: "objectives", label: "Objectives" },
+    { key: "fogOfWar", label: "Fog" }
   ];
 
   return featureLabels
@@ -133,18 +165,44 @@ export function getWorldCreatorStats(world) {
   ];
 }
 
+export const WORLD_COMPLEXITY_OPTIONS = ["Basic", "Moderate", "Advanced"];
+
+const LEGACY_COMPLEXITY_MAP = {
+  Simple: "Basic",
+  Standard: "Moderate"
+};
+
+export function normalizeWorldComplexity(value) {
+  const raw = String(value || "").trim();
+
+  if (WORLD_COMPLEXITY_OPTIONS.includes(raw)) {
+    return raw;
+  }
+
+  if (LEGACY_COMPLEXITY_MAP[raw]) {
+    return LEGACY_COMPLEXITY_MAP[raw];
+  }
+
+  return "Basic";
+}
+
 export function getWorldComplexity(world) {
-  const systemScore =
-    getCharacterList(world).length +
-    getTerrainList(world).length +
-    getCounterList(world).length +
-    getConditionList(world).length +
-    getTokenList(world).length;
+  const worldData = getWorldData(world);
+  const details = worldData.worldDetails || {};
+  const creatorComplexity = String(details.complexity || "").trim();
 
-  if (systemScore >= 45) return "Advanced";
-  if (systemScore >= 18) return "Standard";
+  if (creatorComplexity) {
+    return normalizeWorldComplexity(creatorComplexity);
+  }
 
-  return "Simple";
+  // Fallback for older worlds that only stored complexity on the row.
+  const rowComplexity = String(world?.complexity_label || "").trim();
+
+  if (rowComplexity) {
+    return normalizeWorldComplexity(rowComplexity);
+  }
+
+  return "Basic";
 }
 
 export function getWorldCardStats(world) {

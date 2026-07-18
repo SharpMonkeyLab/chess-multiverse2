@@ -18,7 +18,6 @@ import {
     getCounterList,
     getEnabledFeatureLabels,
     getTerrainList,
-    getTokenList,
     getWorldCreatorStats,
     getWorldDescription,
     getWorldDetails,
@@ -27,22 +26,24 @@ import {
 } from "@/lib/worldData";
 
 import MatchmakingReadyButton from "@/components/MatchmakingReadyButton";
+import WorldPostsSection from "@/components/WorldPostsSection";
 
 export default function WorldDetailsClient({ worldId }) {
     const [world, setWorld] = useState(null);
     const [worldSource, setWorldSource] = useState("");
-    const [status, setStatus] = useState("Loading world...");
+    const [status, setStatus] = useState("Loading universe…");
     const [playStatus, setPlayStatus] = useState("");
+    const [currentUser, setCurrentUser] = useState(null);
+    const [openPostsInitially, setOpenPostsInitially] = useState(false);
 
     const [selectedCharacterIndex, setSelectedCharacterIndex] = useState(0);
     const [selectedTerrainIndex, setSelectedTerrainIndex] = useState(0);
     const [selectedCounterIndex, setSelectedCounterIndex] = useState(0);
     const [selectedConditionIndex, setSelectedConditionIndex] = useState(0);
-    const [selectedTokenIndex, setSelectedTokenIndex] = useState(0);
 
     useEffect(() => {
         async function loadWorldDetails() {
-            setStatus("Loading world...");
+            setStatus("Loading universe…");
             setWorld(null);
             setWorldSource("");
 
@@ -57,26 +58,27 @@ export default function WorldDetailsClient({ worldId }) {
             }
 
             if (!hasSupabaseConfig() || !supabase) {
-                setStatus("Could not find this world.");
+                setStatus("Could not find this universe.");
                 return;
             }
 
             try {
                 const { data: onlineWorld, error } = await supabase
                     .from("worlds")
-                    .select("id, name, description, is_public, updated_at, world_data")
+                    .select("id, owner_id, name, description, is_public, updated_at, world_data")
                     .eq("id", worldId)
                     .eq("is_public", true)
                     .single();
 
                 if (error || !onlineWorld) {
-                    setStatus("Could not find this published world.");
+                    setStatus("Could not find this published universe.");
                     setWorld(null);
                     return;
                 }
 
                 setWorld({
                     id: onlineWorld.id,
+                    ownerId: onlineWorld.owner_id,
                     name: onlineWorld.name,
                     updatedAt: onlineWorld.updated_at,
                     isPublic: onlineWorld.is_public,
@@ -87,7 +89,7 @@ export default function WorldDetailsClient({ worldId }) {
                 setStatus("");
             } catch (error) {
                 console.error("Online world details load failed:", error);
-                setStatus("Could not reach Supabase to load this world.");
+                setStatus("Could not reach Supabase to load this universe.");
                 setWorld(null);
             }
         }
@@ -96,12 +98,53 @@ export default function WorldDetailsClient({ worldId }) {
     }, [worldId]);
 
     useEffect(() => {
+        if (typeof window === "undefined") return;
+
+        const params = new URLSearchParams(window.location.search);
+        setOpenPostsInitially(params.get("tab") === "posts");
+    }, [worldId]);
+
+    useEffect(() => {
+        async function loadCurrentUser() {
+            if (!hasSupabaseConfig() || !supabase) {
+                setCurrentUser(null);
+                return;
+            }
+
+            try {
+                const {
+                    data: { user }
+                } = await supabase.auth.getUser();
+                setCurrentUser(user || null);
+            } catch {
+                setCurrentUser(null);
+            }
+        }
+
+        loadCurrentUser();
+
+        if (!supabase) return;
+
+        const {
+            data: { subscription }
+        } = supabase.auth.onAuthStateChange((_event, session) => {
+            setCurrentUser(session?.user || null);
+        });
+
+        return () => {
+            subscription.unsubscribe();
+        };
+    }, []);
+
+    useEffect(() => {
         function syncLocalPlayStatusWithGlobalMatchmaking() {
             const waitingMatch = readStoredWaitingMatch();
 
             if (!waitingMatch) {
                 setPlayStatus((currentStatus) =>
-                    currentStatus === "Waiting for opponent..." ||
+                    currentStatus === "Waiting for an opponent…" ||
+                        currentStatus === "Looking for an opponent…" ||
+                        currentStatus === "Waiting for opponent..." ||
                         currentStatus === "Looking for opponent..."
                         ? ""
                         : currentStatus
@@ -136,16 +179,16 @@ export default function WorldDetailsClient({ worldId }) {
         return (
             <div className="world-details-content">
                 <section className="world-details-missing-card">
-                    <p className="home-kicker">World Details</p>
+                    <p className="home-kicker">Universe Details</p>
                     <h1>{status}</h1>
 
                     <p>
-                        This world may be private, unpublished, deleted, or saved in another
+                        This universe may be private, unpublished, deleted, or saved in another
                         browser.
                     </p>
 
                     <Link className="home-secondary-link" href="/worlds">
-                        Back to Worlds
+                        Back to Universes
                     </Link>
                 </section>
             </div>
@@ -165,18 +208,20 @@ export default function WorldDetailsClient({ worldId }) {
     const terrains = getTerrainList(world);
     const counters = getCounterList(world);
     const conditions = getConditionList(world);
-    const tokens = getTokenList(world);
 
     const selectedCharacter = characters[selectedCharacterIndex] || characters[0];
     const selectedTerrain = terrains[selectedTerrainIndex] || terrains[0];
     const selectedCounter = counters[selectedCounterIndex] || counters[0];
     const selectedCondition = conditions[selectedConditionIndex] || conditions[0];
-    const selectedToken = tokens[selectedTokenIndex] || tokens[0];
 
     const playHref = `/play?world=${encodeURIComponent(world.id)}`;
 
     return (
         <div className="world-details-content">
+            <Link className="world-details-back-link" href="/worlds">
+                Back to Universes
+            </Link>
+
             <section className="world-details-hero">
                 <div className="world-details-preview">
                     {previewImages.backgroundImage && (
@@ -204,32 +249,38 @@ export default function WorldDetailsClient({ worldId }) {
                 </div>
 
                 <div className="world-details-main">
-                    <p className="home-kicker">
-                        {worldSource === "online" ? "Enter World" : "Local World"}
-                    </p>
-
                     <h1>{world.name}</h1>
 
                     <p>{description}</p>
 
-                    <div className="world-details-action-row">
-                        <Link
-                            className="home-primary-link world-details-play-button"
-                            href={playHref}
-                        >
-                            Visit Board
-                        </Link>
-
+                    <div className="world-details-play-choices">
                         <MatchmakingReadyButton
-                            className="home-secondary-link world-details-ready-button"
+                            className="world-details-ready-choice"
                             worldId={world.id}
                             worldName={world.name}
                             disabled={worldSource !== "online"}
                             disabledLabel="Online Only"
                             readyLabel="Ready"
                             loadingLabel="Finding Match..."
+                            description={
+                                worldSource === "online"
+                                    ? "Find a public opponent and start a live match in this universe."
+                                    : "Publish this universe online to match with other players."
+                            }
                             onStatusChange={setPlayStatus}
                         />
+
+                        <Link
+                            className="world-details-visit-choice"
+                            href={playHref}
+                        >
+                            <span className="world-details-choice-copy">
+                                <strong>Visit Board</strong>
+                                <small>
+                                    Open this universe&apos;s board for local play, setup, or private invites.
+                                </small>
+                            </span>
+                        </Link>
 
                         {playStatus && (
                             <p className="world-details-play-status">
@@ -237,13 +288,9 @@ export default function WorldDetailsClient({ worldId }) {
                             </p>
                         )}
 
-                        <Link className="home-secondary-link" href="/worlds">
-                            Back to Worlds
-                        </Link>
-
                         {worldSource === "local" && (
                             <Link
-                                className="home-secondary-link"
+                                className="home-secondary-link world-details-creator-link"
                                 href={`/creator?world=${world.id}`}
                             >
                                 Open in Creator
@@ -252,6 +299,14 @@ export default function WorldDetailsClient({ worldId }) {
                     </div>
                 </div>
             </section>
+
+            <WorldPostsSection
+                worldId={world.id}
+                ownerId={world.ownerId}
+                currentUser={currentUser}
+                worldSource={worldSource}
+                openPostsInitially={openPostsInitially}
+            />
 
             <section className="world-details-grid">
                 <article className="world-details-panel world-details-rules-panel">
@@ -277,8 +332,8 @@ export default function WorldDetailsClient({ worldId }) {
             </section>
 
             <section className="world-details-panel">
-                <p className="home-kicker">World Data</p>
-                <h2>World Stats</h2>
+                <p className="home-kicker">Universe Data</p>
+                <h2>Universe Stats</h2>
 
                 <div className="world-details-stat-grid">
                     {worldStats.map((stat) => (
@@ -403,15 +458,14 @@ export default function WorldDetailsClient({ worldId }) {
 
             <section className="world-details-three-grid">
                 <article className="world-details-panel">
-                    <p className="home-kicker">Terrains</p>
-                    <h2>Terrain Types</h2>
+                    <h2>Terrains</h2>
 
                     {terrains.length === 0 ? (
-                        <p>No terrain types created yet.</p>
+                        <p>No terrains created yet.</p>
                     ) : (
                         <div className="world-entity-section">
                             {selectedTerrain && (
-                                <div className="world-entity-detail-card">
+                                <div className="world-entity-detail-card world-details-system-detail">
                                     <div
                                         className="world-entity-detail-image terrain-detail-image"
                                         style={{
@@ -466,7 +520,6 @@ export default function WorldDetailsClient({ worldId }) {
                 </article>
 
                 <article className="world-details-panel">
-                    <p className="home-kicker">Markers</p>
                     <h2>Counters</h2>
 
                     {counters.length === 0 ? (
@@ -474,7 +527,7 @@ export default function WorldDetailsClient({ worldId }) {
                     ) : (
                         <div className="world-entity-section">
                             {selectedCounter && (
-                                <div className="world-entity-detail-card compact">
+                                <div className="world-entity-detail-card world-details-system-detail">
                                     <div
                                         className="world-entity-detail-icon"
                                         style={{ "--chip-color": selectedCounter.color || "#e7c97a" }}
@@ -520,7 +573,6 @@ export default function WorldDetailsClient({ worldId }) {
                 </article>
 
                 <article className="world-details-panel">
-                    <p className="home-kicker">Status</p>
                     <h2>Conditions</h2>
 
                     {conditions.length === 0 ? (
@@ -528,7 +580,7 @@ export default function WorldDetailsClient({ worldId }) {
                     ) : (
                         <div className="world-entity-section">
                             {selectedCondition && (
-                                <div className="world-entity-detail-card compact">
+                                <div className="world-entity-detail-card world-details-system-detail">
                                     <div className="world-entity-detail-icon condition-detail-icon">
                                         {selectedCondition.icon || "✨"}
                                     </div>
@@ -560,45 +612,6 @@ export default function WorldDetailsClient({ worldId }) {
                         </div>
                     )}
                 </article>
-            </section>
-
-            <section className="world-details-panel">
-                <p className="home-kicker">Tokens</p>
-                <h2>World Tokens</h2>
-
-                {tokens.length === 0 ? (
-                    <p>No world tokens created yet.</p>
-                ) : (
-                    <div className="world-entity-section">
-                        {selectedToken && (
-                            <div className="world-entity-detail-card compact">
-                                <div className="world-entity-detail-icon">✦</div>
-
-                                <div className="world-entity-detail-text">
-                                    <h3>{selectedToken.label || "Unnamed Token"}</h3>
-                                    <p>Token key: {selectedToken.name}</p>
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="world-details-token-row">
-                            {tokens.map((token, tokenIndex) => (
-                                <button
-                                    type="button"
-                                    className={
-                                        tokenIndex === selectedTokenIndex
-                                            ? "world-details-token-button selected"
-                                            : "world-details-token-button"
-                                    }
-                                    key={token.name || tokenIndex}
-                                    onClick={() => setSelectedTokenIndex(tokenIndex)}
-                                >
-                                    {token.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
             </section>
         </div>
     );

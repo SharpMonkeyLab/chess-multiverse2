@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 
 import { hasSupabaseConfig, supabase } from "@/lib/supabaseClient";
 
@@ -14,11 +13,9 @@ import {
 } from "@/lib/matchmakingClient";
 
 const PRESENCE_REFRESH_MS = 30000;
-const QUEUE_FALLBACK_REFRESH_MS = 10000;
+const QUEUE_FALLBACK_REFRESH_MS = 2500;
 
 export default function GlobalMatchmakingBar() {
-    const router = useRouter();
-
     const [waitingMatch, setWaitingMatch] = useState(null);
     const [waitingSeconds, setWaitingSeconds] = useState(0);
     const [onlinePlayerCount, setOnlinePlayerCount] = useState(0);
@@ -93,7 +90,7 @@ export default function GlobalMatchmakingBar() {
 
             if (queueRow.status === "matched" && queueRow.matched_session_id) {
                 clearStoredWaitingMatch();
-                router.push(`/play?session=${queueRow.matched_session_id}`);
+                window.location.replace(`/play?session=${queueRow.matched_session_id}`);
             }
         }
 
@@ -114,7 +111,7 @@ export default function GlobalMatchmakingBar() {
 
                     if (queueRow?.status === "matched" && queueRow?.matched_session_id) {
                         clearStoredWaitingMatch();
-                        router.push(`/play?session=${queueRow.matched_session_id}`);
+                        window.location.replace(`/play?session=${queueRow.matched_session_id}`);
                     }
                 }
             )
@@ -130,7 +127,7 @@ export default function GlobalMatchmakingBar() {
             window.clearInterval(fallbackIntervalId);
             supabase.removeChannel(channel);
         };
-    }, [waitingMatch?.queueId, router]);
+    }, [waitingMatch?.queueId]);
 
     useEffect(() => {
         if (!waitingMatch?.startedAt) {
@@ -176,25 +173,61 @@ export default function GlobalMatchmakingBar() {
         return null;
     }
 
+    const queueTime = formatQueueTime(waitingSeconds);
+    const isWorldScoped =
+        waitingMatch.scope === "world" ||
+        Boolean(waitingMatch.worldId && waitingMatch.worldName);
+
     return (
-        <div className="global-matchmaking-bar">
-            <strong>Finding match</strong>
+        <div
+            className="global-matchmaking-bar"
+            role="status"
+            aria-live="polite"
+            aria-label={`Seeking opponent in the Multiverse. Waiting ${queueTime}.`}
+        >
+            <div className="mm-bar-atmosphere" aria-hidden="true">
+                <span className="mm-bar-scan" />
+                <span className="mm-bar-board-fade" />
+            </div>
 
-            <span>{formatQueueTime(waitingSeconds)}</span>
-
-            <span>
-                {onlinePlayerCount || "—"} player
-                {onlinePlayerCount === 1 ? "" : "s"} online
-            </span>
-
-            {waitingMatch.worldName && (
-                <span className="global-matchmaking-world">
-                    {waitingMatch.worldName}
+            <div className="mm-bar-status">
+                <span className="mm-bar-piece" aria-hidden="true">
+                    ♞
                 </span>
-            )}
 
-            <button type="button" onClick={handleCancelReady} disabled={isCancelling}>
-                {isCancelling ? "Cancelling..." : "Cancel"}
+                <div className="mm-bar-status-copy">
+                    <strong>Seeking opponent in the Multiverse</strong>
+                    <span className="mm-bar-pulse-label">
+                        <span className="mm-bar-pulse-dot" aria-hidden="true" />
+                        {isWorldScoped ? "In this universe" : "Across every universe"}
+                    </span>
+                </div>
+            </div>
+
+            <div className="mm-bar-timer" aria-hidden="true">
+                <span className="mm-bar-timer-digits">{queueTime}</span>
+                <span className="mm-bar-timer-caption">elapsed</span>
+            </div>
+
+            <div className="mm-bar-meta">
+                {waitingMatch.worldName && (
+                    <span className="mm-bar-world" title={waitingMatch.worldName}>
+                        {waitingMatch.worldName}
+                    </span>
+                )}
+
+                <span className="mm-bar-online">
+                    {onlinePlayerCount || "—"} online
+                </span>
+            </div>
+
+            <button
+                type="button"
+                className="mm-bar-cancel"
+                onClick={handleCancelReady}
+                disabled={isCancelling}
+            >
+                {isCancelling ? "Leaving..." : "Cancel"}
             </button>
         </div>
     );

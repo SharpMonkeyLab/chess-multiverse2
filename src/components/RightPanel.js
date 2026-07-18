@@ -1,10 +1,7 @@
 "use client";
 
-import { useState } from "react";
-
 import {
   DEFAULT_PIECES,
-  GENERIC_TOKEN_SYMBOL,
   getPieceSkin,
   getPieceSymbol
 } from "@/lib/defaultWorld";
@@ -16,6 +13,7 @@ import {
 } from "@/lib/genericPiece";
 
 import CharacterCard from "./CharacterCard";
+import MatchChatPanel from "./MatchChatPanel";
 
 function TeamTray({
   team,
@@ -24,23 +22,47 @@ function TeamTray({
   characterLibrary,
   selectedTeam,
   selectedPiece,
-  onSelectPiece
+  onSelectPiece,
+  playerLabel = ""
 }) {
+  const characterList = Array.isArray(characterLibrary)
+    ? characterLibrary
+    : Object.values(characterLibrary || {});
+
+  const trayPieces = [
+    ...DEFAULT_PIECES.map((piece) => ({
+      key: piece.key,
+      label: piece.label,
+      symbol: getPieceSymbol(team, piece.key),
+      isGeneric: false
+    })),
+    {
+      key: GENERIC_PIECE_KEY,
+      label: GENERIC_PIECE_LABEL,
+      symbol: GENERIC_PIECE_SYMBOL,
+      isGeneric: true
+    }
+  ];
+
   return (
-    <section className="panel-box">
-      <h2>{team === "black" ? "Black Team" : "White Team"}</h2>
+    <section className="panel-box team-tray-box">
+      <div className="team-tray-heading">
+        <h2>{team === "black" ? "Black Team" : "White Team"}</h2>
+        {playerLabel ? (
+          <span className="team-tray-player">{playerLabel}</span>
+        ) : null}
+      </div>
 
       <div className="piece-row">
-        {DEFAULT_PIECES.map((piece) => {
+        {trayPieces.map((piece) => {
           const isSelected =
             selectedTeam === team && selectedPiece === piece.key;
 
-          const pieceSkin = getPieceSkin(worldTheme, team, piece.key);
-          const assignedCharacterName = pieceNames?.[team]?.[piece.key] || "";
+          const pieceSkin = piece.isGeneric
+            ? ""
+            : getPieceSkin(worldTheme, team, piece.key);
 
-          const characterList = Array.isArray(characterLibrary)
-            ? characterLibrary
-            : Object.values(characterLibrary || {});
+          const assignedCharacterName = pieceNames?.[team]?.[piece.key] || "";
 
           const assignedCharacter = characterList.find(
             (character) =>
@@ -52,35 +74,43 @@ function TeamTray({
             <button
               key={piece.key}
               type="button"
-              className={`piece-tray-button ${team} ${isSelected ? "active" : ""}`}
-              title={`Select ${team} ${piece.label}`}
+              className={[
+                "piece-tray-slot",
+                team,
+                piece.isGeneric ? "generic" : "",
+                isSelected ? "active" : "",
+                assignedCharacter ? "has-character" : ""
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              title={
+                assignedCharacter
+                  ? `${team} ${piece.label}: ${assignedCharacter.name}`
+                  : `Select ${team} ${piece.label}`
+              }
               onClick={() => onSelectPiece(team, piece.key)}
             >
-              {assignedCharacter?.portrait ? (
-                <div className="piece-tray-character-stack">
+              <span className="piece-tray-face">
+                {assignedCharacter?.portrait ? (
                   <img
                     className="piece-tray-portrait"
                     src={assignedCharacter.portrait}
                     alt={assignedCharacter.name}
                   />
+                ) : pieceSkin ? (
+                  <img
+                    className="piece-tray-image"
+                    src={pieceSkin}
+                    alt={`${team} ${piece.label}`}
+                  />
+                ) : (
+                  <span className="piece-tray-face-symbol">{piece.symbol}</span>
+                )}
+              </span>
 
-                  <div className="piece-tray-identity-badge">
-                    <span className="piece-tray-mini-symbol">
-                      {getPieceSymbol(team, piece.key)}
-                    </span>
-                  </div>
-                </div>
-              ) : pieceSkin ? (
-                <img
-                  className="piece-tray-image"
-                  src={pieceSkin}
-                  alt={`${team} ${piece.label}`}
-                />
-              ) : (
-                <span className="piece-tray-symbol">
-                  {getPieceSymbol(team, piece.key)}
-                </span>
-              )}
+              <span className="piece-tray-role-symbol" aria-hidden="true">
+                {piece.symbol}
+              </span>
             </button>
           );
         })}
@@ -89,196 +119,25 @@ function TeamTray({
   );
 }
 
-function TokenTray({
-  worldTokens,
-  selectedToken,
-  selectedTeam,
-  selectedPiece,
-  onSelectToken,
-  onSelectPiece
-}) {
-  const [isAddPieceOpen, setIsAddPieceOpen] = useState(false);
-
-  const tokenList = Object.values(worldTokens).sort((a, b) =>
-    a.label.localeCompare(b.label)
-  );
-
-  const isWhiteGenericSelected =
-    selectedTeam === "white" && selectedPiece === GENERIC_PIECE_KEY;
-
-  const isBlackGenericSelected =
-    selectedTeam === "black" && selectedPiece === GENERIC_PIECE_KEY;
-
-  return (
-    <section className="panel-box">
-      <h2>World Tokens</h2>
-
-      <div className="generic-piece-tray">
-        <button
-          type="button"
-          className={isAddPieceOpen ? "add-piece-toggle active" : "add-piece-toggle"}
-          onClick={() => setIsAddPieceOpen((current) => !current)}
-          aria-expanded={isAddPieceOpen}
-        >
-          + Add New Piece
-        </button>
-
-        {isAddPieceOpen && (
-          <div className="generic-piece-tray-grid">
-            <button
-              type="button"
-              className={
-                isWhiteGenericSelected
-                  ? "world-token-btn generic-piece-token-btn active"
-                  : "world-token-btn generic-piece-token-btn"
-              }
-              onClick={() => onSelectPiece("white", GENERIC_PIECE_KEY)}
-              title="Place a white generic piece. After placing it, click the piece to assign a character."
-            >
-              <span>{GENERIC_PIECE_SYMBOL}</span>
-              <strong>White {GENERIC_PIECE_LABEL}</strong>
-            </button>
-
-            <button
-              type="button"
-              className={
-                isBlackGenericSelected
-                  ? "world-token-btn generic-piece-token-btn active"
-                  : "world-token-btn generic-piece-token-btn"
-              }
-              onClick={() => onSelectPiece("black", GENERIC_PIECE_KEY)}
-              title="Place a black generic piece. After placing it, click the piece to assign a character."
-            >
-              <span>{GENERIC_PIECE_SYMBOL}</span>
-              <strong>Black {GENERIC_PIECE_LABEL}</strong>
-            </button>
-          </div>
-        )}
-      </div>
-
-      {tokenList.length === 0 ? (
-        <p className="small muted">No world tokens yet.</p>
-      ) : (
-        <div className="token-tray-list">
-          {tokenList.map((token) => (
-            <button
-              key={token.name}
-              type="button"
-              className={
-                selectedToken === token.name
-                  ? "world-token-btn active"
-                  : "world-token-btn"
-              }
-              onClick={() => onSelectToken(token.name)}
-            >
-              <span>{GENERIC_TOKEN_SYMBOL}</span>
-              <strong>{token.label}</strong>
-            </button>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function SessionPanel({
-  sessionParticipants = [],
-  currentUserId = ""
-}) {
-  const participants = Array.isArray(sessionParticipants)
-    ? sessionParticipants
-    : [];
-
-  const whitePlayer = participants.find(
-    (participant) => participant.team === "white"
-  );
-
-  const blackPlayer = participants.find(
-    (participant) => participant.team === "black"
-  );
-
-  const spectators = participants.filter(
-    (participant) => participant.team === "spectator"
-  );
-
-  function renderSeat(label, participant) {
-    const isCurrentUser =
-      participant?.user_id && participant.user_id === currentUserId;
-
-    return (
-      <div className="session-seat">
-        <span className="session-seat-label">{label}</span>
-
-        <strong>
-          {participant ? participant.displayName : "Open seat"}
-          {isCurrentUser ? " · You" : ""}
-        </strong>
-
-        {participant && (
-          <small>
-            {participant.role}
-            {Number.isFinite(Number(participant.conduct_score))
-              ? ` · Conduct ${participant.conduct_score}`
-              : ""}
-          </small>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <section className="panel-box session-panel-box">
-      <div className="session-panel-header">
-        <div>
-          <h2>Session</h2>
-          <p>
-            {participants.length} participant
-            {participants.length === 1 ? "" : "s"}
-          </p>
-        </div>
-      </div>
-
-      <div className="session-seat-list">
-        {renderSeat("White", whitePlayer)}
-        {renderSeat("Black", blackPlayer)}
-      </div>
-
-      {spectators.length > 0 && (
-        <div className="session-spectator-list">
-          <span>Spectators</span>
-
-          {spectators.map((spectator) => (
-            <small key={spectator.id}>
-              {spectator.displayName}
-              {spectator.user_id === currentUserId ? " · You" : ""}
-            </small>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
 function TurnControlPanel({ turnTeam, moveNumber, onPassTurn }) {
-  const isWhiteTurn = turnTeam === "white";
+  const teamLabel = turnTeam === "black" ? "Black" : "White";
 
   return (
-    <section className="panel-box turn-control-box">
-      <div className="turn-control-header">
-        <span className="turn-arrow">
-          {isWhiteTurn ? "↓" : "↑"}
+    <section className="turn-strip" aria-label="Turn control">
+      <div className="turn-strip-info">
+        <span className="turn-strip-move">Move {moveNumber}</span>
+        <span className="turn-strip-dot" aria-hidden="true">
+          ·
         </span>
-
-        <div>
-          <h2>{isWhiteTurn ? "White Turn" : "Black Turn"}</h2>
-          <p>Move {moveNumber}</p>
-        </div>
+        <span className={`turn-strip-team ${turnTeam}`}>{teamLabel}</span>
       </div>
 
       <button
         type="button"
-        className="primary-button pass-turn-btn"
+        className="turn-strip-pass"
         onClick={onPassTurn}
+        disabled={typeof onPassTurn !== "function"}
+        title="Pass turn to the other team"
       >
         Pass Turn
       </button>
@@ -286,39 +145,12 @@ function TurnControlPanel({ turnTeam, moveNumber, onPassTurn }) {
   );
 }
 
-function ActionLogPanel({ actionLog }) {
-  const visibleLog = Array.isArray(actionLog)
-    ? actionLog.slice(0, 8)
-    : [];
-
-  return (
-    <section className="panel-box action-log-box">
-      <h2>Action Log</h2>
-
-      {visibleLog.length === 0 ? (
-        <p className="small muted">No actions yet.</p>
-      ) : (
-        <div className="action-log-list">
-          {visibleLog.map((entry) => (
-            <article className="action-log-entry" key={entry.id}>
-              <strong>{entry.message}</strong>
-
-              <span>
-                Move {entry.moveNumber} · {entry.turnTeam === "black" ? "Black" : "White"}
-              </span>
-            </article>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
 export default function RightPanel({
+  isPlayMode = false,
   worldFeatures,
   worldTheme,
   characterLibrary,
-  worldTokens,
+  worldTokens: _worldTokens,
   selectedTeam,
   selectedPiece,
   selectedToken,
@@ -329,8 +161,9 @@ export default function RightPanel({
   turnTeam = "white",
   moveNumber = 1,
   onPassTurn,
-  actionLog = [],
 
+  playSessionId = "",
+  sessionLifecycleStatus = "open",
   sessionParticipants = [],
   currentUserId = "",
 
@@ -341,14 +174,34 @@ export default function RightPanel({
   onNameChange,
   onLockName,
   onUnlockName,
-  onAssignCharacter,
-  selectedBoardAction,
-  onDeletePiece,
-  onStandardSetup,
-  onClearBoard,
-  onUndo,
-  onRedo
+  onAssignCharacter
 }) {
+  const whitePlayer = sessionParticipants.find(
+    (participant) =>
+      participant.team === "white" &&
+      participant.participant_status !== "left" &&
+      !participant.left_at
+  );
+
+  const blackPlayer = sessionParticipants.find(
+    (participant) =>
+      participant.team === "black" &&
+      participant.participant_status !== "left" &&
+      !participant.left_at
+  );
+
+  function formatTrayPlayer(participant) {
+    if (!participant) {
+      return isPlayMode ? "Open seat" : "";
+    }
+
+    const name = participant.displayName || "Player";
+    const role = participant.role === "host" ? "Host" : "Player";
+    const you = participant.user_id === currentUserId ? " · you" : "";
+
+    return `${name} · ${role}${you}`;
+  }
+
   return (
     <aside
       className="right-panel"
@@ -362,65 +215,24 @@ export default function RightPanel({
         onClearSelections();
       }}
     >
-      <section className="panel-box board-controls-box">
-        <button
-          type="button"
-          className="primary-button standard-setup-btn"
-          onClick={onStandardSetup}
-        >
-          Standard Setup
-        </button>
-
-        <div className="board-history-row">
-          <button type="button" onClick={onUndo}>
-            ↶ Undo
-            <small>Ctrl+Z</small>
-          </button>
-
-          <button type="button" onClick={onRedo}>
-            ↷ Redo
-            <small>Ctrl+Y</small>
-          </button>
-        </div>
-
-        <button
-          type="button"
-          className={
-            selectedBoardAction === "delete-piece"
-              ? "delete-piece-btn active"
-              : "delete-piece-btn"
-          }
-          onClick={onDeletePiece}
-          title="Delete selected piece, or activate delete piece tool"
-        >
-          Delete Piece
-        </button>
-
-        <button type="button" className="clear-board-btn" onClick={onClearBoard}>
-          Clear Board
-        </button>
-      </section>
-
       <TeamTray
-  team="black"
-  worldTheme={worldTheme}
-  pieceNames={pieceNames}
-  characterLibrary={characterLibrary}
-  selectedTeam={selectedTeam}
-  selectedPiece={selectedPiece}
-  onSelectPiece={onSelectPiece}
-/>
+        team="black"
+        worldTheme={worldTheme}
+        pieceNames={pieceNames}
+        characterLibrary={characterLibrary}
+        selectedTeam={selectedTeam}
+        selectedPiece={selectedPiece}
+        onSelectPiece={onSelectPiece}
+        playerLabel={formatTrayPlayer(blackPlayer)}
+      />
 
-<SessionPanel
-  sessionParticipants={sessionParticipants}
-  currentUserId={currentUserId}
-/>
-
-<TurnControlPanel
-  turnTeam={turnTeam}
-  moveNumber={moveNumber}
-  onPassTurn={onPassTurn}
-/>
+      {isPlayMode && (
+        <TurnControlPanel
+          turnTeam={turnTeam}
+          moveNumber={moveNumber}
+          onPassTurn={onPassTurn}
+        />
+      )}
 
       <TeamTray
         team="white"
@@ -430,9 +242,8 @@ export default function RightPanel({
         selectedTeam={selectedTeam}
         selectedPiece={selectedPiece}
         onSelectPiece={onSelectPiece}
+        playerLabel={formatTrayPlayer(whitePlayer)}
       />
-
-      <ActionLogPanel actionLog={actionLog} />
 
       {worldFeatures?.characters && (
         <CharacterCard
@@ -449,14 +260,13 @@ export default function RightPanel({
         />
       )}
 
-      {worldFeatures.worldTokens && (
-        <TokenTray
-          worldTokens={worldTokens}
-          selectedToken={selectedToken}
-          selectedTeam={selectedTeam}
-          selectedPiece={selectedPiece}
-          onSelectToken={onSelectToken}
-          onSelectPiece={onSelectPiece}
+      {isPlayMode && (
+        <MatchChatPanel
+          sessionId={playSessionId}
+          currentUserId={currentUserId}
+          disabled={
+            Boolean(playSessionId) && sessionLifecycleStatus !== "open"
+          }
         />
       )}
     </aside>

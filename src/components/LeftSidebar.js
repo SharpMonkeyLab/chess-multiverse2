@@ -4,10 +4,16 @@ import { useState } from "react";
 
 import { getCounterListFromMechanics } from "@/lib/defaultWorld";
 import CharacterEditor from "./CharacterEditor";
-import TokenEditor from "./TokenEditor";
 import TerrainEditor from "./TerrainEditor";
 import CounterEditor from "./CounterEditor";
 import ConditionEditor from "./ConditionEditor";
+import {
+  DeckSystemEditor,
+  DiceSystemEditor,
+  TimerSystemEditor,
+  ObjectivesEditor,
+  FogOfWarEditor
+} from "./AdvancedSystemEditors";
 
 function parseCounterAmount(value) {
   const numberValue = Number(value);
@@ -87,6 +93,11 @@ export default function LeftSidebar({
   onTerrainListChange,
   onCounterSettingsChange,
   onConditionListChange,
+  onCardDecksChange,
+  onDiceSystemChange,
+  onTimersChange,
+  onObjectivesChange,
+  onFogOfWarChange,
 
   characterLibrary,
   characterFields,
@@ -105,6 +116,12 @@ export default function LeftSidebar({
 
   selectedTerrain,
   selectedTerrainAction,
+
+  selectedFogAction,
+  onSelectPaintFog,
+  onSelectClearFog,
+  onApplyFogToWholeBoard,
+  onClearAllFog,
 
   onCounterSetValueChange,
   onCharacterCsvUpload,
@@ -153,11 +170,11 @@ export default function LeftSidebar({
         </button>
       </header>
 
-      <p className="sidebar-description">
-        {isPlayMode
-          ? "Use this world's tools during play. World editing is disabled here."
-          : "Use play tools during testing, or edit the world systems below."}
-      </p>
+      {!isPlayMode && (
+        <p className="sidebar-description">
+          Use play tools during testing, or edit the universe systems below.
+        </p>
+      )}
 
       {isHelpOpen && (
         <section className="shortcut-help-panel">
@@ -166,7 +183,7 @@ export default function LeftSidebar({
           <div className="shortcut-help-group">
             <h3>Tools</h3>
             <p><kbd>Q W E R T Y</kbd> Terrain tools</p>
-            <p><kbd>A S D F G H</kbd> Counter tools</p>
+            <p><kbd>A S D</kbd> Counter tools</p>
             <p><kbd>Z X C V B N</kbd> Condition tools</p>
           </div>
 
@@ -181,10 +198,7 @@ export default function LeftSidebar({
         </section>
       )}
 
-
       <section className="sidebar-major-section">
-        <h2 className="sidebar-major-title">Play Tools</h2>
-
         <div className="sidebar-major-content">
 
           {worldFeatures.terrains && (
@@ -241,6 +255,58 @@ export default function LeftSidebar({
                   title="Apply selected terrain action to the whole board"
                 >
                   Whole Board
+                </button>
+              </div>
+            </section>
+          )}
+
+          {worldFeatures.fogOfWar &&
+            (!isPlayMode || worldMechanics.fogOfWar?.allowPlayerEdit) && (
+            <section className="panel-box">
+              <h2>Fog of War</h2>
+
+              <div className="terrain-clear-apply-row">
+                <button
+                  type="button"
+                  className={
+                    selectedFogAction === "paint"
+                      ? "terrain-tool-btn active"
+                      : "terrain-tool-btn"
+                  }
+                  onClick={onSelectPaintFog}
+                >
+                  Paint Fog
+                </button>
+
+                <button
+                  type="button"
+                  className={
+                    selectedFogAction === "clear"
+                      ? "terrain-clear-btn active"
+                      : "terrain-clear-btn"
+                  }
+                  onClick={onSelectClearFog}
+                >
+                  Clear Fog
+                </button>
+              </div>
+
+              <div className="terrain-clear-apply-row">
+                <button
+                  type="button"
+                  className="terrain-apply-board-btn"
+                  onClick={onApplyFogToWholeBoard}
+                  title="Cover the whole board in fog"
+                >
+                  Fog Whole Board
+                </button>
+
+                <button
+                  type="button"
+                  className="terrain-clear-btn"
+                  onClick={onClearAllFog}
+                >
+                  Clear All Fog
                 </button>
               </div>
             </section>
@@ -402,7 +468,7 @@ export default function LeftSidebar({
 
       {!isPlayMode && (
         <section className="sidebar-major-section">
-          <h2 className="sidebar-major-title">World Editors</h2>
+          <h2 className="sidebar-major-title">Universe Editors</h2>
 
           <div className="sidebar-major-content editor-section-content">
 
@@ -459,14 +525,52 @@ export default function LeftSidebar({
               </details>
             )}
 
-            {worldFeatures.worldTokens && (
+            {worldFeatures.cardDecks && (
               <details>
-                <summary>Token Creator</summary>
+                <summary>Deck of Cards</summary>
+                <DeckSystemEditor
+                  cardDecks={worldMechanics.cardDecks}
+                  onChange={onCardDecksChange}
+                />
+              </details>
+            )}
 
-                <TokenEditor
-                  worldTokens={worldTokens}
-                  onAddWorldToken={onAddWorldToken}
-                  onDeleteWorldToken={onDeleteWorldToken}
+            {worldFeatures.diceSystem && (
+              <details>
+                <summary>Dice System</summary>
+                <DiceSystemEditor
+                  diceSystem={worldMechanics.diceSystem}
+                  onChange={onDiceSystemChange}
+                />
+              </details>
+            )}
+
+            {worldFeatures.timers && (
+              <details>
+                <summary>Timers</summary>
+                <TimerSystemEditor
+                  timers={worldMechanics.timers}
+                  onChange={onTimersChange}
+                />
+              </details>
+            )}
+
+            {worldFeatures.objectives && (
+              <details>
+                <summary>Objectives</summary>
+                <ObjectivesEditor
+                  objectives={worldMechanics.objectives}
+                  onChange={onObjectivesChange}
+                />
+              </details>
+            )}
+
+            {worldFeatures.fogOfWar && (
+              <details>
+                <summary>Fog of War</summary>
+                <FogOfWarEditor
+                  fogOfWar={worldMechanics.fogOfWar}
+                  onChange={onFogOfWarChange}
                 />
               </details>
             )}

@@ -9,7 +9,8 @@ export default function FeatureToggleEditor({
   return (
     <div className="feature-toggle-editor">
       <p className="small muted">
-        Choose which systems this world uses. Future systems can be enabled later when built.
+        Choose which systems this universe uses. Advanced systems add Play-area tools
+        when enabled.
       </p>
 
       {WORLD_FEATURE_GROUPS.map((group) => (
@@ -21,19 +22,27 @@ export default function FeatureToggleEditor({
               const isEnabled = Boolean(worldFeatures[feature.key]);
 
               return (
-                <label
+                <button
+                  type="button"
                   className={
                     isEnabled
                       ? "feature-toggle active"
                       : "feature-toggle"
                   }
                   key={feature.key}
+                  aria-pressed={isEnabled}
+                  onClick={() => onToggleWorldFeature(feature.key)}
                 >
-                  <input
-                    type="checkbox"
-                    checked={isEnabled}
-                    onChange={() => onToggleWorldFeature(feature.key)}
-                  />
+                  <span
+                    className={
+                      isEnabled
+                        ? "feature-toggle-tick checked"
+                        : "feature-toggle-tick"
+                    }
+                    aria-hidden="true"
+                  >
+                    {isEnabled ? "✓" : ""}
+                  </span>
 
                   <span className="feature-toggle-main">
                     <strong>{feature.label}</strong>
@@ -43,7 +52,7 @@ export default function FeatureToggleEditor({
                   <span className="feature-toggle-status">
                     {isEnabled ? "On" : "Off"}
                   </span>
-                </label>
+                </button>
               );
             })}
           </div>

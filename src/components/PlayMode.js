@@ -21,8 +21,11 @@ import {
 
 import { loadLocalItem } from "@/lib/saveLoad";
 import { hasSupabaseConfig, supabase } from "@/lib/supabaseClient";
+import { normalizeWorldTheme } from "@/lib/worldData";
 
+import InvitePlayersPanel from "./InvitePlayersPanel";
 import MatchmakingReadyButton from "./MatchmakingReadyButton";
+import PlaySessionResultPanel from "./PlaySessionResultPanel";
 
 import {
     MATCHMAKING_EVENT_NAME,
@@ -30,83 +33,78 @@ import {
 } from "@/lib/matchmakingClient";
 
 import {
-    createGenericPieceInstanceKey,
-    GENERIC_PIECE_KEY
+    GENERIC_PIECE_KEY,
+    registerGenericPieceInstance,
+    resolvePlacementPieceKey
 } from "@/lib/genericPiece";
 
 import {
     adjustCounterOnCell,
+    applyTerrainToCells,
     cellHasOccupant,
     clearCounterOnCell,
     clearConditionsOnCell,
     clearPieceFromCell,
+    clearTerrainOnCell,
     cloneCell,
     createMovingPiece,
     createMovingToken,
     getPrimaryToken,
+    moveOccupantForPlay,
+    paintTerrainOnCell,
+    placePieceOnCellForPlay,
+    placeTokenOnCellForPlay,
     setCounterOnCell,
-    toggleConditionOnCell
+    toggleConditionOnCell,
+    updateCellAtIndex
 } from "@/lib/boardCellActions";
 
 import { useResponsiveStageLayout } from "@/lib/useResponsiveStageLayout";
+import {
+    STAGE_DESIGN_HEIGHT,
+    STAGE_DESIGN_WIDTH,
+    getDisplayWorldName
+} from "@/lib/stageLayoutConfig";
+
+import { useLocalCellHistory } from "@/lib/useLocalCellHistory";
+import { useMatchResultFlow } from "@/lib/useMatchResultFlow";
+import { usePlaySessionSync } from "@/lib/usePlaySessionSync";
+
+import {
+    addActionLogEntryToLog,
+    getPieceLabel,
+    getTeamLabel
+} from "@/lib/sessionActionLog";
+
+import {
+    createAdvancedSystemsRuntime,
+    normalizeWorldFeatures,
+    normalizeWorldMechanics,
+    getViewerTeam,
+    paintFogCell,
+    clearFogCell,
+    applyFogToWholeBoard,
+    resetTurnTimer
+} from "@/lib/worldSystems";
+import { markUserOnline } from "@/lib/presenceClient";
+
+import {
+    buildSessionGameState,
+    fetchPlaySession,
+    fetchSessionParticipants,
+    getSessionLifecycleStatus
+} from "@/lib/playSessionClient";
+
+import {
+    getLiveUndoReasonMessage,
+    getLiveUndoStatus,
+    undoLatestLiveAction
+} from "@/lib/liveMatchUndoClient";
+
+import { getMatchPhaseLabel } from "@/lib/matchResultClient";
 
 const MAX_CELL_HISTORY = 30;
 const MAX_ACTION_LOG = 40;
-
-function createSessionGameState({
-    cells,
-    pieceNames,
-    pieceNameLocked,
-    turnTeam = "white",
-    moveNumber = 1,
-    actionLog = []
-}) {
-    return {
-        version: 2,
-
-        // Current match board.
-        cells,
-
-        // Current match character assignments.
-        pieceNames,
-        pieceNameLocked,
-
-        // Current turn state.
-        turnTeam,
-        moveNumber,
-
-        // Shared action history for this session.
-        actionLog: Array.isArray(actionLog) ? actionLog : []
-    };
-}
-
-function stableStringify(value) {
-    if (value === undefined) {
-        return "null";
-    }
-
-    if (value === null || typeof value !== "object") {
-        return JSON.stringify(value) ?? "null";
-    }
-
-    if (Array.isArray(value)) {
-        return `[${value.map((item) => stableStringify(item)).join(",")}]`;
-    }
-
-    const sortedKeys = Object.keys(value).sort();
-
-    return `{${sortedKeys
-        .map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
-        .join(",")}}`;
-}
-
-function getGameStateJson(gameState) {
-    // Supabase stores game_state as jsonb. jsonb can return object keys in a
-    // different order from the original JavaScript object. A normal
-    // JSON.stringify comparison can therefore think the state changed when the
-    // board is actually identical, causing a save/sync echo loop.
-    return stableStringify(gameState || {});
-}
 
 export default function PlayMode() {
     const router = useRouter();
@@ -114,7 +112,7 @@ export default function PlayMode() {
     const [worldFeatures, setWorldFeatures] = useState(DEFAULT_WORLD_FEATURES);
 
     const [worldDetails, setWorldDetails] = useState({
-        name: "Loading World...",
+        name: "Loading Universe…",
         description: "",
         rulesNotes: ""
     });
@@ -131,11 +129,25 @@ export default function PlayMode() {
     );
 
     const [cells, setCells] = useState(createStandardSetupCells);
-    const [cellHistory, setCellHistory] = useState([]);
-    const [cellFuture, setCellFuture] = useState([]);
 
     const [movingPiece, setMovingPiece] = useState(null);
     const [selectedBoardAction, setSelectedBoardAction] = useState(null);
+
+    const {
+        cellHistory,
+        cellFuture,
+        clearLocalCellHistory,
+        updateCellsWithHistory,
+        handleUndo,
+        handleRedo
+    } = useLocalCellHistory({
+        cells,
+        setCells,
+        maxHistory: MAX_CELL_HISTORY,
+        onAfterHistoryRestore: () => {
+            setMovingPiece(null);
+        }
+    });
 
     const [selectedTeam, setSelectedTeam] = useState(null);
     const [selectedPiece, setSelectedPiece] = useState(null);
@@ -151,6 +163,7 @@ export default function PlayMode() {
 
     const [selectedTerrain, setSelectedTerrain] = useState(null);
     const [selectedTerrainAction, setSelectedTerrainAction] = useState(null);
+    const [selectedFogAction, setSelectedFogAction] = useState(null);
 
     const [activePiece, setActivePiece] = useState(null);
 
@@ -159,45 +172,148 @@ export default function PlayMode() {
     const [playSessionId, setPlaySessionId] = useState("");
     const [sessionLifecycleStatus, setSessionLifecycleStatus] = useState("open");
     const [sessionEndReason, setSessionEndReason] = useState("");
-    const [isEndingSession, setIsEndingSession] = useState(false);
+
+    const [liveUndoStatus, setLiveUndoStatus] = useState(null);
+    const [isUndoingLiveAction, setIsUndoingLiveAction] = useState(false);
     const [currentUserId, setCurrentUserId] = useState("");
     const [sessionParticipants, setSessionParticipants] = useState([]);
 
-    const [loadStatus, setLoadStatus] = useState("Opening board...");
+    const [loadStatus, setLoadStatus] = useState("Loading board…");
     const [isWorldLoaded, setIsWorldLoaded] = useState(false);
 
     const [sessionSyncStatus, setSessionSyncStatus] = useState("");
     const [matchmakingStatus, setMatchmakingStatus] = useState("");
+    const [isInvitePanelOpen, setIsInvitePanelOpen] = useState(false);
     const [turnTeam, setTurnTeam] = useState("white");
     const [moveNumber, setMoveNumber] = useState(1);
     const [actionLog, setActionLog] = useState([]);
-
-    const lastSavedGameStateJsonRef = useRef("");
-    const saveSessionTimeoutRef = useRef(null);
-
-    // When a realtime update changes local state,
-    // this prevents the autosave effect from saving that same remote state back.
-    const suppressAutosaveForGameStateJsonRef = useRef("");
+    const [systemsRuntime, setSystemsRuntime] = useState(null);
 
     // Keeps status messages temporary instead of permanently screaming.
     const sessionSyncStatusTimeoutRef = useRef(null);
 
     const stageLayout = useResponsiveStageLayout({
-        fallbackWidth: 1460,
-        fallbackHeight: 840
+        fallbackWidth: STAGE_DESIGN_WIDTH,
+        fallbackHeight: STAGE_DESIGN_HEIGHT
+    });
+
+    function showSessionSyncStatus(message) {
+        setSessionSyncStatus(message);
+
+        if (sessionSyncStatusTimeoutRef.current) {
+            clearTimeout(sessionSyncStatusTimeoutRef.current);
+        }
+
+        if (message === "Saved." || message === "Synced." || message === "Undone.") {
+            sessionSyncStatusTimeoutRef.current = setTimeout(() => {
+                setSessionSyncStatus("");
+            }, 1200);
+        }
+    }
+
+    const {
+        matchResultState,
+        setMatchResultState,
+        isResultChooserOpen,
+        setIsResultChooserOpen,
+        resultNote,
+        setResultNote,
+        isHandlingResultAction,
+        isCurrentUserResultProposer,
+        isResultFlowBlockingBoard,
+        syncMatchResultStateFromSession,
+        resetMatchResultFlow,
+        handleProposeResult,
+        handleCancelResultProposal,
+        handleRespondToResult,
+        handleResolveContinueRequest,
+        handleResignMatch
+    } = useMatchResultFlow({
+        playSessionId,
+        currentUserId,
+        setSessionLifecycleStatus,
+        showSessionSyncStatus
+    });
+
+    async function loadSessionParticipants(sessionId) {
+        if (!sessionId) {
+            setSessionParticipants([]);
+            return;
+        }
+
+        try {
+            const { participants, error } = await fetchSessionParticipants(sessionId);
+
+            if (error) {
+                console.warn("Could not load session participants:", error.message);
+                setSessionParticipants([]);
+                return;
+            }
+
+            setSessionParticipants(participants);
+        } catch (error) {
+            console.warn("Could not load session participants:", error);
+            setSessionParticipants([]);
+        }
+    }
+
+    async function loadLiveUndoStatus(targetSessionId = playSessionId) {
+        if (!targetSessionId || !hasSupabaseConfig() || !supabase) {
+            setLiveUndoStatus(null);
+            return;
+        }
+
+        try {
+            const status = await getLiveUndoStatus(targetSessionId);
+            setLiveUndoStatus(status);
+        } catch (error) {
+            console.warn("Could not load live undo status:", error);
+            setLiveUndoStatus(null);
+        }
+    }
+
+    const { seedSavedGameState } = usePlaySessionSync({
+        playSessionId,
+        isWorldLoaded,
+        sessionLifecycleStatus,
+        matchPhase: matchResultState.matchPhase,
+        cells,
+        pieceNames,
+        pieceNameLocked,
+        turnTeam,
+        moveNumber,
+        actionLog,
+        systemsRuntime,
+        setCells,
+        setPieceNames,
+        setPieceNameLocked,
+        setTurnTeam,
+        setMoveNumber,
+        setActionLog,
+        setSystemsRuntime,
+        setMovingPiece,
+        setActivePiece,
+        setSessionLifecycleStatus,
+        setSessionEndReason,
+        setLiveUndoStatus,
+        syncMatchResultStateFromSession,
+        showSessionSyncStatus,
+        loadLiveUndoStatus,
+        loadSessionParticipants,
+        clearLocalCellHistory
     });
 
     useEffect(() => {
         async function loadPlaySession(sessionId) {
             if (!hasSupabaseConfig() || !supabase) {
-                setLoadStatus("Online play sessions are not available.");
+                setLoadStatus("Online play is unavailable right now.");
                 setIsWorldLoaded(false);
                 return;
             }
 
             setPlaySessionId(sessionId);
             setPlayWorldSource("online");
-            setLoadStatus("Opening session...");
+            setLoadStatus("Loading session…");
 
             try {
                 const {
@@ -207,13 +323,10 @@ export default function PlayMode() {
 
                 if (!userError && user) {
                     setCurrentUserId(user.id);
+                    markUserOnline();
                 }
 
-                const { data: session, error: sessionError } = await supabase
-                    .from("play_sessions")
-                    .select("id, world_id, host_id, status, visibility, game_state, lifecycle_status, ended_at, end_reason")
-                    .eq("id", sessionId)
-                    .single();
+                const { session, error: sessionError } = await fetchPlaySession(sessionId);
 
                 if (sessionError || !session) {
                     setLoadStatus("Session not found.");
@@ -228,31 +341,32 @@ export default function PlayMode() {
                     .single();
 
                 if (worldError || !onlineWorld?.world_data) {
-                    setLoadStatus("World not found.");
+                    setLoadStatus("Universe not found.");
                     setIsWorldLoaded(false);
                     return;
                 }
 
-                const nextLifecycleStatus =
-                    session.lifecycle_status || (session.ended_at ? "ended" : "open");
+                const nextLifecycleStatus = getSessionLifecycleStatus(session);
 
                 setPlayWorldId(onlineWorld.id);
                 setSessionLifecycleStatus(nextLifecycleStatus);
                 setSessionEndReason(session.end_reason || "");
+                syncMatchResultStateFromSession(session);
 
                 applyWorldData(onlineWorld.world_data, session.game_state);
                 await loadSessionParticipants(sessionId);
+                await loadLiveUndoStatus(sessionId);
 
                 setLoadStatus(
                     nextLifecycleStatus === "open"
-                        ? "Board ready."
-                        : "This session has ended."
+                        ? "Ready."
+                        : "Session ended."
                 );
 
                 setIsWorldLoaded(true);
             } catch (error) {
                 console.warn("Could not load play session:", error);
-                setLoadStatus("Could not open this session.");
+                setLoadStatus("Could not load this session.");
                 setIsWorldLoaded(false);
             }
         }
@@ -263,9 +377,24 @@ export default function PlayMode() {
             setPlaySessionId("");
             setSessionLifecycleStatus("open");
             setSessionEndReason("");
-            setLoadStatus("Opening board...");
+            resetMatchResultFlow();
+            setLiveUndoStatus(null);
+            setLoadStatus("Loading board…");
 
             if (hasSupabaseConfig() && supabase) {
+                try {
+                    const {
+                        data: { user }
+                    } = await supabase.auth.getUser();
+
+                    if (user) {
+                        setCurrentUserId(user.id);
+                        markUserOnline();
+                    }
+                } catch {
+                    // Presence is optional.
+                }
+
                 try {
                     const { data: onlineWorld, error } = await supabase
                         .from("worlds")
@@ -277,12 +406,12 @@ export default function PlayMode() {
                     if (!error && onlineWorld?.world_data) {
                         setPlayWorldSource("online");
                         applyWorldData(onlineWorld.world_data);
-                        setLoadStatus("Board ready.");
+                        setLoadStatus("Ready.");
                         setIsWorldLoaded(true);
                         return;
                     }
                 } catch (error) {
-                    console.warn("Could not load published world for play:", error);
+                    console.warn("Could not load published universe for play:", error);
                 }
             }
 
@@ -291,12 +420,12 @@ export default function PlayMode() {
             if (localWorld?.data) {
                 setPlayWorldSource("local");
                 applyWorldData(localWorld.data);
-                setLoadStatus("Local board ready.");
+                setLoadStatus("Ready (local).");
                 setIsWorldLoaded(true);
                 return;
             }
 
-            setLoadStatus("World not found.");
+            setLoadStatus("Universe not found.");
             setIsWorldLoaded(false);
         }
 
@@ -315,87 +444,19 @@ export default function PlayMode() {
                 return;
             }
 
-            setLoadStatus("No world selected. Choose a world first.");
+            setLoadStatus("No universe selected. Open a universe first.");
             setIsWorldLoaded(false);
         }
 
         loadPlayTarget();
     }, []);
 
-    async function loadSessionParticipants(sessionId) {
-        if (!sessionId || !hasSupabaseConfig() || !supabase) {
-            setSessionParticipants([]);
-            return;
-        }
-
-        try {
-            const { data: participantRows, error: participantError } = await supabase
-                .from("play_session_participants")
-                .select("id, session_id, user_id, role, team, conduct_score, joined_at, participant_status, left_at")
-                .eq("session_id", sessionId)
-                .order("joined_at", { ascending: true });
-
-            if (participantError) {
-                console.warn("Could not load session participants:", participantError.message);
-                setSessionParticipants([]);
-                return;
-            }
-
-            const safeParticipantRows = Array.isArray(participantRows)
-                ? participantRows
-                : [];
-
-            const userIds = [
-                ...new Set(
-                    safeParticipantRows
-                        .map((participant) => participant.user_id)
-                        .filter(Boolean)
-                )
-            ];
-
-            let profilesByUserId = {};
-
-            if (userIds.length > 0) {
-                const { data: profiles, error: profilesError } = await supabase
-                    .from("profiles")
-                    .select("id, display_name")
-                    .in("id", userIds);
-
-                if (!profilesError && Array.isArray(profiles)) {
-                    profilesByUserId = Object.fromEntries(
-                        profiles.map((profile) => [profile.id, profile])
-                    );
-                }
-            }
-
-            const nextParticipants = safeParticipantRows.map((participant) => {
-                const profile = profilesByUserId[participant.user_id];
-                const displayName = profile?.display_name?.trim();
-
-                const fallbackName =
-                    participant.role === "host"
-                        ? "Host"
-                        : `Player ${participant.user_id?.slice(0, 4) || ""}`;
-
-                return {
-                    ...participant,
-                    displayName: displayName || fallbackName
-                };
-            });
-
-            setSessionParticipants(nextParticipants);
-        } catch (error) {
-            console.warn("Could not load session participants:", error);
-            setSessionParticipants([]);
-        }
-    }
-
     function applyWorldData(worldData, sessionGameState = null) {
         if (!worldData) return;
 
         setWorldDetails(
             worldData.worldDetails || {
-                name: "Untitled World",
+                name: "Untitled Universe",
                 description: "",
                 rulesNotes: ""
             }
@@ -404,29 +465,13 @@ export default function PlayMode() {
         const defaultTheme = createDefaultWorldTheme();
         const savedTheme = worldData.worldTheme || {};
 
-        setWorldTheme({
-            ...defaultTheme,
-            ...savedTheme,
-            backgroundImage: savedTheme.backgroundImage || defaultTheme.backgroundImage,
-            boardSkinImage: savedTheme.boardSkinImage || defaultTheme.boardSkinImage,
-            pieceSkins: {
-                ...defaultTheme.pieceSkins,
-                ...(savedTheme.pieceSkins || {}),
-                white: {
-                    ...defaultTheme.pieceSkins.white,
-                    ...(savedTheme.pieceSkins?.white || {})
-                },
-                black: {
-                    ...defaultTheme.pieceSkins.black,
-                    ...(savedTheme.pieceSkins?.black || {})
-                }
-            },
-            characterDisplayMode:
-                savedTheme.characterDisplayMode || defaultTheme.characterDisplayMode
-        });
+        setWorldTheme(normalizeWorldTheme(savedTheme, defaultTheme));
 
-        setWorldMechanics(worldData.worldMechanics || DEFAULT_WORLD_MECHANICS);
-        setWorldFeatures(worldData.worldFeatures || DEFAULT_WORLD_FEATURES);
+        const nextFeatures = normalizeWorldFeatures(worldData.worldFeatures);
+        const nextMechanics = normalizeWorldMechanics(worldData.worldMechanics);
+
+        setWorldMechanics(nextMechanics);
+        setWorldFeatures(nextFeatures);
         setCharacterLibrary(worldData.characterLibrary || {});
         setWorldTokens(worldData.worldTokens || {});
 
@@ -458,8 +503,7 @@ export default function PlayMode() {
                 : createStandardSetupCells()
         );
 
-        setCellHistory([]);
-        setCellFuture([]);
+        clearLocalCellHistory();
 
         const startingTurnTeam = sessionGameState?.turnTeam || "white";
 
@@ -471,7 +515,17 @@ export default function PlayMode() {
             ? sessionGameState.actionLog
             : [];
 
-        const startingGameState = createSessionGameState({
+        const startingSystemsRuntime =
+            sessionGameState?.systemsRuntime ||
+            createAdvancedSystemsRuntime({
+                worldFeatures: nextFeatures,
+                worldMechanics: nextMechanics,
+                turnTeam: startingTurnTeam
+            });
+
+        setSystemsRuntime(startingSystemsRuntime);
+
+        const startingGameState = buildSessionGameState({
             cells: Array.isArray(sessionGameState?.cells)
                 ? sessionGameState.cells
                 : createStandardSetupCells(),
@@ -479,66 +533,15 @@ export default function PlayMode() {
             pieceNameLocked: sessionGameState?.pieceNameLocked || createPieceRecord(false),
             turnTeam: startingTurnTeam,
             moveNumber: startingMoveNumber,
-            actionLog: startingActionLog
+            actionLog: startingActionLog,
+            systemsRuntime: startingSystemsRuntime
         });
 
-        lastSavedGameStateJsonRef.current = getGameStateJson(startingGameState);
+        seedSavedGameState(startingGameState);
         setSessionSyncStatus("");
 
         clearAllSelections();
         setActivePiece(null);
-    }
-
-    function pushCellsToHistory(previousCells) {
-        setCellHistory((currentHistory) => {
-            const nextHistory = [...currentHistory, previousCells];
-
-            if (nextHistory.length > MAX_CELL_HISTORY) {
-                return nextHistory.slice(nextHistory.length - MAX_CELL_HISTORY);
-            }
-
-            return nextHistory;
-        });
-
-        setCellFuture([]);
-    }
-
-    function updateCellsWithHistory(updateFunction) {
-        setCells((currentCells) => {
-            pushCellsToHistory(currentCells);
-            return updateFunction(currentCells);
-        });
-    }
-
-    function handleUndo() {
-        if (cellHistory.length === 0) return;
-
-        const previousCells = cellHistory[cellHistory.length - 1];
-
-        setCellFuture((currentFuture) => [cells, ...currentFuture]);
-        setCellHistory((currentHistory) => currentHistory.slice(0, -1));
-        setCells(previousCells);
-        setMovingPiece(null);
-    }
-
-    function handleRedo() {
-        if (cellFuture.length === 0) return;
-
-        const nextCells = cellFuture[0];
-
-        setCellHistory((currentHistory) => {
-            const nextHistory = [...currentHistory, cells];
-
-            if (nextHistory.length > MAX_CELL_HISTORY) {
-                return nextHistory.slice(nextHistory.length - MAX_CELL_HISTORY);
-            }
-
-            return nextHistory;
-        });
-
-        setCellFuture((currentFuture) => currentFuture.slice(1));
-        setCells(nextCells);
-        setMovingPiece(null);
     }
 
     function clearAllSelections() {
@@ -554,6 +557,7 @@ export default function PlayMode() {
 
         setSelectedTerrain(null);
         setSelectedTerrainAction(null);
+        setSelectedFogAction(null);
 
         setMovingPiece(null);
         setSelectedBoardAction(null);
@@ -579,6 +583,10 @@ export default function PlayMode() {
     function clearTerrainSelections() {
         setSelectedTerrain(null);
         setSelectedTerrainAction(null);
+    }
+
+    function clearFogSelections() {
+        setSelectedFogAction(null);
     }
 
     useEffect(() => {
@@ -657,13 +665,13 @@ export default function PlayMode() {
 
             if (isUndo) {
                 event.preventDefault();
-                handleUndo();
+                handleLocalUndo();
                 return;
             }
 
             if (isRedo) {
                 event.preventDefault();
-                handleRedo();
+                handleLocalRedo();
                 return;
             }
 
@@ -690,259 +698,87 @@ export default function PlayMode() {
         cells,
         worldMechanics,
         selectedCounterKey,
-        movingPiece
+        movingPiece,
+        playSessionId
     ]);
-
-    function getTeamLabel(team) {
-        return team === "black" ? "Black" : "White";
-    }
-
-    function createActionLogEntry(message, category = "action") {
-        return {
-            id:
-                typeof crypto !== "undefined" && crypto.randomUUID
-                    ? crypto.randomUUID()
-                    : `${Date.now()}-${Math.random()}`,
-            message,
-            category,
-            turnTeam,
-            moveNumber,
-            createdAt: new Date().toISOString()
-        };
-    }
 
     function addActionLogEntry(message, category = "action") {
-        const nextEntry = createActionLogEntry(message, category);
-
-        setActionLog((currentLog) => {
-            const nextLog = [nextEntry, ...(currentLog || [])];
-
-            return nextLog.slice(0, MAX_ACTION_LOG);
-        });
+        setActionLog((currentLog) =>
+            addActionLogEntryToLog(currentLog, {
+                message,
+                category,
+                turnTeam,
+                moveNumber,
+                maxActionLog: MAX_ACTION_LOG
+            })
+        );
     }
 
-    function getPieceLabel(team, pieceKey) {
-        if (!pieceKey) return "piece";
-
-        const assignedName = pieceNames?.[team]?.[pieceKey];
-
-        if (assignedName?.trim()) {
-            return assignedName.trim();
-        }
-
-        return pieceKey;
-    }
-
-    function showSessionSyncStatus(message) {
-        setSessionSyncStatus(message);
-
-        if (sessionSyncStatusTimeoutRef.current) {
-            clearTimeout(sessionSyncStatusTimeoutRef.current);
-        }
-
-        if (message === "Saved." || message === "Synced.") {
-            sessionSyncStatusTimeoutRef.current = setTimeout(() => {
-                setSessionSyncStatus("");
-            }, 1200);
-        }
-    }
-
-    useEffect(() => {
-        if (
-            !playSessionId ||
-            !isWorldLoaded ||
-            sessionLifecycleStatus !== "open" ||
-            !hasSupabaseConfig() ||
-            !supabase
-        ) {
-            return;
-        }
-
-        const nextGameState = createSessionGameState({
-            cells,
-            pieceNames,
-            pieceNameLocked,
-            turnTeam,
-            moveNumber,
-            actionLog
-        });
-
-        const nextGameStateJson = getGameStateJson(nextGameState);
-
-        if (nextGameStateJson === lastSavedGameStateJsonRef.current) {
-            return;
-        }
-
-        if (nextGameStateJson === suppressAutosaveForGameStateJsonRef.current) {
-            suppressAutosaveForGameStateJsonRef.current = "";
-            return;
-        }
-
-        if (saveSessionTimeoutRef.current) {
-            clearTimeout(saveSessionTimeoutRef.current);
-        }
-
-        showSessionSyncStatus("Saving...");
-
-        saveSessionTimeoutRef.current = setTimeout(async () => {
-            try {
-                const { error } = await supabase
-                    .from("play_sessions")
-                    .update({
-                        game_state: nextGameState
-                    })
-                    .eq("id", playSessionId);
-
-                if (error) {
-                    console.warn("Could not save play session:", error.message);
-                    showSessionSyncStatus("Save failed.");
-                    return;
-                }
-
-                lastSavedGameStateJsonRef.current = nextGameStateJson;
-                showSessionSyncStatus("Saved.");
-            } catch (error) {
-                console.warn("Could not reach Supabase to save play session:", error);
-                showSessionSyncStatus("Save failed.");
-            }
-        }, 450);
-
-        return () => {
-            if (saveSessionTimeoutRef.current) {
-                clearTimeout(saveSessionTimeoutRef.current);
-            }
-        };
-    }, [
-        cells,
-        pieceNames,
-        pieceNameLocked,
-        turnTeam,
-        moveNumber,
-        actionLog,
-        playSessionId,
-        isWorldLoaded,
-        sessionLifecycleStatus
-    ]);
-
-    useEffect(() => {
+    async function handleLiveUndo() {
         if (!playSessionId || !hasSupabaseConfig() || !supabase) {
             return;
         }
 
-        const channel = supabase
-            .channel(`play-session-${playSessionId}`)
-            .on(
-                "postgres_changes",
-                {
-                    event: "UPDATE",
-                    schema: "public",
-                    table: "play_sessions",
-                    filter: `id=eq.${playSessionId}`
-                },
-                (payload) => {
-                    const remoteGameState = payload.new?.game_state;
-
-                    const nextLifecycleStatus =
-                        payload.new?.lifecycle_status ||
-                        (payload.new?.ended_at ? "ended" : "open");
-
-                    setSessionLifecycleStatus(nextLifecycleStatus);
-                    setSessionEndReason(payload.new?.end_reason || "");
-
-                    if (nextLifecycleStatus !== "open") {
-                        showSessionSyncStatus("Session ended.");
-                        return;
-                    }
-
-                    if (!remoteGameState) return;
-
-                    const remoteGameStateJson = getGameStateJson(remoteGameState);
-
-                    if (remoteGameStateJson === lastSavedGameStateJsonRef.current) {
-                        return;
-                    }
-
-                    lastSavedGameStateJsonRef.current = remoteGameStateJson;
-                    suppressAutosaveForGameStateJsonRef.current = remoteGameStateJson;
-
-                    setCells(
-                        Array.isArray(remoteGameState.cells)
-                            ? remoteGameState.cells
-                            : createStandardSetupCells()
-                    );
-
-                    setPieceNames(remoteGameState.pieceNames || createPieceRecord(""));
-                    setPieceNameLocked(
-                        remoteGameState.pieceNameLocked || createPieceRecord(false)
-                    );
-
-                    setTurnTeam(remoteGameState.turnTeam || "white");
-                    setMoveNumber(
-                        Number.isFinite(Number(remoteGameState.moveNumber))
-                            ? Number(remoteGameState.moveNumber)
-                            : 1
-                    );
-
-                    setActionLog(
-                        Array.isArray(remoteGameState.actionLog)
-                            ? remoteGameState.actionLog
-                            : []
-                    );
-
-                    setMovingPiece(null);
-                    setActivePiece(null);
-                    setCellHistory([]);
-                    setCellFuture([]);
-
-                    showSessionSyncStatus("Synced.");
-                }
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [playSessionId]);
-
-    useEffect(() => {
-        if (!playSessionId || !hasSupabaseConfig() || !supabase) {
+        if (sessionLifecycleStatus !== "open") {
+            showSessionSyncStatus("Session ended.");
             return;
         }
 
-        loadSessionParticipants(playSessionId);
+        if (isUndoingLiveAction) {
+            return;
+        }
 
-        const channel = supabase
-            .channel(`play-session-participants-${playSessionId}`)
-            .on(
-                "postgres_changes",
-                {
-                    event: "*",
-                    schema: "public",
-                    table: "play_session_participants",
-                    filter: `session_id=eq.${playSessionId}`
-                },
-                () => {
-                    loadSessionParticipants(playSessionId);
-                }
-            )
-            .subscribe();
+        setIsUndoingLiveAction(true);
+        showSessionSyncStatus("Undoing…");
 
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [playSessionId]);
+        try {
+            const undoResult = await undoLatestLiveAction(playSessionId);
+
+            if (undoResult?.status === "undone") {
+                showSessionSyncStatus("Undone.");
+                await loadLiveUndoStatus(playSessionId);
+                return;
+            }
+
+            showSessionSyncStatus(
+                getLiveUndoReasonMessage(undoResult?.reason)
+            );
+
+            await loadLiveUndoStatus(playSessionId);
+        } catch (error) {
+            console.warn("Could not reach Supabase to undo live action:", error);
+            showSessionSyncStatus("Undo failed.");
+        } finally {
+            setIsUndoingLiveAction(false);
+        }
+    }
+
+    function handleLocalUndo() {
+        if (playSessionId) {
+            handleLiveUndo();
+            return;
+        }
+
+        handleUndo();
+    }
+
+    function handleLocalRedo() {
+        if (playSessionId) {
+            showSessionSyncStatus("Redo isn’t available in live matches yet.");
+            return;
+        }
+
+        handleRedo();
+    }
 
     useEffect(() => {
         return () => {
-            if (saveSessionTimeoutRef.current) {
-                clearTimeout(saveSessionTimeoutRef.current);
-            }
-
             if (sessionSyncStatusTimeoutRef.current) {
                 clearTimeout(sessionSyncStatusTimeoutRef.current);
             }
         };
     }, []);
+
 
     useEffect(() => {
         function syncPlayModeStatusWithGlobalMatchmaking() {
@@ -950,7 +786,9 @@ export default function PlayMode() {
 
             if (!waitingMatch) {
                 setMatchmakingStatus((currentStatus) =>
-                    currentStatus === "Waiting for opponent..." ||
+                    currentStatus === "Waiting for an opponent…" ||
+                        currentStatus === "Looking for an opponent…" ||
+                        currentStatus === "Waiting for opponent..." ||
                         currentStatus === "Looking for opponent..."
                         ? ""
                         : currentStatus
@@ -1096,23 +934,80 @@ export default function PlayMode() {
 
         if (selectedTerrainAction === "clear") {
             updateCellsWithHistory((currentCells) =>
-                currentCells.map((cell) => ({
-                    ...cloneCell(cell),
-                    tile: "neutral"
-                }))
+                applyTerrainToCells(currentCells, "neutral")
             );
 
+            clearTerrainSelections();
             return;
         }
 
         if (!selectedTerrain) return;
 
         updateCellsWithHistory((currentCells) =>
-            currentCells.map((cell) => ({
-                ...cloneCell(cell),
-                tile: selectedTerrain
-            }))
+            applyTerrainToCells(currentCells, selectedTerrain)
         );
+
+        clearTerrainSelections();
+    }
+
+    function handleSelectPaintFog() {
+        if (!worldFeatures.fogOfWar) return;
+
+        setSelectedFogAction("paint");
+        clearCounterSelections();
+        clearConditionSelections();
+        clearTerrainSelections();
+        clearPlacementSelections();
+        setSelectedBoardAction(null);
+    }
+
+    function handleSelectClearFog() {
+        if (!worldFeatures.fogOfWar) return;
+
+        setSelectedFogAction("clear");
+        clearCounterSelections();
+        clearConditionSelections();
+        clearTerrainSelections();
+        clearPlacementSelections();
+        setSelectedBoardAction(null);
+    }
+
+    function handleApplyFogToWholeBoard() {
+        if (!worldFeatures.fogOfWar) return;
+
+        setSystemsRuntime((current) => {
+            if (!current?.fogOfWar) return current;
+
+            return {
+                ...current,
+                fogOfWar: {
+                    ...current.fogOfWar,
+                    fogCells: applyFogToWholeBoard(8)
+                }
+            };
+        });
+
+        clearFogSelections();
+        addActionLogEntry("Fog applied to the whole board.", "fog");
+    }
+
+    function handleClearAllFog() {
+        if (!worldFeatures.fogOfWar) return;
+
+        setSystemsRuntime((current) => {
+            if (!current?.fogOfWar) return current;
+
+            return {
+                ...current,
+                fogOfWar: {
+                    ...current.fogOfWar,
+                    fogCells: []
+                }
+            };
+        });
+
+        clearFogSelections();
+        addActionLogEntry("All fog cleared.", "fog");
     }
 
     function handleSelectPiece(team, pieceKey) {
@@ -1188,6 +1083,10 @@ export default function PlayMode() {
     }
 
     function handleStandardSetup() {
+        if (isResultFlowBlockingBoard) {
+            showSessionSyncStatus("Resolve the match result first.");
+            return;
+        }
         updateCellsWithHistory(() => createStandardSetupCells());
         addActionLogEntry("Board reset to standard setup.", "board");
         clearAllSelections();
@@ -1195,6 +1094,10 @@ export default function PlayMode() {
     }
 
     function handleClearBoard() {
+        if (isResultFlowBlockingBoard) {
+            showSessionSyncStatus("Resolve the match result first.");
+            return;
+        }
         updateCellsWithHistory(() => createBoardCells());
         addActionLogEntry("Board cleared.", "board");
         clearAllSelections();
@@ -1252,20 +1155,21 @@ export default function PlayMode() {
     }
 
     function handleCellClick(index, event) {
+        if (isResultFlowBlockingBoard) {
+            showSessionSyncStatus("Resolve the match result first.");
+            return;
+        }
         const clickedCell = cells[index];
         const clickedToken = getPrimaryToken(clickedCell);
 
         if (selectedBoardAction === "delete-piece") {
-            updateCellsWithHistory((currentCells) => {
-                const nextCells = currentCells.map(cloneCell);
-                const targetCell = nextCells[index];
+            updateCellsWithHistory((currentCells) =>
+                updateCellAtIndex(currentCells, index, (targetCell) => {
+                    if (!cellHasOccupant(targetCell)) return;
 
-                if (!cellHasOccupant(targetCell)) return nextCells;
-
-                clearPieceFromCell(targetCell);
-
-                return nextCells;
-            });
+                    clearPieceFromCell(targetCell);
+                })
+            );
 
             if (!event?.shiftKey) {
                 setSelectedBoardAction(null);
@@ -1278,20 +1182,17 @@ export default function PlayMode() {
         }
 
         if (selectedCounterAction === "adjust" && selectedCounterDelta !== null) {
-            updateCellsWithHistory((currentCells) => {
-                const nextCells = currentCells.map(cloneCell);
-                const targetCell = nextCells[index];
+            updateCellsWithHistory((currentCells) =>
+                updateCellAtIndex(currentCells, index, (targetCell) => {
+                    if (!cellHasOccupant(targetCell)) return;
 
-                if (!cellHasOccupant(targetCell)) return nextCells;
-
-                adjustCounterOnCell(
-                    targetCell,
-                    selectedCounterKey,
-                    selectedCounterDelta
-                );
-
-                return nextCells;
-            });
+                    adjustCounterOnCell(
+                        targetCell,
+                        selectedCounterKey,
+                        selectedCounterDelta
+                    );
+                })
+            );
 
             if (!event?.shiftKey) {
                 setSelectedCounterDelta(null);
@@ -1302,16 +1203,13 @@ export default function PlayMode() {
         }
 
         if (selectedCounterAction === "set") {
-            updateCellsWithHistory((currentCells) => {
-                const nextCells = currentCells.map(cloneCell);
-                const targetCell = nextCells[index];
+            updateCellsWithHistory((currentCells) =>
+                updateCellAtIndex(currentCells, index, (targetCell) => {
+                    if (!cellHasOccupant(targetCell)) return;
 
-                if (!cellHasOccupant(targetCell)) return nextCells;
-
-                setCounterOnCell(targetCell, selectedCounterKey, counterSetValue);
-
-                return nextCells;
-            });
+                    setCounterOnCell(targetCell, selectedCounterKey, counterSetValue);
+                })
+            );
 
             if (!event?.shiftKey) {
                 setSelectedCounterAction(null);
@@ -1321,16 +1219,13 @@ export default function PlayMode() {
         }
 
         if (selectedCounterAction === "clear") {
-            updateCellsWithHistory((currentCells) => {
-                const nextCells = currentCells.map(cloneCell);
-                const targetCell = nextCells[index];
+            updateCellsWithHistory((currentCells) =>
+                updateCellAtIndex(currentCells, index, (targetCell) => {
+                    if (!cellHasOccupant(targetCell)) return;
 
-                if (!cellHasOccupant(targetCell)) return nextCells;
-
-                clearCounterOnCell(targetCell, selectedCounterKey);
-
-                return nextCells;
-            });
+                    clearCounterOnCell(targetCell, selectedCounterKey);
+                })
+            );
 
             if (!event?.shiftKey) {
                 setSelectedCounterAction(null);
@@ -1340,16 +1235,13 @@ export default function PlayMode() {
         }
 
         if (selectedConditionAction === "toggle" && selectedCondition) {
-            updateCellsWithHistory((currentCells) => {
-                const nextCells = currentCells.map(cloneCell);
-                const targetCell = nextCells[index];
+            updateCellsWithHistory((currentCells) =>
+                updateCellAtIndex(currentCells, index, (targetCell) => {
+                    if (!cellHasOccupant(targetCell)) return;
 
-                if (!cellHasOccupant(targetCell)) return nextCells;
-
-                toggleConditionOnCell(targetCell, selectedCondition, event?.shiftKey);
-
-                return nextCells;
-            });
+                    toggleConditionOnCell(targetCell, selectedCondition, event?.shiftKey);
+                })
+            );
 
             if (!event?.shiftKey) {
                 setSelectedCondition(null);
@@ -1360,16 +1252,13 @@ export default function PlayMode() {
         }
 
         if (selectedConditionAction === "clear") {
-            updateCellsWithHistory((currentCells) => {
-                const nextCells = currentCells.map(cloneCell);
-                const targetCell = nextCells[index];
+            updateCellsWithHistory((currentCells) =>
+                updateCellAtIndex(currentCells, index, (targetCell) => {
+                    if (!cellHasOccupant(targetCell)) return;
 
-                if (!cellHasOccupant(targetCell)) return nextCells;
-
-                clearConditionsOnCell(targetCell);
-
-                return nextCells;
-            });
+                    clearConditionsOnCell(targetCell);
+                })
+            );
 
             if (!event?.shiftKey) {
                 setSelectedConditionAction(null);
@@ -1379,13 +1268,11 @@ export default function PlayMode() {
         }
 
         if (selectedTerrainAction === "paint" && selectedTerrain) {
-            updateCellsWithHistory((currentCells) => {
-                const nextCells = currentCells.map(cloneCell);
-
-                nextCells[index].tile = selectedTerrain;
-
-                return nextCells;
-            });
+            updateCellsWithHistory((currentCells) =>
+                updateCellAtIndex(currentCells, index, (targetCell) => {
+                    paintTerrainOnCell(targetCell, selectedTerrain);
+                })
+            );
 
             if (!event?.shiftKey) {
                 setSelectedTerrain(null);
@@ -1396,16 +1283,54 @@ export default function PlayMode() {
         }
 
         if (selectedTerrainAction === "clear") {
-            updateCellsWithHistory((currentCells) => {
-                const nextCells = currentCells.map(cloneCell);
-
-                nextCells[index].tile = "neutral";
-
-                return nextCells;
-            });
+            updateCellsWithHistory((currentCells) =>
+                updateCellAtIndex(currentCells, index, (targetCell) => {
+                    clearTerrainOnCell(targetCell);
+                })
+            );
 
             if (!event?.shiftKey) {
                 setSelectedTerrainAction(null);
+            }
+
+            return;
+        }
+
+        if (selectedFogAction === "paint") {
+            setSystemsRuntime((current) => {
+                if (!current?.fogOfWar) return current;
+
+                return {
+                    ...current,
+                    fogOfWar: {
+                        ...current.fogOfWar,
+                        fogCells: paintFogCell(current.fogOfWar.fogCells, index)
+                    }
+                };
+            });
+
+            if (!event?.shiftKey) {
+                setSelectedFogAction(null);
+            }
+
+            return;
+        }
+
+        if (selectedFogAction === "clear") {
+            setSystemsRuntime((current) => {
+                if (!current?.fogOfWar) return current;
+
+                return {
+                    ...current,
+                    fogOfWar: {
+                        ...current.fogOfWar,
+                        fogCells: clearFogCell(current.fogOfWar.fogCells, index)
+                    }
+                };
+            });
+
+            if (!event?.shiftKey) {
+                setSelectedFogAction(null);
             }
 
             return;
@@ -1417,8 +1342,7 @@ export default function PlayMode() {
                     const nextCells = currentCells.map(cloneCell);
                     const targetCell = nextCells[index];
 
-                    clearPieceFromCell(targetCell);
-                    targetCell.tokens = [selectedToken];
+                    placeTokenOnCellForPlay(targetCell, selectedToken);
 
                     return nextCells;
                 });
@@ -1431,38 +1355,24 @@ export default function PlayMode() {
             }
 
             if (selectedTeam && selectedPiece) {
-                const placedPieceKey =
-                    selectedPiece === GENERIC_PIECE_KEY
-                        ? createGenericPieceInstanceKey()
-                        : selectedPiece;
+                const placedPieceKey = resolvePlacementPieceKey(selectedPiece);
 
                 updateCellsWithHistory((currentCells) => {
                     const nextCells = currentCells.map(cloneCell);
                     const targetCell = nextCells[index];
 
-                    clearPieceFromCell(targetCell);
-                    targetCell.pieceType = placedPieceKey;
-                    targetCell.team = selectedTeam;
+                    placePieceOnCellForPlay(targetCell, placedPieceKey, selectedTeam);
 
                     return nextCells;
                 });
 
                 if (selectedPiece === GENERIC_PIECE_KEY) {
-                    setPieceNames((currentNames) => ({
-                        ...currentNames,
-                        [selectedTeam]: {
-                            ...(currentNames[selectedTeam] || {}),
-                            [placedPieceKey]: ""
-                        }
-                    }));
-
-                    setPieceNameLocked((currentLocked) => ({
-                        ...currentLocked,
-                        [selectedTeam]: {
-                            ...(currentLocked[selectedTeam] || {}),
-                            [placedPieceKey]: false
-                        }
-                    }));
+                    registerGenericPieceInstance(
+                        selectedTeam,
+                        placedPieceKey,
+                        setPieceNames,
+                        setPieceNameLocked
+                    );
                 }
 
                 setActivePiece({
@@ -1471,7 +1381,7 @@ export default function PlayMode() {
                 });
 
                 addActionLogEntry(
-                    `${getTeamLabel(selectedTeam)} placed ${getPieceLabel(selectedTeam, placedPieceKey)}.`,
+                    `${getTeamLabel(selectedTeam)} placed ${getPieceLabel(pieceNames, selectedTeam, placedPieceKey)}.`,
                     "piece"
                 );
 
@@ -1519,30 +1429,9 @@ export default function PlayMode() {
             return;
         }
 
-        updateCellsWithHistory((currentCells) => {
-            const nextCells = currentCells.map(cloneCell);
-            const sourceCell = nextCells[movingPiece.fromIndex];
-            const targetCell = nextCells[index];
-
-            clearPieceFromCell(targetCell);
-
-            targetCell.counters = {
-                ...(movingPiece.counters || {})
-            };
-
-            targetCell.conditions = [...(movingPiece.conditions || [])];
-
-            if (movingPiece.kind === "token") {
-                targetCell.tokens = [movingPiece.tokenName];
-            } else {
-                targetCell.pieceType = movingPiece.pieceType;
-                targetCell.team = movingPiece.team;
-            }
-
-            clearPieceFromCell(sourceCell);
-
-            return nextCells;
-        });
+        updateCellsWithHistory((currentCells) =>
+            moveOccupantForPlay(currentCells, movingPiece, index)
+        );
 
         if (movingPiece.kind === "token") {
             addActionLogEntry(
@@ -1554,6 +1443,7 @@ export default function PlayMode() {
         } else {
             addActionLogEntry(
                 `${getTeamLabel(movingPiece.team)} moved ${getPieceLabel(
+                    pieceNames,
                     movingPiece.team,
                     movingPiece.pieceType
                 )}.`,
@@ -1570,6 +1460,10 @@ export default function PlayMode() {
     }
 
     function handlePassTurn() {
+        if (isResultFlowBlockingBoard) {
+            showSessionSyncStatus("Resolve the match result first.");
+            return;
+        }
         const currentTeamLabel = getTeamLabel(turnTeam);
         const nextTurnTeam = turnTeam === "white" ? "black" : "white";
         const nextMoveNumber =
@@ -1582,6 +1476,15 @@ export default function PlayMode() {
 
         setTurnTeam(nextTurnTeam);
         setMoveNumber(nextMoveNumber);
+
+        setSystemsRuntime((current) => {
+            if (!current?.timers) return current;
+
+            return {
+                ...current,
+                timers: resetTurnTimer(current.timers, nextTurnTeam)
+            };
+        });
 
         setMovingPiece(null);
         setSelectedBoardAction(null);
@@ -1605,96 +1508,6 @@ export default function PlayMode() {
         });
     }
 
-    async function handleCopyInviteLink() {
-        if (!playSessionId) {
-            showSessionSyncStatus("No session link yet.");
-            return;
-        }
-
-        const inviteUrl = `${window.location.origin}/join?session=${playSessionId}`;
-
-        try {
-            await navigator.clipboard.writeText(inviteUrl);
-            showSessionSyncStatus("Invite link copied.");
-        } catch (error) {
-            console.warn("Could not copy invite link:", error);
-            showSessionSyncStatus("Copy failed.");
-        }
-    }
-
-    async function handleLeaveMatch() {
-        if (!playSessionId || !hasSupabaseConfig() || !supabase) return;
-
-        const shouldLeave = window.confirm(
-            "Leave this match? For now, leaving also ends the session."
-        );
-
-        if (!shouldLeave) return;
-
-        setIsEndingSession(true);
-        showSessionSyncStatus("Leaving match...");
-
-        try {
-            const { error } = await supabase.rpc("leave_play_session", {
-                target_session_id: playSessionId
-            });
-
-            if (error) {
-                console.warn("Could not leave match:", error.message);
-                showSessionSyncStatus("Leave failed.");
-                setIsEndingSession(false);
-                return;
-            }
-
-            setSessionLifecycleStatus("ended");
-            setSessionEndReason("player_left");
-            showSessionSyncStatus("Match ended.");
-
-            router.push(playWorldId ? `/worlds/${playWorldId}` : "/worlds");
-        } catch (error) {
-            console.warn("Could not leave match:", error);
-            showSessionSyncStatus("Leave failed.");
-            setIsEndingSession(false);
-        }
-    }
-
-    async function handleEndMatch() {
-        if (!playSessionId || !hasSupabaseConfig() || !supabase) return;
-
-        const shouldEnd = window.confirm(
-            "End this match for all players?"
-        );
-
-        if (!shouldEnd) return;
-
-        setIsEndingSession(true);
-        showSessionSyncStatus("Ending match...");
-
-        try {
-            const { error } = await supabase.rpc("end_play_session", {
-                target_session_id: playSessionId,
-                reason: "ended_by_player"
-            });
-
-            if (error) {
-                console.warn("Could not end match:", error.message);
-                showSessionSyncStatus("End failed.");
-                setIsEndingSession(false);
-                return;
-            }
-
-            setSessionLifecycleStatus("ended");
-            setSessionEndReason("ended_by_player");
-            showSessionSyncStatus("Match ended.");
-
-            router.push(playWorldId ? `/worlds/${playWorldId}` : "/worlds");
-        } catch (error) {
-            console.warn("Could not end match:", error);
-            showSessionSyncStatus("End failed.");
-            setIsEndingSession(false);
-        }
-    }
-
     function handleBackToWorld() {
         if (playWorldId) {
             router.push(`/worlds/${playWorldId}`);
@@ -1702,6 +1515,20 @@ export default function PlayMode() {
         }
 
         router.push("/worlds");
+    }
+
+    function handleInviteSessionReady(sessionId) {
+        if (!sessionId) return;
+
+        setPlaySessionId(sessionId);
+        showSessionSyncStatus("Private table ready.");
+
+        if (typeof window !== "undefined") {
+            const nextUrl = new URL(window.location.href);
+            nextUrl.searchParams.set("session", sessionId);
+            nextUrl.searchParams.delete("world");
+            window.history.replaceState({}, "", nextUrl.toString());
+        }
     }
 
     if (!isWorldLoaded) {
@@ -1715,12 +1542,12 @@ export default function PlayMode() {
                     <h1>{loadStatus}</h1>
 
                     <p>
-                        Choose a published world first, then open its board from the world page.
+                        Choose a published universe first, then open its board from the universe page.
                     </p>
 
                     <div className="home-action-row">
                         <Link className="home-primary-link" href="/worlds">
-                            Browse Worlds
+                            Browse Universes
                         </Link>
 
                         <Link className="home-secondary-link" href="/lobby">
@@ -1763,75 +1590,80 @@ export default function PlayMode() {
                         <header className="top-command-bar play-command-bar">
                             <div className="world-title-block">
                                 <h1>Play Mode</h1>
+                                <p className="world-name-display play-world-name-readonly">
+                                    {getDisplayWorldName(worldDetails.name)}
+                                </p>
                             </div>
 
-                            <div className="top-command-actions">
-                                <div className="top-command-button-row play-command-button-row">
-                                    <button type="button" onClick={handleBackToWorld}>
-                                        Back
-                                    </button>
-
-                                    <MatchmakingReadyButton
-                                        className="play-ready-button"
-                                        worldId={playWorldId}
-                                        worldName={worldDetails.name}
-                                        disabled={Boolean(playSessionId) || playWorldSource !== "online"}
-                                        disabledLabel={playSessionId ? "Matched" : "Online Only"}
-                                        readyLabel="Ready"
-                                        loadingLabel="Ready..."
-                                        onStatusChange={setMatchmakingStatus}
-                                    />
-
-                                    <button type="button" onClick={handleCopyInviteLink}>
-                                        Invite
-                                    </button>
-
-                                    <button type="button" onClick={handleStandardSetup}>
-                                        Reset
-                                    </button>
-
-                                    <button type="button" onClick={handleToggleCharacterDisplayMode}>
-                                        Portrait
-                                    </button>
-
-                                    <button type="button" onClick={() => router.push("/worlds")}>
-                                        Worlds
-                                    </button>
-                                </div>
-
-                                {playSessionId && (
-                                    <div className="play-session-lifecycle-row">
-                                        {sessionLifecycleStatus === "open" ? (
-                                            <>
-                                                <button
-                                                    type="button"
-                                                    onClick={handleLeaveMatch}
-                                                    disabled={isEndingSession}
-                                                >
-                                                    Leave Match
-                                                </button>
-
-                                                <button
-                                                    type="button"
-                                                    className="danger-button"
-                                                    onClick={handleEndMatch}
-                                                    disabled={isEndingSession}
-                                                >
-                                                    End Match
-                                                </button>
-                                            </>
-                                        ) : (
-                                            <span>
-                                                Match ended
-                                                {sessionEndReason ? ` · ${sessionEndReason}` : ""}
-                                            </span>
-                                        )}
+                            <div className="top-command-actions play-command-actions">
+                                <div className="play-command-nav-row">
+                                    <div className="play-command-nav-group">
+                                        <button type="button" onClick={handleBackToWorld}>
+                                            Back
+                                        </button>
                                     </div>
-                                )}
 
-                                <div className="world-name-input play-world-name-readonly">
-                                    {worldDetails.name}
+                                    <div className="play-command-session-group">
+                                        {!playSessionId && (
+                                            <MatchmakingReadyButton
+                                                className="play-ready-button"
+                                                worldId={playWorldId}
+                                                worldName={worldDetails.name}
+                                                disabled={playWorldSource !== "online"}
+                                                disabledLabel="Online Only"
+                                                readyLabel="Ready"
+                                                loadingLabel="Ready..."
+                                                onStatusChange={setMatchmakingStatus}
+                                            />
+                                        )}
+
+                                        <div className="play-invite-wrap">
+                                            <button
+                                                type="button"
+                                                className="play-invite-button"
+                                                onClick={() =>
+                                                    setIsInvitePanelOpen((current) => !current)
+                                                }
+                                            >
+                                                Invite
+                                            </button>
+
+                                            <InvitePlayersPanel
+                                                isOpen={isInvitePanelOpen}
+                                                onClose={() => setIsInvitePanelOpen(false)}
+                                                currentUserId={currentUserId}
+                                                playSessionId={playSessionId}
+                                                onSessionReady={handleInviteSessionReady}
+                                                worldId={playWorldId}
+                                                cells={cells}
+                                                pieceNames={pieceNames}
+                                                pieceNameLocked={pieceNameLocked}
+                                                turnTeam={turnTeam}
+                                                moveNumber={moveNumber}
+                                                actionLog={actionLog}
+                                                onStatusChange={showSessionSyncStatus}
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
+
+                                <PlaySessionResultPanel
+                                    playSessionId={playSessionId}
+                                    matchResultState={matchResultState}
+                                    isResultChooserOpen={isResultChooserOpen}
+                                    setIsResultChooserOpen={setIsResultChooserOpen}
+                                    resultNote={resultNote}
+                                    setResultNote={setResultNote}
+                                    isHandlingResultAction={isHandlingResultAction}
+                                    isCurrentUserResultProposer={isCurrentUserResultProposer}
+                                    sessionLifecycleStatus={sessionLifecycleStatus}
+                                    sessionEndReason={sessionEndReason}
+                                    onProposeResult={handleProposeResult}
+                                    onCancelResultProposal={handleCancelResultProposal}
+                                    onRespondToResult={handleRespondToResult}
+                                    onResolveContinueRequest={handleResolveContinueRequest}
+                                    onResignMatch={handleResignMatch}
+                                />
                             </div>
                         </header>
 
@@ -1852,7 +1684,7 @@ export default function PlayMode() {
                             onConditionListChange={() => { }}
                             characterLibrary={characterLibrary}
                             onCharacterLibraryChange={() => { }}
-                            characterUploadStatus="Character editing is disabled in Play Mode."
+                            characterUploadStatus="Character editing is off in Play."
                             worldTokens={worldTokens}
                             selectedCounterKey={selectedCounterKey}
                             selectedCounterDelta={selectedCounterDelta}
@@ -1862,6 +1694,11 @@ export default function PlayMode() {
                             selectedConditionAction={selectedConditionAction}
                             selectedTerrain={selectedTerrain}
                             selectedTerrainAction={selectedTerrainAction}
+                            selectedFogAction={selectedFogAction}
+                            onSelectPaintFog={handleSelectPaintFog}
+                            onSelectClearFog={handleSelectClearFog}
+                            onApplyFogToWholeBoard={handleApplyFogToWholeBoard}
+                            onClearAllFog={handleClearAllFog}
                             onCounterSetValueChange={setCounterSetValue}
                             onCharacterCsvUpload={() => { }}
                             onSaveCharacter={() => { }}
@@ -1884,11 +1721,52 @@ export default function PlayMode() {
                             characterLibrary={characterLibrary}
                             worldTheme={worldTheme}
                             worldMechanics={worldMechanics}
+                            worldFeatures={worldFeatures}
+                            systemsRuntime={systemsRuntime}
+                            onSystemsRuntimeChange={setSystemsRuntime}
+                            turnTeam={turnTeam}
+                            isPlayMode={true}
+                            fogCells={systemsRuntime?.fogOfWar?.fogCells || []}
+                            viewerTeam={
+                                getViewerTeam(sessionParticipants, currentUserId) ||
+                                (!playSessionId ? turnTeam : "")
+                            }
+                            revealOwnPiecesInFog={
+                                systemsRuntime?.fogOfWar?.revealOwnPieces !== false
+                            }
+                            onLogAction={addActionLogEntry}
+                            selectedBoardAction={selectedBoardAction}
+                            actionLog={actionLog}
+                            boardStatus={[
+                                loadStatus,
+                                sessionSyncStatus,
+                                matchmakingStatus,
+                                playSessionId
+                                    ? getMatchPhaseLabel(matchResultState.matchPhase)
+                                    : "",
+                                playSessionId &&
+                                sessionLifecycleStatus === "open" &&
+                                matchResultState.matchPhase === "active" &&
+                                liveUndoStatus
+                                    ? liveUndoStatus.can_undo
+                                        ? "Can undo"
+                                        : "Undo locked"
+                                    : ""
+                            ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            onToggleCharacterDisplayMode={handleToggleCharacterDisplayMode}
+                            onStandardSetup={handleStandardSetup}
+                            onUndo={handleLocalUndo}
+                            onRedo={handleLocalRedo}
+                            onDeletePiece={handleDeleteSelectedPiece}
+                            onClearBoard={handleClearBoard}
                             onCellClick={handleCellClick}
                             onClearSelections={clearAllSelections}
                         />
 
                         <RightPanel
+                            isPlayMode={true}
                             worldFeatures={worldFeatures}
                             worldTheme={worldTheme}
                             characterLibrary={characterLibrary}
@@ -1902,7 +1780,8 @@ export default function PlayMode() {
                             turnTeam={turnTeam}
                             moveNumber={moveNumber}
                             onPassTurn={handlePassTurn}
-                            actionLog={actionLog}
+                            playSessionId={playSessionId}
+                            sessionLifecycleStatus={sessionLifecycleStatus}
                             sessionParticipants={sessionParticipants}
                             currentUserId={currentUserId}
                             onClearSelections={clearAllSelections}
@@ -1912,12 +1791,6 @@ export default function PlayMode() {
                             onLockName={handleLockName}
                             onUnlockName={handleUnlockName}
                             onAssignCharacter={handleAssignCharacter}
-                            selectedBoardAction={selectedBoardAction}
-                            onDeletePiece={handleDeleteSelectedPiece}
-                            onStandardSetup={handleStandardSetup}
-                            onClearBoard={handleClearBoard}
-                            onUndo={handleUndo}
-                            onRedo={handleRedo}
                         />
                     </div>
                 </div>

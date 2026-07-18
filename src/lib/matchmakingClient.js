@@ -6,7 +6,12 @@ export const MATCHMAKING_STORAGE_KEY =
 export const MATCHMAKING_EVENT_NAME =
     "chess-multiverse:matchmaking-updated";
 
-export function storeWaitingMatch({ queueId, worldId, worldName }) {
+export function storeWaitingMatch({
+    queueId,
+    worldId,
+    worldName,
+    scope = "world"
+}) {
     if (typeof window === "undefined") return;
 
     window.localStorage.setItem(
@@ -15,6 +20,7 @@ export function storeWaitingMatch({ queueId, worldId, worldName }) {
             queueId,
             worldId,
             worldName,
+            scope: scope === "multiverse" ? "multiverse" : "world",
             startedAt: new Date().toISOString()
         })
     );
@@ -83,7 +89,7 @@ export async function readyForMatch({ worldId, worldName }) {
     if (!worldId) {
         return {
             status: "error",
-            message: "No world selected for matchmaking."
+            message: "No universe selected for matchmaking."
         };
     }
 
@@ -128,7 +134,7 @@ export async function readyForMatch({ worldId, worldName }) {
         return {
             status: "matched",
             sessionId: matchResult.session_id,
-            message: "Match found. Opening board..."
+            message: "Match found. Opening board…"
         };
     }
 
@@ -136,13 +142,14 @@ export async function readyForMatch({ worldId, worldName }) {
         storeWaitingMatch({
             queueId: matchResult.queue_id,
             worldId,
-            worldName
+            worldName,
+            scope: worldId ? "world" : "multiverse"
         });
 
         return {
             status: "waiting",
             queueId: matchResult.queue_id,
-            message: "Waiting for opponent..."
+            message: "Waiting for an opponent…"
         };
     }
 

@@ -114,69 +114,71 @@ export default function CounterEditor({
         <div>
           <h3>Counter Creator</h3>
           <p className="small muted">
-            Create coloured counter types for this world.
+            Create coloured counter types for this universe.
           </p>
         </div>
-
-        <button type="button" onClick={addCounter}>
-          + Add Counter
-        </button>
       </div>
 
       <div className="counter-gallery">
-        {counterList.length === 0 ? (
-          <p className="small muted">No counters yet.</p>
-        ) : (
-          counterList.map((item) => {
-            const isSelected = selectedCounter?.key === item.key;
+        {counterList.map((item) => {
+          const isSelected = selectedCounter?.key === item.key;
 
-            return (
-              <div
-                key={item.key}
-                role="button"
-                tabIndex={0}
-                className={
-                  isSelected
-                    ? "counter-gallery-card active"
-                    : "counter-gallery-card"
+          return (
+            <div
+              key={item.key}
+              role="button"
+              tabIndex={0}
+              className={
+                isSelected
+                  ? "counter-gallery-card active"
+                  : "counter-gallery-card"
+              }
+              title={
+                item.description
+                  ? `${item.label}: ${item.description}`
+                  : item.label
+              }
+              onClick={() => setSelectedCounterKey(item.key)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setSelectedCounterKey(item.key);
                 }
-                title={
-                  item.description
-                    ? `${item.label}: ${item.description}`
-                    : item.label
-                }
-                onClick={() => setSelectedCounterKey(item.key)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    setSelectedCounterKey(item.key);
-                  }
+              }}
+            >
+              <span
+                className="counter-gallery-dot"
+                style={{ "--counter-preview-color": item.color || "#e7c97a" }}
+              />
+
+              <span className="counter-gallery-label">
+                {item.label}
+              </span>
+
+              <button
+                type="button"
+                className="counter-gallery-delete"
+                title={`Delete ${item.label || "counter"}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  deleteCounter(item.key);
                 }}
               >
-                <span
-                  className="counter-gallery-dot"
-                  style={{ "--counter-preview-color": item.color || "#e7c97a" }}
-                />
+                ×
+              </button>
+            </div>
+          );
+        })}
 
-                <span className="counter-gallery-label">
-                  {item.label}
-                </span>
-
-                <button
-                  type="button"
-                  className="counter-gallery-delete"
-                  title={`Delete ${item.label || "counter"}`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    deleteCounter(item.key);
-                  }}
-                >
-                  ×
-                </button>
-              </div>
-            );
-          })
-        )}
+        <button
+          type="button"
+          className="creator-gallery-add-card"
+          onClick={addCounter}
+          title="Add counter"
+        >
+          <span>＋</span>
+          <strong>Add</strong>
+        </button>
       </div>
 
       {selectedCounter && (

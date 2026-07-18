@@ -4,6 +4,7 @@ import {
   DEFAULT_BACKGROUND_IMAGE,
   DEFAULT_BOARD_SKIN_IMAGE,
   DEFAULT_PIECES,
+  DEFAULT_PIECE_SKINS,
   getPieceSymbol
 } from "@/lib/defaultWorld";
 
@@ -35,44 +36,39 @@ function ImageUploadBox({
   }
 
   return (
-    <div className="theme-upload-box">
+    <div className="theme-upload-box compact">
       <div className="theme-upload-header">
         <strong>{title}</strong>
         <span>{description}</span>
       </div>
 
-      <div className="theme-preview">
+      <div className="theme-preview compact">
         {image ? (
           <img src={image} alt={`${title} preview`} />
         ) : (
-          <span>No image uploaded</span>
+          <span>No image</span>
         )}
       </div>
 
-      <label className="theme-upload-label">
-        {uploadLabel}
-        <input
-          type="file"
-          accept="image/*"
-          onChange={handleFileChange}
-        />
-      </label>
+      <div className="theme-upload-actions">
+        <label className="theme-upload-label compact-upload-label">
+          {uploadLabel}
+          <input type="file" accept="image/*" onChange={handleFileChange} />
+        </label>
 
-      {image && (
-        <button type="button" onClick={onClear}>
-          {clearLabel}
-        </button>
-      )}
+        {image && (
+          <button type="button" onClick={onClear}>
+            {clearLabel}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
-function PieceSkinUploadButton({
-  team,
-  piece,
-  image,
-  onPieceSkinChange
-}) {
+function PieceSkinUploadButton({ team, piece, image, onPieceSkinChange }) {
+  const defaultImage = DEFAULT_PIECE_SKINS[team]?.[piece.key] || "";
+
   function handleFileChange(event) {
     readImageFile(event.target.files[0], (imageData) =>
       onPieceSkinChange(team, piece.key, imageData)
@@ -82,8 +78,8 @@ function PieceSkinUploadButton({
   }
 
   return (
-    <div className="piece-skin-editor-item">
-      <div className="piece-skin-preview">
+    <div className="piece-skin-editor-item compact">
+      <div className="piece-skin-preview compact">
         {image ? (
           <img src={image} alt={`${team} ${piece.label}`} />
         ) : (
@@ -93,33 +89,29 @@ function PieceSkinUploadButton({
 
       <strong>{piece.label}</strong>
 
-      <label className="theme-upload-label compact-upload-label">
-        Upload
-        <input
-          type="file"
-          accept="image/*"
-          onChange={handleFileChange}
-        />
-      </label>
+      <div className="piece-skin-actions">
+        <label className="theme-upload-label compact-upload-label">
+          Upload
+          <input type="file" accept="image/*" onChange={handleFileChange} />
+        </label>
 
-      {image && (
         <button
           type="button"
-          onClick={() => onPieceSkinChange(team, piece.key, "")}
+          onClick={() => onPieceSkinChange(team, piece.key, defaultImage)}
         >
-          Clear
+          Reset
         </button>
-      )}
+      </div>
     </div>
   );
 }
 
 function PieceSkinTeamEditor({ team, worldTheme, onPieceSkinChange }) {
   return (
-    <section className="piece-skin-team-editor">
+    <section className="piece-skin-team-editor compact">
       <h3>{team === "black" ? "Black Pieces" : "White Pieces"}</h3>
 
-      <div className="piece-skin-grid">
+      <div className="piece-skin-grid compact">
         {DEFAULT_PIECES.map((piece) => (
           <PieceSkinUploadButton
             key={piece.key}
@@ -137,65 +129,49 @@ function PieceSkinTeamEditor({ team, worldTheme, onPieceSkinChange }) {
 export default function ThemeEditor({
   worldTheme,
   onThemeChange,
-  onPieceSkinChange,
-  onCharacterDisplayModeChange
+  onPieceSkinChange
 }) {
   return (
-    <div className="theme-editor">
+    <div className="theme-editor compact">
       <p className="small muted">
-        Upload images for the background, board skin, and chess piece designs.
+        Background, board skin, and piece designs for this universe.
       </p>
 
-      <ImageUploadBox
-        title="Stage Background"
-        description="Fills the whole editor background."
-        image={worldTheme.backgroundImage}
-        uploadLabel="Upload Background"
-        clearLabel="Reset Background"
-        onUpload={(imageData) => onThemeChange("backgroundImage", imageData)}
-        onClear={() => onThemeChange("backgroundImage", DEFAULT_BACKGROUND_IMAGE)}
-      />
-
-      <ImageUploadBox
-        title="Board Skin"
-        description="Square image containing board border and tiles."
-        image={worldTheme.boardSkinImage}
-        uploadLabel="Upload Board Skin"
-        clearLabel="Reset Board Skin"
-        onUpload={(imageData) => onThemeChange("boardSkinImage", imageData)}
-        onClear={() => onThemeChange("boardSkinImage", DEFAULT_BOARD_SKIN_IMAGE)}
-      />
-
-      <div className="theme-display-mode-box">
-        <label>Character Display on Board</label>
-
-        <select
-          value={worldTheme.characterDisplayMode || "piece-with-portrait"}
-          onChange={(event) =>
-            onCharacterDisplayModeChange(event.target.value)
+      <div className="theme-upload-row">
+        <ImageUploadBox
+          title="Stage Background"
+          description="Whole editor background."
+          image={worldTheme.backgroundImage}
+          uploadLabel="Upload"
+          clearLabel="Reset"
+          onUpload={(imageData) => onThemeChange("backgroundImage", imageData)}
+          onClear={() =>
+            onThemeChange("backgroundImage", DEFAULT_BACKGROUND_IMAGE)
           }
-        >
-          <option value="piece-with-portrait">
-            Piece with portrait badge
-          </option>
-          <option value="portrait-with-piece">
-            Portrait with small piece symbol
-          </option>
-        </select>
+        />
 
-        <p className="small muted">
-          Choose how assigned character portraits appear on the board.
-        </p>
+        <ImageUploadBox
+          title="Board Skin"
+          description="Board border and tiles."
+          image={worldTheme.boardSkinImage}
+          uploadLabel="Upload"
+          clearLabel="Reset"
+          onUpload={(imageData) => onThemeChange("boardSkinImage", imageData)}
+          onClear={() =>
+            onThemeChange("boardSkinImage", DEFAULT_BOARD_SKIN_IMAGE)
+          }
+        />
       </div>
 
-      <details>
-        <summary>Piece Designs</summary>
+      <div className="theme-piece-designs">
+        <div className="theme-upload-header">
+          <strong>Piece Designs</strong>
+          <span>
+            Custom piece images. Leave blank to use default website pieces.
+          </span>
+        </div>
 
-        <div className="piece-skin-editor">
-          <p className="small muted">
-            Upload custom piece images for this world. Leave blank to use the default website pieces.
-          </p>
-
+        <div className="piece-skin-editor compact">
           <PieceSkinTeamEditor
             team="black"
             worldTheme={worldTheme}
@@ -208,7 +184,7 @@ export default function ThemeEditor({
             onPieceSkinChange={onPieceSkinChange}
           />
         </div>
-      </details>
+      </div>
     </div>
   );
 }

@@ -74,60 +74,62 @@ export default function ConditionEditor({
         <div>
           <h3>Condition Creator</h3>
           <p className="small muted">
-            Create the conditions available in this world.
+            Create the conditions available in this universe.
           </p>
         </div>
-
-        <button type="button" onClick={addCondition}>
-          + Add Condition
-        </button>
       </div>
 
       <div className="condition-gallery">
-        {conditionList.length === 0 ? (
-          <p className="small muted">No conditions yet.</p>
-        ) : (
-          conditionList.map((condition) => {
-            const isSelected = selectedCondition?.key === condition.key;
+        {conditionList.map((condition) => {
+          const isSelected = selectedCondition?.key === condition.key;
 
-            return (
-              <div
-                key={condition.key}
-                role="button"
-                tabIndex={0}
-                className={
-                  isSelected
-                    ? "condition-gallery-card active"
-                    : "condition-gallery-card"
+          return (
+            <div
+              key={condition.key}
+              role="button"
+              tabIndex={0}
+              className={
+                isSelected
+                  ? "condition-gallery-card active"
+                  : "condition-gallery-card"
+              }
+              title={getConditionTitle(condition)}
+              onClick={() => setSelectedConditionKey(condition.key)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setSelectedConditionKey(condition.key);
                 }
-                title={getConditionTitle(condition)}
-                onClick={() => setSelectedConditionKey(condition.key)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    setSelectedConditionKey(condition.key);
-                  }
+              }}
+            >
+              <span className="condition-gallery-icon">
+                {condition.icon || "✨"}
+              </span>
+
+              <button
+                type="button"
+                className="condition-gallery-delete"
+                title={`Delete ${condition.label || "condition"}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  deleteCondition(condition.key);
                 }}
               >
-                <span className="condition-gallery-icon">
-                  {condition.icon || "✨"}
-                </span>
+                ×
+              </button>
+            </div>
+          );
+        })}
 
-                <button
-                  type="button"
-                  className="condition-gallery-delete"
-                  title={`Delete ${condition.label || "condition"}`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    deleteCondition(condition.key);
-                  }}
-                >
-                  ×
-                </button>
-              </div>
-            );
-          })
-        )}
+        <button
+          type="button"
+          className="creator-gallery-add-card"
+          onClick={addCondition}
+          title="Add condition"
+        >
+          <span>＋</span>
+          <strong>Add</strong>
+        </button>
       </div>
 
       {selectedCondition && (

@@ -5,13 +5,14 @@ import Link from "next/link";
 
 import {
     getEnabledFeatureLabels,
-    getWorldCardStats,
+    getWorldComplexity,
     getWorldData,
     getWorldDescription,
     getWorldName,
     getWorldPreviewImages,
     getWorldRulesPreview
 } from "@/lib/worldData";
+import { fetchLatestPostsByWorldIds } from "@/lib/worldPostsClient";
 
 import { hasSupabaseConfig, supabase } from "@/lib/supabaseClient";
 
@@ -79,21 +80,19 @@ function getPublicWorldCardStats(world) {
         {
             icon: "🧠",
             label: "Complexity",
-            value: world.complexity_label || "Simple"
+            value: getWorldComplexity(world)
         }
     ];
 }
 
 export default function WorldLibraryClient() {
-    const [localWorlds, setLocalWorlds] = useState([]);
-    const [importStatus, setImportStatus] = useState("");
-
     const [worldSearchText, setWorldSearchText] = useState("");
     const [selectedFeatureFilter, setSelectedFeatureFilter] = useState("all");
 
     const [publicWorlds, setPublicWorlds] = useState([]);
     const [publicWorldsStatus, setPublicWorldsStatus] = useState("");
     const [isLoadingPublicWorlds, setIsLoadingPublicWorlds] = useState(false);
+    const [latestPostsByWorldId, setLatestPostsByWorldId] = useState({});
 
     const [currentUser, setCurrentUser] = useState(null);
     const [creatorNamesById, setCreatorNamesById] = useState({});
@@ -176,7 +175,7 @@ export default function WorldLibraryClient() {
         }
 
         setIsLoadingPublicWorlds(true);
-        setPublicWorldsStatus("Loading published worlds...");
+        setPublicWorldsStatus("Loading universes…");
 
         try {
             const { data, error } = await supabase
@@ -200,11 +199,16 @@ export default function WorldLibraryClient() {
             setPublicWorldsStatus("");
 
             await loadCreatorNamesForWorlds(nextPublicWorlds);
+
+            const { postsByWorldId } = await fetchLatestPostsByWorldIds(
+                nextPublicWorlds.map((world) => world.id)
+            );
+            setLatestPostsByWorldId(postsByWorldId || {});
         } catch (error) {
             console.error("Public worlds fetch failed:", error);
 
             setPublicWorlds([]);
-            setPublicWorldsStatus("Could not reach Supabase to load published worlds.");
+            setPublicWorldsStatus("Could not reach Supabase to load published universes.");
         } finally {
             setIsLoadingPublicWorlds(false);
         }
@@ -227,13 +231,6 @@ export default function WorldLibraryClient() {
         };
     }, []);
 
-    const filteredLocalWorlds = localWorlds.filter((world) => {
-        const matchesSearch = worldMatchesSearch(world, worldSearchText);
-        const matchesFeature = worldHasFeature(world, selectedFeatureFilter);
-
-        return matchesSearch && matchesFeature;
-    });
-
     const filteredPublicWorlds = publicWorlds.filter((world) => {
         const worldForHelpers = {
             name: world.name,
@@ -249,19 +246,19 @@ export default function WorldLibraryClient() {
     return (
         <div className="world-library-content">
             <section className="platform-hero worlds-hero">
-                <p className="home-kicker">World Library</p>
+                <p className="home-kicker">Universe Library</p>
 
-                <h1>Worlds</h1>
+                <h1>Universes</h1>
 
                 <p>
-                    Choose the world you want to enter and prepare to challenge fellow players in epic chess battles.
+                    Choose your Universe and prepare to challenge fellow players in epic chess battles.
                 </p>
             </section>
 
             <section className="world-grid-section">
                 <div className="section-heading-row">
                     <div>
-                        <p className="home-kicker">Published Worlds</p>
+                        <p className="home-kicker">Published Universes</p>
                         <h2>Enter the Multiverse</h2>
                     </div>
 
@@ -278,7 +275,7 @@ export default function WorldLibraryClient() {
                 <div className="world-library-filter-bar">
                     <input
                         value={worldSearchText}
-                        placeholder="Search published worlds..."
+                        placeholder="Search published universes…"
                         onChange={(event) => setWorldSearchText(event.target.value)}
                     />
 
@@ -292,21 +289,26 @@ export default function WorldLibraryClient() {
                         <option value="terrains">Terrains</option>
                         <option value="counters">Counters</option>
                         <option value="conditions">Conditions</option>
+                        <option value="cardDecks">Cards</option>
+                        <option value="diceSystem">Dice</option>
+                        <option value="timers">Timers</option>
+                        <option value="objectives">Objectives</option>
+                        <option value="fogOfWar">Fog</option>
                     </select>
                 </div>
 
                 {isLoadingPublicWorlds && (
                     <div className="empty-worlds-card">
-                        <h3>Loading published worlds...</h3>
+                        <h3>Loading universes…</h3>
                         <p>
-                            Checking the public library. The archive goblin is finding the right shelf.
+                            Fetching the public library. The archive goblin is finding the right shelf.
                         </p>
                     </div>
                 )}
 
                 {!isLoadingPublicWorlds && publicWorldsStatus && (
                     <div className="empty-worlds-card">
-                        <h3>Could not load published worlds</h3>
+                        <h3>Could not load universes</h3>
                         <p>{publicWorldsStatus}</p>
                     </div>
                 )}
@@ -315,9 +317,9 @@ export default function WorldLibraryClient() {
                     !publicWorldsStatus &&
                     publicWorlds.length === 0 && (
                         <div className="empty-worlds-card">
-                            <h3>No published worlds yet</h3>
+                            <h3>No published universes yet</h3>
                             <p>
-                                Publish a world from your account page, then it will appear here.
+                                Publish a universe from your Account page to list it here.
                                 The multiverse is currently quiet. Suspiciously quiet.
                             </p>
                         </div>
@@ -328,9 +330,9 @@ export default function WorldLibraryClient() {
                     publicWorlds.length > 0 &&
                     filteredPublicWorlds.length === 0 && (
                         <div className="empty-worlds-card">
-                            <h3>No matching published worlds</h3>
+                            <h3>No matching universes</h3>
                             <p>
-                                Try a different search or system filter.
+                                Try another search term or system filter.
                             </p>
                         </div>
                     )}
@@ -346,7 +348,10 @@ export default function WorldLibraryClient() {
                                 };
 
                                 const previewImages = getWorldPreviewImages(worldForHelpers);
-                                const publicStats = getPublicWorldCardStats(world);
+                                const publicStats = getPublicWorldCardStats({
+                                    ...world,
+                                    data: world.world_data
+                                });
 
                                 const isOwnedByCurrentUser = Boolean(
                                     currentUser?.id && world.owner_id === currentUser.id
@@ -355,6 +360,8 @@ export default function WorldLibraryClient() {
                                 const creatorDisplayName = isOwnedByCurrentUser
                                     ? "You"
                                     : creatorNamesById[world.owner_id] || "Unknown Creator";
+
+                                const latestPost = latestPostsByWorldId[world.id];
 
                                 return (
                                     <article
@@ -379,7 +386,7 @@ export default function WorldLibraryClient() {
 
                                             {isOwnedByCurrentUser && (
                                                 <span className="owned-world-badge">
-                                                    Your World
+                                                    Your Universe
                                                 </span>
                                             )}
 
@@ -397,16 +404,46 @@ export default function WorldLibraryClient() {
                                         </div>
 
                                         <div className="world-card-content">
+                                            <p
+                                                className={
+                                                    latestPost
+                                                        ? "world-card-last-update"
+                                                        : "world-card-last-update empty"
+                                                }
+                                            >
+                                                {latestPost
+                                                    ? `Last update · ${formatDate(latestPost.created_at)}${
+                                                          latestPost.body
+                                                              ? ` — ${latestPost.body.slice(0, 72)}${
+                                                                    latestPost.body.length > 72
+                                                                        ? "…"
+                                                                        : ""
+                                                                }`
+                                                              : ""
+                                                      }`
+                                                    : "No posts yet"}
+                                            </p>
+
                                             <div className="world-card-topline">
-                                                <span>{isOwnedByCurrentUser ? "Your World" : `By ${creatorDisplayName}`}</span>
+                                                <span>{isOwnedByCurrentUser ? "Your Universe" : `By ${creatorDisplayName}`}</span>
                                                 <span>{formatDate(world.updated_at)}</span>
                                             </div>
 
                                             <h3>{world.name}</h3>
 
+                                            <div className="world-card-action-row world-card-action-row-inline">
+                                                <Link
+                                                    className="world-play-link"
+                                                    href={`/worlds/${world.id}`}
+                                                    title={`Enter ${world.name}`}
+                                                >
+                                                    Enter Universe
+                                                </Link>
+                                            </div>
+
                                             <p>
                                                 {world.description ||
-                                                    "No description yet. This world is public, mysterious, and probably balanced by goblins."}
+                                                    "No description yet. This universe is public, mysterious, and probably balanced by goblins."}
                                             </p>
 
                                             <div className="world-card-stat-strip">
@@ -421,25 +458,6 @@ export default function WorldLibraryClient() {
                                                     </div>
                                                 ))}
                                             </div>
-
-                                            <div className="world-card-footer">
-                                                <div className="world-card-action-row">
-                                                    <Link
-                                                        className="world-play-link"
-                                                        href={`/worlds/${world.id}`}
-                                                        title={`Enter ${world.name}`}
-                                                    >
-                                                        Enter World
-                                                    </Link>
-
-                                                    <span
-                                                        className="world-card-coming-soon-pill"
-                                                        title="Later this will create or join a challenge from this world."
-                                                    >
-                                                        Challenge Soon
-                                                    </span>
-                                                </div>
-                                            </div>
                                         </div>
                                     </article>
                                 );
@@ -450,17 +468,17 @@ export default function WorldLibraryClient() {
 
             <section className="world-create-nudge">
                 <div>
-                    <p className="home-kicker">Create your own world</p>
+                    <p className="home-kicker">Create your own Universe</p>
 
                     <p>
-                        None of these worlds called to you? Tragic. Build your own world,
+                        None of these universes called to you? Tragic. Build your own Universe,
                         give it rules, create unique characters and abilities, and toggle
                         various modes of play. The multiverse is what you make of it.
                     </p>
                 </div>
 
                 <Link className="home-secondary-link" href="/creator">
-                    Create a World
+                    Create a Universe
                 </Link>
             </section>
         </div>

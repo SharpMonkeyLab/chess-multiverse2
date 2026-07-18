@@ -288,7 +288,7 @@ export default function CharacterEditor({
 
                 <button
                     type="button"
-                    className="character-gallery-add-card"
+                    className="creator-gallery-add-card"
                     onClick={addCharacter}
                     title="Add character"
                 >
@@ -453,7 +453,7 @@ export default function CharacterEditor({
                     <div>
                         <h3>Character Fields</h3>
                         <p className="small muted">
-                            These fields become the CSV columns for this world.
+                            These fields become the CSV columns for this universe.
                         </p>
                     </div>
                 </div>

@@ -77,15 +77,20 @@ export default function CharacterCard({
   onLockName,
   onUnlockName,
   onAssignCharacter,
-  onSelectToken
+  onSelectToken,
+  onToggleCharacterDisplayMode
 }) {
   const [pickerView, setPickerView] = useState("grid");
 
   if (!activePiece) {
     return (
       <section className="panel-box character-card-box">
-        <h2>Character Card</h2>
-        <p>Click a piece to edit/view a character.</p>
+        <div className="character-card-heading-row">
+          <h2>Character Card</h2>
+        </div>
+        <p className="character-card-empty-hint">
+          Select a piece from the tray to assign a character.
+        </p>
       </section>
     );
   }
@@ -113,9 +118,13 @@ export default function CharacterCard({
     (a.name || "").localeCompare(b.name || "")
   );
 
+  const showAbilityPanel = Boolean(pieceName);
+
   return (
-    <section className="panel-box character-card-box">
-      <h2>Character Card</h2>
+    <section className="panel-box character-card-box has-active-piece">
+      <div className="character-card-heading-row">
+        <h2>Character Card</h2>
+      </div>
 
       <div className="character-card-top">
         <div className={`character-card-symbol ${team}`}>
@@ -167,78 +176,76 @@ export default function CharacterCard({
         </div>
       </div>
 
-      <div className="character-card-ability">
-        {!pieceName ? (
-          <div className="ability-empty">
-            Type a character name and lock it to connect this piece to the Character Library.
-          </div>
-        ) : !matchedCharacter ? (
-          <div className="ability-missing">
-            <strong>No character found</strong>
-            <span>
-              Check that this name matches a character in the Character Library.
-            </span>
-          </div>
-        ) : (
-          <>
-            <div className="ability-name">
-              {getCharacterAbilityName(matchedCharacter)}
+      {showAbilityPanel && (
+        <div className="character-card-ability">
+          {!matchedCharacter ? (
+            <div className="ability-missing">
+              <strong>No character found</strong>
+              <span>
+                Pick one from the library below, or type an exact character name.
+              </span>
             </div>
-
-            <div className="ability-text">
-              {getCharacterDescription(matchedCharacter)}
-            </div>
-
-            {matchedCharacter.cost && (
-              <div className="ability-cost">
-                Cost: {matchedCharacter.cost}
+          ) : (
+            <>
+              <div className="ability-name">
+                {getCharacterAbilityName(matchedCharacter)}
               </div>
-            )}
 
-            {visibleCustomFields.length > 0 && (
-              <div className="character-meta-chip-row">
-                {visibleCustomFields.map((field) => (
-                  <span className="character-meta-chip" key={field.key}>
-                    <strong>{field.label}</strong>
-                    {field.value}
-                  </span>
-                ))}
+              <div className="ability-text">
+                {getCharacterDescription(matchedCharacter)}
               </div>
-            )}
 
-            {abilityTokens.length > 0 && (
-              <div className="ability-token-list">
-                <div className="ability-token-title">Ability Tokens</div>
+              {matchedCharacter.cost && (
+                <div className="ability-cost">
+                  Cost: {matchedCharacter.cost}
+                </div>
+              )}
 
-                {abilityTokens.map((tokenName) => (
-                  <button
-                    key={tokenName}
-                    type="button"
-                    className={
-                      selectedToken === tokenName
-                        ? "ability-token-btn active"
-                        : "ability-token-btn"
-                    }
-                    onClick={() => onSelectToken(tokenName)}
-                  >
-                    <span className="ability-token-symbol">
-                      {GENERIC_TOKEN_SYMBOL}
+              {visibleCustomFields.length > 0 && (
+                <div className="character-meta-chip-row">
+                  {visibleCustomFields.map((field) => (
+                    <span className="character-meta-chip" key={field.key}>
+                      <strong>{field.label}</strong>
+                      {field.value}
                     </span>
+                  ))}
+                </div>
+              )}
 
-                    <span>{humanizeTokenName(tokenName)}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </div>
+              {abilityTokens.length > 0 && (
+                <div className="ability-token-list">
+                  <div className="ability-token-title">Ability Tokens</div>
+
+                  {abilityTokens.map((tokenName) => (
+                    <button
+                      key={tokenName}
+                      type="button"
+                      className={
+                        selectedToken === tokenName
+                          ? "ability-token-btn active"
+                          : "ability-token-btn"
+                      }
+                      onClick={() => onSelectToken(tokenName)}
+                    >
+                      <span className="ability-token-symbol">
+                        {GENERIC_TOKEN_SYMBOL}
+                      </span>
+
+                      <span>{humanizeTokenName(tokenName)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {!isLocked && characterOptions.length > 0 && (
         <div className="character-picker">
           <div className="character-picker-header">
             <div className="character-picker-title">
-              Choose from Character Library
+              Character Library
             </div>
 
             <div className="character-picker-view-toggle">

@@ -11,3 +11,34 @@ export function createGenericPieceInstanceKey() {
 export function isGenericPieceKey(pieceKey) {
   return typeof pieceKey === "string" && pieceKey.startsWith(GENERIC_PIECE_KEY);
 }
+
+export function resolvePlacementPieceKey(selectedPiece) {
+  return selectedPiece === GENERIC_PIECE_KEY
+    ? createGenericPieceInstanceKey()
+    : selectedPiece;
+}
+
+export function registerGenericPieceInstance(
+  team,
+  placedPieceKey,
+  setPieceNames,
+  setPieceNameLocked
+) {
+  if (!team || !placedPieceKey) return;
+
+  setPieceNames((currentNames) => ({
+    ...currentNames,
+    [team]: {
+      ...(currentNames[team] || {}),
+      [placedPieceKey]: ""
+    }
+  }));
+
+  setPieceNameLocked((currentLocked) => ({
+    ...currentLocked,
+    [team]: {
+      ...(currentLocked[team] || {}),
+      [placedPieceKey]: false
+    }
+  }));
+}

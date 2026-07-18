@@ -22,7 +22,7 @@ export default function TokenEditor({
   return (
     <div className="token-editor">
       <p className="small muted">
-        Add general tokens available in this world. These can be placed from the token tray.
+        Add general tokens available in this universe. These can be placed from the token tray.
       </p>
 
       <label>Token Name</label>
@@ -38,7 +38,7 @@ export default function TokenEditor({
 
       <div className="token-editor-list">
         {tokenList.length === 0 ? (
-          <p className="small muted">No world tokens yet.</p>
+          <p className="small muted">No universe tokens yet.</p>
         ) : (
           tokenList.map((token) => (
             <div className="token-editor-item" key={token.name}>

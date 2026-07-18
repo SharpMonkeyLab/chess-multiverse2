@@ -103,59 +103,61 @@ export default function TerrainEditor({ terrains, onTerrainListChange }) {
         <div>
           <h3>Terrain Creator</h3>
           <p className="small muted">
-            Create the terrain types available in this world.
+            Create the terrain types available in this universe.
           </p>
         </div>
-
-        <button type="button" onClick={addTerrain}>
-          + Add Terrain
-        </button>
       </div>
 
       <div className="terrain-gallery">
-        {terrainList.length === 0 ? (
-          <p className="small muted">No terrains yet.</p>
-        ) : (
-          terrainList.map((terrain) => {
-            const isSelected = selectedTerrain?.key === terrain.key;
+        {terrainList.map((terrain) => {
+          const isSelected = selectedTerrain?.key === terrain.key;
 
-            return (
-              <div
-                key={terrain.key}
-                role="button"
-                tabIndex={0}
-                className={
-                  isSelected
-                    ? "terrain-gallery-card active"
-                    : "terrain-gallery-card"
+          return (
+            <div
+              key={terrain.key}
+              role="button"
+              tabIndex={0}
+              className={
+                isSelected
+                  ? "terrain-gallery-card active"
+                  : "terrain-gallery-card"
+              }
+              title={getTerrainTitle(terrain)}
+              style={getTerrainPreviewStyle(terrain)}
+              onClick={() => setSelectedTerrainKey(terrain.key)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setSelectedTerrainKey(terrain.key);
                 }
-                title={getTerrainTitle(terrain)}
-                style={getTerrainPreviewStyle(terrain)}
-                onClick={() => setSelectedTerrainKey(terrain.key)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    setSelectedTerrainKey(terrain.key);
-                  }
+              }}
+            >
+              <span className="terrain-gallery-preview" />
+
+              <button
+                type="button"
+                className="terrain-gallery-delete"
+                title={`Delete ${terrain.label || "terrain"}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  deleteTerrain(terrain.key);
                 }}
               >
-                <span className="terrain-gallery-preview" />
+                ×
+              </button>
+            </div>
+          );
+        })}
 
-                <button
-                  type="button"
-                  className="terrain-gallery-delete"
-                  title={`Delete ${terrain.label || "terrain"}`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    deleteTerrain(terrain.key);
-                  }}
-                >
-                  ×
-                </button>
-              </div>
-            );
-          })
-        )}
+        <button
+          type="button"
+          className="creator-gallery-add-card"
+          onClick={addTerrain}
+          title="Add terrain"
+        >
+          <span>＋</span>
+          <strong>Add</strong>
+        </button>
       </div>
 
       {selectedTerrain && (
