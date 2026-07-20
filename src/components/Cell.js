@@ -8,6 +8,7 @@ import {
   humanizeTokenName
 } from "@/lib/defaultWorld";
 import { getCharacterByName } from "@/lib/csv";
+import { resolveCharacterPortrait } from "@/lib/portraitAssets";
 import {
   GENERIC_PIECE_SYMBOL,
   isGenericPieceKey
@@ -20,6 +21,7 @@ export default function Cell({
   isSelected,
   pieceNames,
   characterLibrary,
+  portraitAssets = {},
   worldTheme,
   worldMechanics,
   hasBoardSkin,
@@ -98,6 +100,11 @@ export default function Cell({
     assignedCharacterName
   );
 
+  const assignedPortraitSrc = resolveCharacterPortrait(
+    assignedCharacter,
+    portraitAssets
+  );
+
   const tokenName = cellData.tokens?.[0] || "";
 
   return (
@@ -120,18 +127,18 @@ export default function Cell({
       {!hideOccupants && pieceSymbol && (
         <div
           className={`cell-piece ${cellData.team} ${isGenericPiece ? "generic-piece" : ""
-            } ${assignedCharacter?.portrait
+            } ${assignedPortraitSrc
               ? `has-character ${characterDisplayMode}`
               : ""
             }`}
         >
-          {assignedCharacter?.portrait &&
+          {assignedPortraitSrc &&
             characterDisplayMode === "portrait-with-piece" ? (
             <div className="board-character-main">
               <div className="board-character-main-portrait-frame">
                 <img
                   className="board-character-main-portrait"
-                  src={assignedCharacter.portrait}
+                  src={assignedPortraitSrc}
                   alt={assignedCharacter.name}
                 />
               </div>
@@ -159,11 +166,11 @@ export default function Cell({
                 <span className="board-piece-symbol">{pieceSymbol}</span>
               )}
 
-              {assignedCharacter?.portrait && (
+              {assignedPortraitSrc && (
                 <div className="board-character-badge">
                   <img
                     className="board-character-badge-image"
-                    src={assignedCharacter.portrait}
+                    src={assignedPortraitSrc}
                     alt={assignedCharacter.name}
                   />
                 </div>

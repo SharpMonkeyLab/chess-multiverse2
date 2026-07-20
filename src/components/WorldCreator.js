@@ -42,9 +42,13 @@ import {
 } from "@/lib/saveLoad";
 
 import { isImageDataUrl, uploadDataUrlAsset } from "@/lib/assetStorage";
+import { getAssetNameFromPortraitFilename } from "@/lib/portraitAssets";
 import { hasSupabaseConfig, supabase } from "@/lib/supabaseClient";
 import { getWorldComplexity, normalizeWorldComplexity, normalizeWorldTheme } from "@/lib/worldData";
-import { getDisplayWorldName } from "@/lib/stageLayoutConfig";
+import {
+  getDisplayWorldName,
+  UNNAMED_WORLD_LABEL
+} from "@/lib/stageLayoutConfig";
 import { uploadWorldAssets } from "@/lib/worldAssetStorage";
 import {
   GENERIC_PIECE_KEY,
@@ -91,7 +95,7 @@ export default function WorldCreator() {
   const [worldFeatures, setWorldFeatures] = useState(DEFAULT_WORLD_FEATURES);
 
   const [worldDetails, setWorldDetails] = useState({
-    name: "Elemental Chess",
+    name: UNNAMED_WORLD_LABEL,
     description: "",
     rulesNotes: "",
     complexity: "Basic"
@@ -122,6 +126,7 @@ export default function WorldCreator() {
   const [characterFields, setCharacterFields] = useState(() =>
     createDefaultCharacterFields()
   );
+  const [portraitAssets, setPortraitAssets] = useState({});
 
   const [characterUploadStatus, setCharacterUploadStatus] = useState(
     "No character spreadsheet uploaded."
@@ -189,6 +194,7 @@ export default function WorldCreator() {
       worldFeatures: normalizeWorldFeatures(worldFeatures),
       characterLibrary,
       characterFields,
+      portraitAssets,
       worldTokens
     };
   }
@@ -328,6 +334,45 @@ export default function WorldCreator() {
     }
 
     return Object.fromEntries(nextCharacterEntries);
+  }
+
+  async function uploadPortraitAssetsForOnlineSave({
+    portraitAssets: assets,
+    userId,
+    worldId
+  }) {
+    if (!assets || typeof assets !== "object") {
+      return assets || {};
+    }
+
+    const nextAssets = { ...assets };
+    let uploadedAssetCount = 0;
+
+    for (const [filename, assetValue] of Object.entries(assets)) {
+      if (!isImageDataUrl(assetValue)) {
+        continue;
+      }
+
+      uploadedAssetCount += 1;
+
+      setOnlineSaveStatus(
+        `Uploading portrait library image ${uploadedAssetCount}...`
+      );
+
+      const assetUpload = await uploadDataUrlAsset({
+        userId,
+        worldId,
+        assetType: "character-portraits",
+        assetName: getAssetNameFromPortraitFilename(filename),
+        dataUrl: assetValue
+      });
+
+      if (assetUpload.publicUrl) {
+        nextAssets[filename] = assetUpload.publicUrl;
+      }
+    }
+
+    return nextAssets;
   }
 
   async function uploadTerrainImagesForOnlineSave({
@@ -520,6 +565,13 @@ export default function WorldCreator() {
         worldId
       });
 
+    nextWorldData.portraitAssets =
+      await uploadPortraitAssetsForOnlineSave({
+        portraitAssets: nextWorldData.portraitAssets,
+        userId,
+        worldId
+      });
+
     nextWorldData.worldMechanics =
       await uploadTerrainImagesForOnlineSave({
         worldMechanics: nextWorldData.worldMechanics,
@@ -579,6 +631,11 @@ export default function WorldCreator() {
       Array.isArray(worldData.characterFields)
         ? worldData.characterFields
         : createDefaultCharacterFields()
+    );
+    setPortraitAssets(
+      worldData.portraitAssets && typeof worldData.portraitAssets === "object"
+        ? { ...worldData.portraitAssets }
+        : {}
     );
     setWorldTokens(worldData.worldTokens || {});
 
@@ -1195,9 +1252,35 @@ export default function WorldCreator() {
     setSavedTestGames(getLocalItemList("test-games"));
   }
 
+  function getUniverseSaveBlocker(details = worldDetails) {
+    const description = String(details?.description || "").trim();
+    const rulesNotes = String(details?.rulesNotes || "").trim();
+
+    if (!description && !rulesNotes) {
+      return "Add a description and rules summary before saving this universe.";
+    }
+
+    if (!description) {
+      return "Add a description before saving this universe.";
+    }
+
+    if (!rulesNotes) {
+      return "Add a rules summary before saving this universe.";
+    }
+
+    return "";
+  }
+
   function handleSaveWorld() {
     if (isSavingLocal || isSavingOnline) {
       setSaveStatus("Please wait for the current save to finish.");
+      return;
+    }
+
+    const saveBlocker = getUniverseSaveBlocker();
+
+    if (saveBlocker) {
+      setSaveStatus(saveBlocker);
       return;
     }
 
@@ -1230,6 +1313,17 @@ export default function WorldCreator() {
 
     if (isSavingOnline || isSavingLocal) {
       setOnlineSaveStatus("Please wait for the current save to finish.");
+      return;
+    }
+
+    const nextDetails = detailsOverride
+      ? { ...worldDetails, ...detailsOverride }
+      : worldDetails;
+
+    const saveBlocker = getUniverseSaveBlocker(nextDetails);
+
+    if (saveBlocker) {
+      setOnlineSaveStatus(saveBlocker);
       return;
     }
 
@@ -2030,10 +2124,11 @@ export default function WorldCreator() {
 
               characterLibrary={characterLibrary}
               characterFields={characterFields}
+              portraitAssets={portraitAssets}
               onCharacterLibraryChange={setCharacterLibrary}
               onCharacterFieldsChange={setCharacterFields}
+              onPortraitAssetsChange={setPortraitAssets}
               characterUploadStatus={characterUploadStatus}
-              worldTokens={worldTokens}
 
               selectedCounterKey={selectedCounterKey}
               selectedCounterDelta={selectedCounterDelta}
@@ -2055,8 +2150,6 @@ export default function WorldCreator() {
               onCharacterCsvUpload={handleCharacterCsvUpload}
               onCharacterCsvExport={handleExportCharacterCsv}
               onSaveCharacter={handleSaveCharacter}
-              onAddWorldToken={handleAddWorldToken}
-              onDeleteWorldToken={handleDeleteWorldToken}
 
               onSelectCounterDelta={handleSelectCounterDelta}
               onSelectSetCounter={handleSelectSetCounter}
@@ -2075,6 +2168,7 @@ export default function WorldCreator() {
               movingPiece={movingPiece}
               pieceNames={pieceNames}
               characterLibrary={characterLibrary}
+              portraitAssets={portraitAssets}
               worldTheme={worldTheme}
               worldMechanics={worldMechanics}
               worldFeatures={worldFeatures}
@@ -2095,7 +2189,7 @@ export default function WorldCreator() {
               worldFeatures={worldFeatures}
               worldTheme={worldTheme}
               characterLibrary={characterLibrary}
-              worldTokens={worldTokens}
+              portraitAssets={portraitAssets}
               selectedTeam={selectedTeam}
               selectedPiece={selectedPiece}
               selectedToken={selectedToken}

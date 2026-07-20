@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 import {
     createDefaultCard,
     createDefaultDie,
@@ -15,9 +17,80 @@ function Field({ label, children }) {
     );
 }
 
+function ItemStrip({ items, selectedKey, onSelect, onAdd, onRemove, getLabel, addLabel }) {
+    return (
+        <div className="advanced-system-strip">
+            {items.map((item) => {
+                const label = getLabel(item) || "?";
+                const isSelected = item.key === selectedKey;
+
+                return (
+                    <div
+                        key={item.key}
+                        role="button"
+                        tabIndex={0}
+                        className={
+                            isSelected
+                                ? "advanced-system-chip active"
+                                : "advanced-system-chip"
+                        }
+                        title={label}
+                        onClick={() => onSelect(item.key)}
+                        onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                onSelect(item.key);
+                            }
+                        }}
+                    >
+                        <span className="advanced-system-chip-letter">
+                            {String(label).charAt(0).toUpperCase()}
+                        </span>
+                        <span className="advanced-system-chip-name">{label}</span>
+                        <button
+                            type="button"
+                            className="advanced-system-chip-delete"
+                            title={`Remove ${label}`}
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                onRemove(item.key);
+                            }}
+                        >
+                            ×
+                        </button>
+                    </div>
+                );
+            })}
+
+            <button
+                type="button"
+                className="advanced-system-chip advanced-system-chip-add"
+                onClick={onAdd}
+            >
+                <span>+</span>
+                <strong>{addLabel}</strong>
+            </button>
+        </div>
+    );
+}
+
 export function DeckSystemEditor({ cardDecks, onChange }) {
     const config = cardDecks || { cards: [] };
     const cards = Array.isArray(config.cards) ? config.cards : [];
+    const [selectedKey, setSelectedKey] = useState(cards[0]?.key || "");
+
+    useEffect(() => {
+        if (!cards.length) {
+            setSelectedKey("");
+            return;
+        }
+
+        if (!cards.some((card) => card.key === selectedKey)) {
+            setSelectedKey(cards[0].key);
+        }
+    }, [cards, selectedKey]);
+
+    const selectedCard = cards.find((card) => card.key === selectedKey) || null;
 
     function updateConfig(patch) {
         onChange({ ...config, ...patch });
@@ -32,20 +105,21 @@ export function DeckSystemEditor({ cardDecks, onChange }) {
     }
 
     function addCard() {
-        updateConfig({ cards: [...cards, createDefaultCard()] });
+        const next = createDefaultCard();
+        updateConfig({ cards: [...cards, next] });
+        setSelectedKey(next.key);
     }
 
     function removeCard(cardKey) {
-        updateConfig({ cards: cards.filter((card) => card.key !== cardKey) });
+        const nextCards = cards.filter((card) => card.key !== cardKey);
+        updateConfig({ cards: nextCards });
+        if (selectedKey === cardKey) {
+            setSelectedKey(nextCards[0]?.key || "");
+        }
     }
 
     return (
         <div className="advanced-system-editor">
-            <p className="small muted">
-                Define this universe&apos;s card set. Players build decks from these cards,
-                then draw and play them to change the board.
-            </p>
-
             <div className="advanced-system-grid">
                 <Field label="Deck size">
                     <input
@@ -82,51 +156,59 @@ export function DeckSystemEditor({ cardDecks, onChange }) {
                         updateConfig({ allowPlayerDeckBuilding: event.target.checked })
                     }
                 />
-                Allow players to build decks from this set
+                Players can build decks
             </label>
 
-            <div className="creator-header-row">
-                <h3>Universe Cards</h3>
-                <button type="button" onClick={addCard}>
-                    + Add Card
-                </button>
-            </div>
+            <ItemStrip
+                items={cards}
+                selectedKey={selectedKey}
+                onSelect={setSelectedKey}
+                onAdd={addCard}
+                onRemove={removeCard}
+                getLabel={(card) => card.name || "Card"}
+                addLabel="Add"
+            />
 
-            {cards.length === 0 ? (
-                <p className="small muted">No cards yet.</p>
-            ) : (
-                <div className="advanced-system-list">
-                    {cards.map((card) => (
-                        <div className="advanced-system-item" key={card.key}>
-                            <input
-                                value={card.name || ""}
-                                placeholder="Card name"
-                                onChange={(event) =>
-                                    updateCard(card.key, "name", event.target.value)
-                                }
-                            />
-                            <textarea
-                                value={card.description || ""}
-                                placeholder="Description"
-                                rows={2}
-                                onChange={(event) =>
-                                    updateCard(card.key, "description", event.target.value)
-                                }
-                            />
-                            <textarea
-                                value={card.effectHint || ""}
-                                placeholder="Board effect hint"
-                                rows={2}
-                                onChange={(event) =>
-                                    updateCard(card.key, "effectHint", event.target.value)
-                                }
-                            />
-                            <button type="button" onClick={() => removeCard(card.key)}>
-                                Remove
-                            </button>
-                        </div>
-                    ))}
+            {selectedCard ? (
+                <div className="advanced-system-detail">
+                    <Field label="Name">
+                        <input
+                            value={selectedCard.name || ""}
+                            placeholder="Card name"
+                            onChange={(event) =>
+                                updateCard(selectedCard.key, "name", event.target.value)
+                            }
+                        />
+                    </Field>
+                    <Field label="Description">
+                        <input
+                            value={selectedCard.description || ""}
+                            placeholder="What this card does"
+                            onChange={(event) =>
+                                updateCard(
+                                    selectedCard.key,
+                                    "description",
+                                    event.target.value
+                                )
+                            }
+                        />
+                    </Field>
+                    <Field label="Board effect">
+                        <input
+                            value={selectedCard.effectHint || ""}
+                            placeholder="Effect hint"
+                            onChange={(event) =>
+                                updateCard(
+                                    selectedCard.key,
+                                    "effectHint",
+                                    event.target.value
+                                )
+                            }
+                        />
+                    </Field>
                 </div>
+            ) : (
+                <p className="small muted">No cards yet. Add one to start.</p>
             )}
         </div>
     );
@@ -135,6 +217,20 @@ export function DeckSystemEditor({ cardDecks, onChange }) {
 export function DiceSystemEditor({ diceSystem, onChange }) {
     const config = diceSystem || { dice: [] };
     const dice = Array.isArray(config.dice) ? config.dice : [];
+    const [selectedKey, setSelectedKey] = useState(dice[0]?.key || "");
+
+    useEffect(() => {
+        if (!dice.length) {
+            setSelectedKey("");
+            return;
+        }
+
+        if (!dice.some((die) => die.key === selectedKey)) {
+            setSelectedKey(dice[0].key);
+        }
+    }, [dice, selectedKey]);
+
+    const selectedDie = dice.find((die) => die.key === selectedKey) || null;
 
     function updateConfig(patch) {
         onChange({ ...config, ...patch });
@@ -148,13 +244,22 @@ export function DiceSystemEditor({ diceSystem, onChange }) {
         });
     }
 
+    function addDie() {
+        const next = createDefaultDie();
+        updateConfig({ dice: [...dice, next] });
+        setSelectedKey(next.key);
+    }
+
+    function removeDie(dieKey) {
+        const nextDice = dice.filter((die) => die.key !== dieKey);
+        updateConfig({ dice: nextDice });
+        if (selectedKey === dieKey) {
+            setSelectedKey(nextDice[0]?.key || "");
+        }
+    }
+
     return (
         <div className="advanced-system-editor">
-            <p className="small muted">
-                Choose dice for this universe. Fixed mode locks creator settings;
-                player-editable lets players adjust at game setup.
-            </p>
-
             <div className="advanced-system-grid">
                 <Field label="Control mode">
                     <select
@@ -162,7 +267,7 @@ export function DiceSystemEditor({ diceSystem, onChange }) {
                         onChange={(event) => updateConfig({ mode: event.target.value })}
                     >
                         <option value="fixed">Fixed by creator</option>
-                        <option value="player_editable">Players can edit at setup</option>
+                        <option value="player_editable">Players can edit</option>
                     </select>
                 </Field>
 
@@ -178,69 +283,61 @@ export function DiceSystemEditor({ diceSystem, onChange }) {
                 </label>
             </div>
 
-            <div className="creator-header-row">
-                <h3>Dice</h3>
-                <button
-                    type="button"
-                    onClick={() => updateConfig({ dice: [...dice, createDefaultDie()] })}
-                >
-                    + Add Die
-                </button>
-            </div>
+            <ItemStrip
+                items={dice}
+                selectedKey={selectedKey}
+                onSelect={setSelectedKey}
+                onAdd={addDie}
+                onRemove={removeDie}
+                getLabel={(die) => die.label || "Die"}
+                addLabel="Add"
+            />
 
-            <div className="advanced-system-list">
-                {dice.map((die) => (
-                    <div className="advanced-system-item dice-item" key={die.key}>
+            {selectedDie ? (
+                <div className="advanced-system-detail advanced-system-detail-inline">
+                    <Field label="Label">
                         <input
-                            value={die.label || ""}
+                            value={selectedDie.label || ""}
                             placeholder="Label"
                             onChange={(event) =>
-                                updateDie(die.key, "label", event.target.value)
+                                updateDie(selectedDie.key, "label", event.target.value)
                             }
                         />
-                        <Field label="Sides">
-                            <input
-                                type="number"
-                                min="2"
-                                max="100"
-                                value={die.sides ?? 6}
-                                onChange={(event) =>
-                                    updateDie(
-                                        die.key,
-                                        "sides",
-                                        Number(event.target.value) || 6
-                                    )
-                                }
-                            />
-                        </Field>
-                        <Field label="Count">
-                            <input
-                                type="number"
-                                min="1"
-                                max="12"
-                                value={die.count ?? 1}
-                                onChange={(event) =>
-                                    updateDie(
-                                        die.key,
-                                        "count",
-                                        Number(event.target.value) || 1
-                                    )
-                                }
-                            />
-                        </Field>
-                        <button
-                            type="button"
-                            onClick={() =>
-                                updateConfig({
-                                    dice: dice.filter((item) => item.key !== die.key)
-                                })
+                    </Field>
+                    <Field label="Sides">
+                        <input
+                            type="number"
+                            min="2"
+                            max="100"
+                            value={selectedDie.sides ?? 6}
+                            onChange={(event) =>
+                                updateDie(
+                                    selectedDie.key,
+                                    "sides",
+                                    Number(event.target.value) || 6
+                                )
                             }
-                        >
-                            Remove
-                        </button>
-                    </div>
-                ))}
-            </div>
+                        />
+                    </Field>
+                    <Field label="Count">
+                        <input
+                            type="number"
+                            min="1"
+                            max="12"
+                            value={selectedDie.count ?? 1}
+                            onChange={(event) =>
+                                updateDie(
+                                    selectedDie.key,
+                                    "count",
+                                    Number(event.target.value) || 1
+                                )
+                            }
+                        />
+                    </Field>
+                </div>
+            ) : (
+                <p className="small muted">No dice yet. Add one to start.</p>
+            )}
         </div>
     );
 }
@@ -254,11 +351,6 @@ export function TimerSystemEditor({ timers, onChange }) {
 
     return (
         <div className="advanced-system-editor">
-            <p className="small muted">
-                Timers can track each turn or a total clock per side. Players may
-                edit amounts only if you allow it.
-            </p>
-
             <div className="advanced-system-grid">
                 <Field label="Timer mode">
                     <select
@@ -291,7 +383,7 @@ export function TimerSystemEditor({ timers, onChange }) {
                         updateConfig({ allowPlayerEdit: event.target.checked })
                     }
                 />
-                Allow players to edit timer values at setup
+                Players can edit timer at setup
             </label>
         </div>
     );
@@ -300,6 +392,20 @@ export function TimerSystemEditor({ timers, onChange }) {
 export function ObjectivesEditor({ objectives, onChange }) {
     const config = objectives || { items: [] };
     const items = Array.isArray(config.items) ? config.items : [];
+    const [selectedKey, setSelectedKey] = useState(items[0]?.key || "");
+
+    useEffect(() => {
+        if (!items.length) {
+            setSelectedKey("");
+            return;
+        }
+
+        if (!items.some((item) => item.key === selectedKey)) {
+            setSelectedKey(items[0].key);
+        }
+    }, [items, selectedKey]);
+
+    const selectedItem = items.find((item) => item.key === selectedKey) || null;
 
     function updateConfig(patch) {
         onChange({ ...config, ...patch });
@@ -313,13 +419,22 @@ export function ObjectivesEditor({ objectives, onChange }) {
         });
     }
 
+    function addItem() {
+        const next = createDefaultObjective();
+        updateConfig({ items: [...items, next] });
+        setSelectedKey(next.key);
+    }
+
+    function removeItem(itemKey) {
+        const nextItems = items.filter((item) => item.key !== itemKey);
+        updateConfig({ items: nextItems });
+        if (selectedKey === itemKey) {
+            setSelectedKey(nextItems[0]?.key || "");
+        }
+    }
+
     return (
         <div className="advanced-system-editor">
-            <p className="small muted">
-                Create missions for this universe. Players pick from the list or get a
-                random selection when the game starts.
-            </p>
-
             <Field label="Selection mode">
                 <select
                     value={config.selectionMode || "player_choice"}
@@ -328,66 +443,61 @@ export function ObjectivesEditor({ objectives, onChange }) {
                     }
                 >
                     <option value="player_choice">Players choose</option>
-                    <option value="random">Randomize for players</option>
-                    <option value="all">Use all objectives</option>
+                    <option value="random">Randomize</option>
+                    <option value="all">Use all</option>
                 </select>
             </Field>
 
-            <div className="creator-header-row">
-                <h3>Objectives</h3>
-                <button
-                    type="button"
-                    onClick={() =>
-                        updateConfig({ items: [...items, createDefaultObjective()] })
-                    }
-                >
-                    + Add Objective
-                </button>
-            </div>
+            <ItemStrip
+                items={items}
+                selectedKey={selectedKey}
+                onSelect={setSelectedKey}
+                onAdd={addItem}
+                onRemove={removeItem}
+                getLabel={(item) => item.title || "Objective"}
+                addLabel="Add"
+            />
 
-            {items.length === 0 ? (
-                <p className="small muted">No objectives yet.</p>
-            ) : (
-                <div className="advanced-system-list">
-                    {items.map((item) => (
-                        <div className="advanced-system-item" key={item.key}>
-                            <input
-                                value={item.title || ""}
-                                placeholder="Objective title"
-                                onChange={(event) =>
-                                    updateItem(item.key, "title", event.target.value)
-                                }
-                            />
-                            <textarea
-                                value={item.description || ""}
-                                placeholder="Description"
-                                rows={2}
-                                onChange={(event) =>
-                                    updateItem(item.key, "description", event.target.value)
-                                }
-                            />
-                            <input
-                                value={item.victoryHint || ""}
-                                placeholder="Victory hint"
-                                onChange={(event) =>
-                                    updateItem(item.key, "victoryHint", event.target.value)
-                                }
-                            />
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    updateConfig({
-                                        items: items.filter(
-                                            (entry) => entry.key !== item.key
-                                        )
-                                    })
-                                }
-                            >
-                                Remove
-                            </button>
-                        </div>
-                    ))}
+            {selectedItem ? (
+                <div className="advanced-system-detail">
+                    <Field label="Title">
+                        <input
+                            value={selectedItem.title || ""}
+                            placeholder="Objective title"
+                            onChange={(event) =>
+                                updateItem(selectedItem.key, "title", event.target.value)
+                            }
+                        />
+                    </Field>
+                    <Field label="Description">
+                        <input
+                            value={selectedItem.description || ""}
+                            placeholder="Description"
+                            onChange={(event) =>
+                                updateItem(
+                                    selectedItem.key,
+                                    "description",
+                                    event.target.value
+                                )
+                            }
+                        />
+                    </Field>
+                    <Field label="Victory hint">
+                        <input
+                            value={selectedItem.victoryHint || ""}
+                            placeholder="Victory hint"
+                            onChange={(event) =>
+                                updateItem(
+                                    selectedItem.key,
+                                    "victoryHint",
+                                    event.target.value
+                                )
+                            }
+                        />
+                    </Field>
                 </div>
+            ) : (
+                <p className="small muted">No objectives yet. Add one to start.</p>
             )}
         </div>
     );
@@ -402,11 +512,6 @@ export function FogOfWarEditor({ fogOfWar, onChange }) {
 
     return (
         <div className="advanced-system-editor">
-            <p className="small muted">
-                Fog hides enemy pieces on fogged cells from the opponent. Use Paint Fog
-                / Clear Fog tools on the board to set default fog zones.
-            </p>
-
             <label className="advanced-system-check">
                 <input
                     type="checkbox"
@@ -426,7 +531,7 @@ export function FogOfWarEditor({ fogOfWar, onChange }) {
                         updateConfig({ allowPlayerEdit: event.target.checked })
                     }
                 />
-                Allow players to edit fog setup before the match
+                Players can edit fog before the match
             </label>
         </div>
     );

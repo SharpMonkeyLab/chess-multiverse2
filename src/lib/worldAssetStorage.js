@@ -100,6 +100,8 @@ export function countWorldDataImageAssets(worldData) {
     countIfDataUrl(character?.portrait);
   });
 
+  Object.values(worldData?.portraitAssets || {}).forEach(countIfDataUrl);
+
   const terrains = worldData?.worldMechanics?.terrains || [];
 
   terrains.forEach((terrain) => {

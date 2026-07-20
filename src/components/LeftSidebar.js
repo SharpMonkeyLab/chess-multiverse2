@@ -74,6 +74,15 @@ function getCounterActionLabel(counter, actionType) {
   return counter.increaseLabel || `+${amount}`;
 }
 
+function filterPlayLoadoutItems(items, allowedKeys, matchLoadout) {
+  if (!matchLoadout || !Array.isArray(allowedKeys)) {
+    return items;
+  }
+
+  const allowed = new Set(allowedKeys);
+  return (items || []).filter((item) => item?.key && allowed.has(item.key));
+}
+
 export default function LeftSidebar({
   isPlayMode = false,
 
@@ -81,6 +90,7 @@ export default function LeftSidebar({
   worldTheme,
   worldFeatures,
   worldMechanics,
+  matchLoadout = null,
 
   onClearSelections,
 
@@ -101,10 +111,11 @@ export default function LeftSidebar({
 
   characterLibrary,
   characterFields,
+  portraitAssets = {},
   onCharacterLibraryChange,
   onCharacterFieldsChange,
+  onPortraitAssetsChange,
   characterUploadStatus,
-  worldTokens,
 
   selectedCounterDelta,
   selectedCounterAction,
@@ -127,8 +138,6 @@ export default function LeftSidebar({
   onCharacterCsvUpload,
   onCharacterCsvExport,
   onSaveCharacter,
-  onAddWorldToken,
-  onDeleteWorldToken,
 
   onSelectCounterDelta,
   onSelectSetCounter,
@@ -144,6 +153,27 @@ export default function LeftSidebar({
 
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const counterList = getCounterListFromMechanics(worldMechanics);
+  const playTerrains = isPlayMode
+    ? filterPlayLoadoutItems(
+        worldMechanics.terrains,
+        matchLoadout?.terrainKeys,
+        matchLoadout
+      )
+    : worldMechanics.terrains;
+  const playCounters = isPlayMode
+    ? filterPlayLoadoutItems(
+        counterList,
+        matchLoadout?.counterKeys,
+        matchLoadout
+      )
+    : counterList;
+  const playConditions = isPlayMode
+    ? filterPlayLoadoutItems(
+        worldMechanics.conditions,
+        matchLoadout?.conditionKeys,
+        matchLoadout
+      )
+    : worldMechanics.conditions;
 
   return (
     <aside
@@ -201,12 +231,12 @@ export default function LeftSidebar({
       <section className="sidebar-major-section">
         <div className="sidebar-major-content">
 
-          {worldFeatures.terrains && (
+          {worldFeatures.terrains && playTerrains.length > 0 && (
             <section className="panel-box">
               <h2>Terrains</h2>
 
               <div className="compact-palette">
-                {worldMechanics.terrains.map((terrain) => (
+                {playTerrains.map((terrain) => (
                   <button
                     key={terrain.key}
                     className={
@@ -312,12 +342,12 @@ export default function LeftSidebar({
             </section>
           )}
 
-          {worldFeatures.counters && (
+          {worldFeatures.counters && playCounters.length > 0 && (
             <section className="panel-box tool-panel-box counter-tool-panel">
               <h2>Counters</h2>
 
               <div className="counter-tool-list">
-                {counterList.map((counter) => {
+                {playCounters.map((counter) => {
                   const decreaseAmount = getCounterActionAmount(counter, "decrease");
                   const increaseAmount = getCounterActionAmount(counter, "increase");
 
@@ -412,7 +442,7 @@ export default function LeftSidebar({
                 })}
               </div>
 
-              {counterList.some((counter) => counter.allowSetCounter) && (
+              {playCounters.some((counter) => counter.allowSetCounter) && (
                 <div className="counter-set-row">
                   <input
                     type="number"
@@ -425,12 +455,12 @@ export default function LeftSidebar({
             </section>
           )}
 
-          {worldFeatures.conditions && (
+          {worldFeatures.conditions && playConditions.length > 0 && (
             <section className="panel-box">
               <h2>Conditions</h2>
 
               <div className="compact-palette">
-                {worldMechanics.conditions.map((condition) => (
+                {playConditions.map((condition) => (
                   <button
                     key={condition.key}
                     className={
@@ -515,9 +545,11 @@ export default function LeftSidebar({
                 <CharacterEditor
                   characterLibrary={characterLibrary}
                   characterFields={characterFields}
+                  portraitAssets={portraitAssets}
                   characterUploadStatus={characterUploadStatus}
                   onCharacterLibraryChange={onCharacterLibraryChange}
                   onCharacterFieldsChange={onCharacterFieldsChange}
+                  onPortraitAssetsChange={onPortraitAssetsChange}
                   onCharacterCsvUpload={onCharacterCsvUpload}
                   onCharacterCsvExport={onCharacterCsvExport}
                   onSaveCharacter={onSaveCharacter}

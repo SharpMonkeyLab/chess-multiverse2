@@ -19,11 +19,14 @@ import {
     getEnabledFeatureLabels,
     getTerrainList,
     getWorldCreatorStats,
+    getWorldData,
     getWorldDescription,
     getWorldDetails,
     getWorldPreviewImages,
     getWorldRulesPreview
 } from "@/lib/worldData";
+
+import { resolveCharacterPortrait } from "@/lib/portraitAssets";
 
 import MatchmakingReadyButton from "@/components/MatchmakingReadyButton";
 import WorldPostsSection from "@/components/WorldPostsSection";
@@ -205,11 +208,16 @@ export default function WorldDetailsClient({ worldId }) {
     const worldStats = getWorldCreatorStats(world);
 
     const characters = getCharacterList(world);
+    const portraitAssets = getWorldData(world)?.portraitAssets || {};
     const terrains = getTerrainList(world);
     const counters = getCounterList(world);
     const conditions = getConditionList(world);
 
     const selectedCharacter = characters[selectedCharacterIndex] || characters[0];
+    const selectedCharacterPortrait = resolveCharacterPortrait(
+        selectedCharacter,
+        portraitAssets
+    );
     const selectedTerrain = terrains[selectedTerrainIndex] || terrains[0];
     const selectedCounter = counters[selectedCounterIndex] || counters[0];
     const selectedCondition = conditions[selectedConditionIndex] || conditions[0];
@@ -364,9 +372,9 @@ export default function WorldDetailsClient({ worldId }) {
                             {selectedCharacter && (
                                 <div className="world-entity-detail-card character-detail-card">
                                     <div className="world-entity-detail-image">
-                                        {selectedCharacter.portrait ? (
+                                        {selectedCharacterPortrait ? (
                                             <img
-                                                src={selectedCharacter.portrait}
+                                                src={selectedCharacterPortrait}
                                                 alt={selectedCharacter.name}
                                             />
                                         ) : (
@@ -431,7 +439,13 @@ export default function WorldDetailsClient({ worldId }) {
                             )}
 
                             <div className="world-details-mini-grid world-character-scroll-grid">
-                                {characters.map((character, characterIndex) => (
+                                {characters.map((character, characterIndex) => {
+                                    const portraitSrc = resolveCharacterPortrait(
+                                        character,
+                                        portraitAssets
+                                    );
+
+                                    return (
                                     <button
                                         type="button"
                                         className={
@@ -443,13 +457,14 @@ export default function WorldDetailsClient({ worldId }) {
                                         title={character.name}
                                         onClick={() => setSelectedCharacterIndex(characterIndex)}
                                     >
-                                        {character.portrait ? (
-                                            <img src={character.portrait} alt={character.name} />
+                                        {portraitSrc ? (
+                                            <img src={portraitSrc} alt={character.name} />
                                         ) : (
                                             <span>{(character.name || "?").slice(0, 1)}</span>
                                         )}
                                     </button>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     )}

@@ -7,6 +7,7 @@ export default function Board({
   movingPiece,
   pieceNames,
   characterLibrary,
+  portraitAssets = {},
   worldTheme,
   worldMechanics,
   fogCells = [],
@@ -52,6 +53,7 @@ export default function Board({
               isSelected={isSelected}
               pieceNames={pieceNames}
               characterLibrary={characterLibrary}
+              portraitAssets={portraitAssets}
               worldMechanics={worldMechanics}
               worldTheme={worldTheme}
               hasBoardSkin={Boolean(worldTheme?.boardSkinImage)}

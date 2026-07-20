@@ -15,7 +15,6 @@ export const DEFAULT_TERRAIN_IMAGES = {
 
 export const DEFAULT_WORLD_FEATURES = {
   characters: true,
-  worldTokens: false,
   counters: true,
   conditions: true,
   terrains: true,

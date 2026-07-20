@@ -10,6 +10,7 @@ import {
 } from "@/lib/defaultWorld";
 
 import { getCharacterByName } from "@/lib/csv";
+import { resolveCharacterPortrait } from "@/lib/portraitAssets";
 import {
   GENERIC_PIECE_LABEL,
   GENERIC_PIECE_SYMBOL,
@@ -72,6 +73,7 @@ export default function CharacterCard({
   pieceNames,
   pieceNameLocked,
   characterLibrary,
+  portraitAssets = {},
   selectedToken,
   onNameChange,
   onLockName,
@@ -110,6 +112,10 @@ export default function CharacterCard({
   const pieceName = pieceNames?.[team]?.[pieceKey] || "";
   const isLocked = Boolean(pieceNameLocked?.[team]?.[pieceKey]);
   const matchedCharacter = getCharacterByName(characterLibrary, pieceName);
+  const matchedPortraitSrc = resolveCharacterPortrait(
+    matchedCharacter,
+    portraitAssets
+  );
 
   const abilityTokens = matchedCharacter?.tokens || [];
   const visibleCustomFields = getVisibleCustomFields(matchedCharacter);
@@ -128,10 +134,10 @@ export default function CharacterCard({
 
       <div className="character-card-top">
         <div className={`character-card-symbol ${team}`}>
-          {matchedCharacter?.portrait ? (
+          {matchedPortraitSrc ? (
             <img
               className="character-card-portrait-img"
-              src={matchedCharacter.portrait}
+              src={matchedPortraitSrc}
               alt={matchedCharacter.name}
             />
           ) : (
@@ -269,7 +275,13 @@ export default function CharacterCard({
 
           {pickerView === "grid" ? (
             <div className="character-picker-grid">
-              {characterOptions.map((character) => (
+              {characterOptions.map((character) => {
+                const portraitSrc = resolveCharacterPortrait(
+                  character,
+                  portraitAssets
+                );
+
+                return (
                 <button
                   key={character.pickerKey}
                   type="button"
@@ -283,19 +295,26 @@ export default function CharacterCard({
                     onAssignCharacter(team, pieceKey, character.name)
                   }
                 >
-                  {character.portrait ? (
-                    <img src={character.portrait} alt={character.name} />
+                  {portraitSrc ? (
+                    <img src={portraitSrc} alt={character.name} />
                   ) : (
                     <span>
                       {(character.name || "?").slice(0, 1).toUpperCase()}
                     </span>
                   )}
                 </button>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="character-picker-list">
-              {characterOptions.map((character) => (
+              {characterOptions.map((character) => {
+                const portraitSrc = resolveCharacterPortrait(
+                  character,
+                  portraitAssets
+                );
+
+                return (
                 <button
                   key={character.pickerKey}
                   type="button"
@@ -310,8 +329,8 @@ export default function CharacterCard({
                   }
                 >
                   <div className="character-picker-portrait">
-                    {character.portrait ? (
-                      <img src={character.portrait} alt={character.name} />
+                    {portraitSrc ? (
+                      <img src={portraitSrc} alt={character.name} />
                     ) : (
                       <span>
                         {(character.name || "?").slice(0, 1).toUpperCase()}
@@ -328,7 +347,8 @@ export default function CharacterCard({
                     )}
                   </div>
                 </button>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

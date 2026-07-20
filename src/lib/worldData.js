@@ -124,7 +124,6 @@ export function getEnabledFeatureLabels(world) {
 
   const featureLabels = [
     { key: "characters", label: "Characters" },
-    { key: "worldTokens", label: "Tokens" },
     { key: "terrains", label: "Terrains" },
     { key: "counters", label: "Counters" },
     { key: "conditions", label: "Conditions" },
@@ -157,10 +156,6 @@ export function getWorldCreatorStats(world) {
     {
       label: "Conditions",
       value: getConditionList(world).length
-    },
-    {
-      label: "Tokens",
-      value: getTokenList(world).length
     }
   ];
 }

@@ -22,6 +22,11 @@ import {
 import { loadLocalItem } from "@/lib/saveLoad";
 import { hasSupabaseConfig, supabase } from "@/lib/supabaseClient";
 import { normalizeWorldTheme } from "@/lib/worldData";
+import {
+    DISPLAY_MODE_PIECE,
+    getWorldDisplayMode,
+    saveWorldDisplayMode
+} from "@/lib/userPreferences";
 
 import InvitePlayersPanel from "./InvitePlayersPanel";
 import MatchmakingReadyButton from "./MatchmakingReadyButton";
@@ -121,6 +126,7 @@ export default function PlayMode() {
     const [worldMechanics, setWorldMechanics] = useState(DEFAULT_WORLD_MECHANICS);
 
     const [characterLibrary, setCharacterLibrary] = useState({});
+    const [portraitAssets, setPortraitAssets] = useState({});
     const [worldTokens, setWorldTokens] = useState({});
 
     const [pieceNames, setPieceNames] = useState(() => createPieceRecord(""));
@@ -353,7 +359,12 @@ export default function PlayMode() {
                 setSessionEndReason(session.end_reason || "");
                 syncMatchResultStateFromSession(session);
 
-                applyWorldData(onlineWorld.world_data, session.game_state);
+                applyWorldData(
+                    onlineWorld.world_data,
+                    session.game_state,
+                    user?.id || "",
+                    onlineWorld.id
+                );
                 await loadSessionParticipants(sessionId);
                 await loadLiveUndoStatus(sessionId);
 
@@ -381,6 +392,8 @@ export default function PlayMode() {
             setLiveUndoStatus(null);
             setLoadStatus("Loading board…");
 
+            let prefsUserId = "";
+
             if (hasSupabaseConfig() && supabase) {
                 try {
                     const {
@@ -388,6 +401,7 @@ export default function PlayMode() {
                     } = await supabase.auth.getUser();
 
                     if (user) {
+                        prefsUserId = user.id;
                         setCurrentUserId(user.id);
                         markUserOnline();
                     }
@@ -405,7 +419,12 @@ export default function PlayMode() {
 
                     if (!error && onlineWorld?.world_data) {
                         setPlayWorldSource("online");
-                        applyWorldData(onlineWorld.world_data);
+                        applyWorldData(
+                            onlineWorld.world_data,
+                            null,
+                            prefsUserId,
+                            onlineWorld.id
+                        );
                         setLoadStatus("Ready.");
                         setIsWorldLoaded(true);
                         return;
@@ -419,7 +438,7 @@ export default function PlayMode() {
 
             if (localWorld?.data) {
                 setPlayWorldSource("local");
-                applyWorldData(localWorld.data);
+                applyWorldData(localWorld.data, null, prefsUserId, worldId);
                 setLoadStatus("Ready (local).");
                 setIsWorldLoaded(true);
                 return;
@@ -451,7 +470,12 @@ export default function PlayMode() {
         loadPlayTarget();
     }, []);
 
-    function applyWorldData(worldData, sessionGameState = null) {
+    function applyWorldData(
+        worldData,
+        sessionGameState = null,
+        prefsUserId = "",
+        worldIdForPrefs = ""
+    ) {
         if (!worldData) return;
 
         setWorldDetails(
@@ -464,8 +488,21 @@ export default function PlayMode() {
 
         const defaultTheme = createDefaultWorldTheme();
         const savedTheme = worldData.worldTheme || {};
+        const normalizedTheme = normalizeWorldTheme(savedTheme, defaultTheme);
 
-        setWorldTheme(normalizeWorldTheme(savedTheme, defaultTheme));
+        const savedMode = getWorldDisplayMode(
+            prefsUserId || currentUserId || "guest",
+            worldIdForPrefs
+        );
+
+        const nextTheme = savedMode
+            ? {
+                  ...normalizedTheme,
+                  characterDisplayMode: savedMode
+              }
+            : normalizedTheme;
+
+        setWorldTheme(nextTheme);
 
         const nextFeatures = normalizeWorldFeatures(worldData.worldFeatures);
         const nextMechanics = normalizeWorldMechanics(worldData.worldMechanics);
@@ -473,6 +510,11 @@ export default function PlayMode() {
         setWorldMechanics(nextMechanics);
         setWorldFeatures(nextFeatures);
         setCharacterLibrary(worldData.characterLibrary || {});
+        setPortraitAssets(
+            worldData.portraitAssets && typeof worldData.portraitAssets === "object"
+                ? { ...worldData.portraitAssets }
+                : {}
+        );
         setWorldTokens(worldData.worldTokens || {});
 
         // Character assignments belong to this play session.
@@ -589,6 +631,20 @@ export default function PlayMode() {
         setSelectedFogAction(null);
     }
 
+    function canUseMatchLoadoutKey(kind, key) {
+        if (systemsRuntime?.setup && !systemsRuntime.setup.isComplete) {
+            return false;
+        }
+
+        const loadout = systemsRuntime?.matchLoadout;
+        if (!loadout) return true;
+
+        const allowedKeys = loadout[`${kind}Keys`];
+        if (!Array.isArray(allowedKeys)) return true;
+
+        return allowedKeys.includes(key);
+    }
+
     useEffect(() => {
         function handleKeyboardShortcut(event) {
             const tagName = event.target.tagName;
@@ -612,7 +668,9 @@ export default function PlayMode() {
             const isEscape = key === "escape";
 
             if (terrainShortcutKeys.includes(key)) {
-                const terrainList = worldMechanics.terrains || [];
+                const terrainList = (worldMechanics.terrains || []).filter(
+                    (terrain) => canUseMatchLoadoutKey("terrain", terrain.key)
+                );
                 const terrainIndex = terrainShortcutKeys.indexOf(key);
                 const terrain = terrainList[terrainIndex];
 
@@ -625,7 +683,10 @@ export default function PlayMode() {
             }
 
             if (conditionShortcutKeys.includes(key)) {
-                const conditionList = worldMechanics.conditions || [];
+                const conditionList = (worldMechanics.conditions || []).filter(
+                    (condition) =>
+                        canUseMatchLoadoutKey("condition", condition.key)
+                );
                 const conditionIndex = conditionShortcutKeys.indexOf(key);
                 const condition = conditionList[conditionIndex];
 
@@ -638,7 +699,11 @@ export default function PlayMode() {
             }
 
             if (counterShortcutKeys.includes(key)) {
-                const counterList = getCounterListFromMechanics(worldMechanics);
+                const counterList = getCounterListFromMechanics(
+                    worldMechanics
+                ).filter((counter) =>
+                    canUseMatchLoadoutKey("counter", counter.key)
+                );
                 const activeCounter =
                     counterList.find((counter) => counter.key === selectedCounterKey) ||
                     counterList[0];
@@ -820,6 +885,8 @@ export default function PlayMode() {
     }, []);
 
     function handleSelectCounterDelta(counterKey, delta) {
+        if (!canUseMatchLoadoutKey("counter", counterKey)) return;
+
         setSelectedCounterKey(counterKey);
         setSelectedCounterDelta(delta);
         setSelectedCounterAction("adjust");
@@ -839,6 +906,8 @@ export default function PlayMode() {
     }
 
     function handleSelectSetCounter(counterKey, nextSetValue = 0) {
+        if (!canUseMatchLoadoutKey("counter", counterKey)) return;
+
         setSelectedCounterKey(counterKey);
         setCounterSetValue(String(nextSetValue));
         setSelectedCounterAction("set");
@@ -859,6 +928,8 @@ export default function PlayMode() {
     }
 
     function handleSelectClearCounter(counterKey) {
+        if (!canUseMatchLoadoutKey("counter", counterKey)) return;
+
         setSelectedCounterKey(counterKey);
         setSelectedCounterAction("clear");
         setSelectedCounterDelta(null);
@@ -879,6 +950,7 @@ export default function PlayMode() {
 
     function handleSelectCondition(conditionKey) {
         if (!worldFeatures.conditions) return;
+        if (!canUseMatchLoadoutKey("condition", conditionKey)) return;
 
         setSelectedCondition(conditionKey);
         setSelectedConditionAction("toggle");
@@ -892,6 +964,7 @@ export default function PlayMode() {
 
     function handleSelectClearConditions() {
         if (!worldFeatures.conditions) return;
+        if (systemsRuntime?.setup && !systemsRuntime.setup.isComplete) return;
 
         setSelectedCondition(null);
         setSelectedConditionAction("clear");
@@ -905,6 +978,7 @@ export default function PlayMode() {
 
     function handleSelectTerrain(terrainKey) {
         if (!worldFeatures.terrains) return;
+        if (!canUseMatchLoadoutKey("terrain", terrainKey)) return;
 
         setSelectedTerrain(terrainKey);
         setSelectedTerrainAction("paint");
@@ -918,6 +992,7 @@ export default function PlayMode() {
 
     function handleSelectClearTerrain() {
         if (!worldFeatures.terrains) return;
+        if (systemsRuntime?.setup && !systemsRuntime.setup.isComplete) return;
 
         setSelectedTerrain(null);
         setSelectedTerrainAction("clear");
@@ -1494,12 +1569,20 @@ export default function PlayMode() {
     function handleToggleCharacterDisplayMode() {
         setWorldTheme((currentTheme) => {
             const currentMode =
-                currentTheme.characterDisplayMode || "piece-with-portrait";
+                currentTheme.characterDisplayMode || DISPLAY_MODE_PIECE;
 
             const nextMode =
-                currentMode === "piece-with-portrait"
+                currentMode === DISPLAY_MODE_PIECE
                     ? "portrait-with-piece"
-                    : "piece-with-portrait";
+                    : DISPLAY_MODE_PIECE;
+
+            if (playWorldId) {
+                saveWorldDisplayMode(
+                    currentUserId || "guest",
+                    playWorldId,
+                    nextMode
+                );
+            }
 
             return {
                 ...currentTheme,
@@ -1551,7 +1634,7 @@ export default function PlayMode() {
                         </Link>
 
                         <Link className="home-secondary-link" href="/lobby">
-                            Open Lobby
+                            Multiverse Community
                         </Link>
                     </div>
                 </section>
@@ -1673,6 +1756,16 @@ export default function PlayMode() {
                             worldTheme={worldTheme}
                             worldFeatures={worldFeatures}
                             worldMechanics={worldMechanics}
+                            matchLoadout={
+                                systemsRuntime?.setup &&
+                                !systemsRuntime.setup.isComplete
+                                    ? {
+                                          terrainKeys: [],
+                                          counterKeys: [],
+                                          conditionKeys: []
+                                      }
+                                    : systemsRuntime?.matchLoadout || null
+                            }
                             onClearSelections={clearAllSelections}
                             onWorldDetailsChange={() => { }}
                             onThemeChange={() => { }}
@@ -1683,9 +1776,9 @@ export default function PlayMode() {
                             onCounterSettingsChange={() => { }}
                             onConditionListChange={() => { }}
                             characterLibrary={characterLibrary}
+                            portraitAssets={portraitAssets}
                             onCharacterLibraryChange={() => { }}
                             characterUploadStatus="Character editing is off in Play."
-                            worldTokens={worldTokens}
                             selectedCounterKey={selectedCounterKey}
                             selectedCounterDelta={selectedCounterDelta}
                             selectedCounterAction={selectedCounterAction}
@@ -1702,8 +1795,6 @@ export default function PlayMode() {
                             onCounterSetValueChange={setCounterSetValue}
                             onCharacterCsvUpload={() => { }}
                             onSaveCharacter={() => { }}
-                            onAddWorldToken={() => { }}
-                            onDeleteWorldToken={() => { }}
                             onSelectCounterDelta={handleSelectCounterDelta}
                             onSelectSetCounter={handleSelectSetCounter}
                             onSelectClearCounter={handleSelectClearCounter}
@@ -1719,6 +1810,7 @@ export default function PlayMode() {
                             movingPiece={movingPiece}
                             pieceNames={pieceNames}
                             characterLibrary={characterLibrary}
+                            portraitAssets={portraitAssets}
                             worldTheme={worldTheme}
                             worldMechanics={worldMechanics}
                             worldFeatures={worldFeatures}
@@ -1770,7 +1862,7 @@ export default function PlayMode() {
                             worldFeatures={worldFeatures}
                             worldTheme={worldTheme}
                             characterLibrary={characterLibrary}
-                            worldTokens={worldTokens}
+                            portraitAssets={portraitAssets}
                             selectedTeam={selectedTeam}
                             selectedPiece={selectedPiece}
                             selectedToken={selectedToken}

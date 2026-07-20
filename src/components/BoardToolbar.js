@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 export default function BoardToolbar({
   selectedBoardAction,
   actionLog = null,
+  characterDisplayMode = "piece-with-portrait",
   onToggleCharacterDisplayMode,
   onStandardSetup,
   onUndo,
@@ -17,6 +18,7 @@ export default function BoardToolbar({
   const [isLogOpen, setIsLogOpen] = useState(false);
 
   const latestEntry = showActionLog && actionLog.length > 0 ? actionLog[0] : null;
+  const isPortraitMode = characterDisplayMode === "portrait-with-piece";
 
   useEffect(() => {
     if (!isLogOpen) return;
@@ -52,14 +54,35 @@ export default function BoardToolbar({
     <div className="board-toolbar-stack">
       <div className="board-toolbar" aria-label="Board tools">
         {showPortraitToggle && (
-          <button
-            type="button"
-            className="board-toolbar-portrait"
-            onClick={onToggleCharacterDisplayMode}
-            title="Toggle piece with portrait badge, or portrait with piece badge"
+          <div
+            className={`board-display-switch${isPortraitMode ? " portrait" : " piece"}`}
+            role="group"
+            aria-label="Board display mode"
           >
-            Portrait View
-          </button>
+            <button
+              type="button"
+              className={!isPortraitMode ? "active" : ""}
+              aria-pressed={!isPortraitMode}
+              onClick={() => {
+                if (isPortraitMode) onToggleCharacterDisplayMode();
+              }}
+              title="Show piece with portrait badge"
+            >
+              Piece
+            </button>
+            <button
+              type="button"
+              className={isPortraitMode ? "active" : ""}
+              aria-pressed={isPortraitMode}
+              onClick={() => {
+                if (!isPortraitMode) onToggleCharacterDisplayMode();
+              }}
+              title="Show portrait with piece badge"
+            >
+              Portrait
+            </button>
+            <span className="board-display-switch-thumb" aria-hidden="true" />
+          </div>
         )}
 
         {showActionLog ? (
@@ -89,82 +112,53 @@ export default function BoardToolbar({
         <div className="board-toolbar-controls" aria-label="Board controls">
           <button
             type="button"
-            className="board-controls-setup"
             onClick={onStandardSetup}
-            title="Reset to standard chess setup"
+            title="Reset Board"
           >
             Reset Board
           </button>
 
-          <button type="button" onClick={onUndo} title="Undo (Ctrl+Z)">
-            ↶ Undo
+          <button type="button" onClick={onUndo} title="Undo">
+            Undo
           </button>
 
-          <button type="button" onClick={onRedo} title="Redo (Ctrl+Y)">
-            ↷ Redo
+          <button type="button" onClick={onRedo} title="Redo">
+            Redo
           </button>
 
           <button
             type="button"
             className={
-              selectedBoardAction === "delete-piece"
-                ? "board-controls-delete active"
-                : "board-controls-delete"
+              selectedBoardAction === "delete-piece" ? "active" : ""
             }
             onClick={onDeletePiece}
-            title="Delete selected piece, or activate delete tool"
+            title="Delete Piece"
           >
             Delete Piece
           </button>
 
-          <button
-            type="button"
-            className="board-controls-clear"
-            onClick={onClearBoard}
-            title="Clear the board"
-          >
+          <button type="button" onClick={onClearBoard} title="Clear Board">
             Clear Board
           </button>
         </div>
       </div>
 
-      {showActionLog && (
-        <div
-          className={`board-action-log-drawer${isLogOpen ? " open" : ""}`}
-          aria-hidden={!isLogOpen}
-        >
-          <div className="board-action-log-drawer-inner">
-            <div className="board-action-log-drawer-header">
-              <strong>Action Log</strong>
-              <span>{actionLog.length} entries</span>
-            </div>
-
-            {actionLog.length === 0 ? (
-              <p className="board-action-log-empty">No actions yet.</p>
-            ) : (
-              <div className="board-action-log-list">
-                {actionLog.map((entry, index) => {
-                  const sequenceNumber = actionLog.length - index;
-
-                  return (
-                    <article className="board-action-log-entry" key={entry.id}>
-                      <span className="board-action-log-number" aria-hidden="true">
-                        {sequenceNumber}
-                      </span>
-
-                      <div className="board-action-log-entry-body">
-                        <strong>{entry.message}</strong>
-                        <span>
-                          Move {entry.moveNumber} ·{" "}
-                          {entry.turnTeam === "black" ? "Black" : "White"}
-                        </span>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+      {showActionLog && isLogOpen && (
+        <div className="board-action-log-drawer" role="dialog" aria-label="Action log">
+          {actionLog.length === 0 ? (
+            <p className="board-action-log-empty">No actions yet.</p>
+          ) : (
+            <ol className="board-action-log-list">
+              {actionLog.map((entry, index) => (
+                <li key={`${entry.id || entry.message}-${index}`}>
+                  <span className="board-action-log-index">
+                    {actionLog.length - index}
+                  </span>
+                  <span>{entry.message}</span>
+                </li>
+              ))}
+            </ol>
+          )}
         </div>
       )}
     </div>

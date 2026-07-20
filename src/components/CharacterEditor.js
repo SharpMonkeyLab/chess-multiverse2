@@ -9,6 +9,17 @@ import {
     getSafeCharacterFields
 } from "@/lib/csv";
 
+import {
+    findPortraitAssetKey,
+    getPortraitAssetEntries,
+    getPortraitMatchCounts,
+    isPortraitDataUrl,
+    mergePortraitAssetsRejectingDuplicates,
+    removePortraitAssetsForName,
+    resolveCharacterPortrait,
+    setPortraitAssetForCharacter
+} from "@/lib/portraitAssets";
+
 function readImageFile(file, onLoad) {
     if (!file) return;
     if (!file.type.startsWith("image/")) return;
@@ -20,6 +31,31 @@ function readImageFile(file, onLoad) {
     };
 
     reader.readAsDataURL(file);
+}
+
+function readImageFiles(files, onComplete) {
+    const imageFiles = Array.from(files || []).filter((file) =>
+        file?.type?.startsWith("image/")
+    );
+
+    if (imageFiles.length === 0) {
+        onComplete({});
+        return;
+    }
+
+    let remaining = imageFiles.length;
+    const nextAssets = {};
+
+    imageFiles.forEach((file) => {
+        readImageFile(file, (imageData) => {
+            nextAssets[file.name] = imageData;
+            remaining -= 1;
+
+            if (remaining === 0) {
+                onComplete(nextAssets);
+            }
+        });
+    });
 }
 
 function createEmptyCharacter() {
@@ -69,17 +105,22 @@ function getNextFieldName(existingFields) {
 export default function CharacterEditor({
     characterLibrary,
     characterFields = createDefaultCharacterFields(),
+    portraitAssets = {},
     characterUploadStatus,
     onCharacterLibraryChange,
     onCharacterFieldsChange,
+    onPortraitAssetsChange,
     onCharacterCsvUpload,
     onCharacterCsvExport
 }) {
     const characterList = getCharacterList(characterLibrary);
     const safeCharacterFields = getSafeCharacterFields(characterFields);
     const customCharacterFields = getCustomCharacterFields(safeCharacterFields);
+    const portraitAssetEntries = getPortraitAssetEntries(portraitAssets);
+    const portraitMatchInfo = getPortraitMatchCounts(characterLibrary, portraitAssets);
 
     const [selectedCharacterIndex, setSelectedCharacterIndex] = useState(0);
+    const [portraitUploadStatus, setPortraitUploadStatus] = useState("");
 
     const selectedCharacter = characterList[selectedCharacterIndex] || null;
 
@@ -127,12 +168,14 @@ export default function CharacterEditor({
         const nextCharacters = characterList.map((character, index) => {
             if (index !== characterIndex) return character;
 
+            const nextCustomFields = {
+                ...getCharacterCustomFields(character),
+                [fieldKey]: value
+            };
+
             return {
                 ...character,
-                customFields: {
-                    ...getCharacterCustomFields(character),
-                    [fieldKey]: value
-                }
+                customFields: nextCustomFields
             };
         });
 
@@ -140,16 +183,14 @@ export default function CharacterEditor({
     }
 
     function addCharacter() {
-        const newCharacter = createEmptyCharacter();
-        const nextCharacters = [...characterList, newCharacter];
-
+        const nextCharacters = [...characterList, createEmptyCharacter()];
         onCharacterLibraryChange(nextCharacters);
         setSelectedCharacterIndex(nextCharacters.length - 1);
     }
 
     function deleteCharacter(characterIndex) {
         const nextCharacters = characterList.filter(
-            (_character, index) => index !== characterIndex
+            (_, index) => index !== characterIndex
         );
 
         onCharacterLibraryChange(nextCharacters);
@@ -159,42 +200,38 @@ export default function CharacterEditor({
             return;
         }
 
-        setSelectedCharacterIndex(
-            Math.min(characterIndex, nextCharacters.length - 1)
-        );
+        if (characterIndex >= nextCharacters.length) {
+            setSelectedCharacterIndex(nextCharacters.length - 1);
+        }
     }
 
     function addCustomField() {
-        const label = getNextFieldName(safeCharacterFields);
-        const nextField = {
-            key: `${createFieldKey(label)}-${Date.now()}`,
-            label,
-            core: false
-        };
+        const nextLabel = getNextFieldName(safeCharacterFields);
+        const nextKey = createFieldKey(nextLabel);
 
-        onCharacterFieldsChange?.([...safeCharacterFields, nextField]);
+        onCharacterFieldsChange([
+            ...safeCharacterFields,
+            { key: nextKey, label: nextLabel, core: false }
+        ]);
     }
 
-    function updateCustomFieldLabel(fieldKey, nextLabel) {
-        onCharacterFieldsChange?.(
-            safeCharacterFields.map((field) => {
-                if (field.key !== fieldKey) return field;
-
-                return {
-                    ...field,
-                    label: nextLabel
-                };
-            })
+    function updateCustomFieldLabel(fieldKey, label) {
+        onCharacterFieldsChange(
+            safeCharacterFields.map((field) =>
+                field.key === fieldKey
+                    ? { ...field, label }
+                    : field
+            )
         );
     }
 
     function deleteCustomField(fieldKey) {
-        onCharacterFieldsChange?.(
+        onCharacterFieldsChange(
             safeCharacterFields.filter((field) => field.key !== fieldKey)
         );
 
         const nextCharacters = characterList.map((character) => {
-            const nextCustomFields = getCharacterCustomFields(character);
+            const nextCustomFields = { ...getCharacterCustomFields(character) };
             delete nextCustomFields[fieldKey];
 
             return {
@@ -207,11 +244,130 @@ export default function CharacterEditor({
     }
 
     function handlePortraitUpload(file) {
-        if (!selectedCharacter) return;
+        if (!selectedCharacter || typeof onPortraitAssetsChange !== "function") {
+            return;
+        }
+
+        const characterName = String(selectedCharacter.name || "").trim();
+
+        if (!characterName) {
+            setPortraitUploadStatus("Set a character Name before uploading a portrait.");
+            return;
+        }
+
+        if (!file || !file.type?.startsWith("image/")) return;
 
         readImageFile(file, (imageData) => {
-            updateCharacter(selectedCharacterIndex, "portrait", imageData);
+            const result = setPortraitAssetForCharacter({
+                characterName,
+                file,
+                imageData,
+                portraitAssets
+            });
+
+            onPortraitAssetsChange(result.portraitAssets);
+
+            if (isPortraitDataUrl(selectedCharacter.portrait)) {
+                updateCharacter(selectedCharacterIndex, "portrait", "");
+            }
+
+            const matchInfo = getPortraitMatchCounts(
+                characterLibrary,
+                result.portraitAssets
+            );
+
+            setPortraitUploadStatus(
+                `Matched ${matchInfo.charactersMatched}/${matchInfo.characterCount}`
+            );
         });
+    }
+
+    function handlePortraitAssetsUpload(files) {
+        if (typeof onPortraitAssetsChange !== "function") return;
+
+        readImageFiles(files, (uploadedAssets) => {
+            const uploadedCount = Object.keys(uploadedAssets).length;
+
+            if (uploadedCount === 0) {
+                setPortraitUploadStatus("No image files selected.");
+                return;
+            }
+
+            const mergeResult = mergePortraitAssetsRejectingDuplicates(
+                portraitAssets,
+                uploadedAssets
+            );
+
+            onPortraitAssetsChange(mergeResult.portraitAssets);
+
+            const matchInfo = getPortraitMatchCounts(
+                characterLibrary,
+                mergeResult.portraitAssets
+            );
+
+            const statusParts = [
+                `Matched ${matchInfo.charactersMatched}/${matchInfo.characterCount}`
+            ];
+
+            if (mergeResult.acceptedCount > 0) {
+                statusParts.unshift(`${mergeResult.acceptedCount} uploaded`);
+            }
+
+            if (mergeResult.skippedCount > 0) {
+                statusParts.push(
+                    `Skipped ${mergeResult.skippedCount} duplicate${
+                        mergeResult.skippedCount === 1 ? "" : "s"
+                    }`
+                );
+            }
+
+            setPortraitUploadStatus(statusParts.join(" · "));
+        });
+    }
+
+    function removePortraitAsset(filename) {
+        if (typeof onPortraitAssetsChange !== "function") return;
+
+        const nextAssets = { ...portraitAssets };
+        delete nextAssets[filename];
+        onPortraitAssetsChange(nextAssets);
+
+        const matchInfo = getPortraitMatchCounts(characterLibrary, nextAssets);
+
+        setPortraitUploadStatus(
+            `Matched ${matchInfo.charactersMatched}/${matchInfo.characterCount}`
+        );
+    }
+
+    function clearSelectedCharacterPortrait() {
+        if (!selectedCharacter) return;
+
+        const characterName = String(selectedCharacter.name || "").trim();
+
+        if (characterName && typeof onPortraitAssetsChange === "function") {
+            const result = removePortraitAssetsForName(characterName, portraitAssets);
+            onPortraitAssetsChange(result.portraitAssets);
+
+            const matchInfo = getPortraitMatchCounts(
+                characterLibrary,
+                result.portraitAssets
+            );
+
+            setPortraitUploadStatus(
+                `Matched ${matchInfo.charactersMatched}/${matchInfo.characterCount}`
+            );
+        }
+
+        if (isPortraitDataUrl(selectedCharacter.portrait)) {
+            updateCharacter(selectedCharacterIndex, "portrait", "");
+        }
+    }
+
+    function clearPortraitAssets() {
+        if (typeof onPortraitAssetsChange !== "function") return;
+
+        onPortraitAssetsChange({});
+        setPortraitUploadStatus("Portrait image library cleared.");
     }
 
     function handleCsvUpload(file) {
@@ -220,6 +376,24 @@ export default function CharacterEditor({
         onCharacterCsvUpload(file);
         setSelectedCharacterIndex(0);
     }
+
+    const selectedPortraitSrc = selectedCharacter
+        ? resolveCharacterPortrait(selectedCharacter, portraitAssets)
+        : "";
+
+    const selectedLibraryAssetKey = selectedCharacter?.name
+        ? findPortraitAssetKey(selectedCharacter.name, portraitAssets)
+        : "";
+
+    const selectedLibraryPortraitSrc = selectedLibraryAssetKey
+        ? portraitAssets[selectedLibraryAssetKey]
+        : "";
+
+    const hasLibraryPortrait = Boolean(selectedLibraryPortraitSrc);
+
+    const portraitUrlValue = isPortraitDataUrl(selectedCharacter?.portrait)
+        ? ""
+        : selectedCharacter?.portrait || "";
 
     return (
         <div className="character-creator">
@@ -242,6 +416,11 @@ export default function CharacterEditor({
                     const isSelected =
                         characterIndex === selectedCharacterIndex;
 
+                    const portraitSrc = resolveCharacterPortrait(
+                        character,
+                        portraitAssets
+                    );
+
                     return (
                         <div
                             key={characterKey}
@@ -262,8 +441,8 @@ export default function CharacterEditor({
                             }}
                         >
                             <span className="character-gallery-portrait">
-                                {character.portrait ? (
-                                    <img src={character.portrait} alt={character.name} />
+                                {portraitSrc ? (
+                                    <img src={portraitSrc} alt={character.name} />
                                 ) : (
                                     <span className="character-gallery-placeholder">
                                         {(character.name || "?").charAt(0).toUpperCase()}
@@ -318,9 +497,9 @@ export default function CharacterEditor({
                     </div>
 
                     <div className="character-edit-preview">
-                        {selectedCharacter.portrait ? (
+                        {selectedPortraitSrc ? (
                             <img
-                                src={selectedCharacter.portrait}
+                                src={selectedPortraitSrc}
                                 alt={selectedCharacter.name}
                             />
                         ) : (
@@ -370,14 +549,52 @@ export default function CharacterEditor({
                     />
 
                     <label>Portrait</label>
+                    <div className="character-portrait-upload-row">
+                        {hasLibraryPortrait ? (
+                            <div
+                                className="character-portrait-upload has-image"
+                                title={selectedLibraryAssetKey}
+                            >
+                                <img
+                                    src={selectedLibraryPortraitSrc}
+                                    alt={selectedCharacter.name}
+                                />
+                            </div>
+                        ) : (
+                            <label
+                                className="character-portrait-upload"
+                                title={
+                                    String(selectedCharacter.name || "").trim()
+                                        ? "Upload portrait"
+                                        : "Set a character Name first"
+                                }
+                            >
+                                <span>Upload</span>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    disabled={!String(selectedCharacter.name || "").trim()}
+                                    onChange={(event) => {
+                                        handlePortraitUpload(event.target.files[0]);
+                                        event.target.value = "";
+                                    }}
+                                />
+                            </label>
+                        )}
+
+                        {hasLibraryPortrait && (
+                            <button
+                                type="button"
+                                onClick={clearSelectedCharacterPortrait}
+                            >
+                                Clear
+                            </button>
+                        )}
+                    </div>
+
                     <input
-                        value={
-                            selectedCharacter.portrait?.startsWith("data:image/")
-                                ? "Uploaded image"
-                                : selectedCharacter.portrait || ""
-                        }
-                        placeholder="e.g. zuko.png or image URL"
-                        disabled={selectedCharacter.portrait?.startsWith("data:image/")}
+                        value={portraitUrlValue}
+                        placeholder="Optional image URL"
                         onChange={(event) =>
                             updateCharacter(
                                 selectedCharacterIndex,
@@ -386,30 +603,6 @@ export default function CharacterEditor({
                             )
                         }
                     />
-
-                    <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(event) => {
-                            handlePortraitUpload(event.target.files[0]);
-                            event.target.value = "";
-                        }}
-                    />
-
-                    {selectedCharacter.portrait && (
-                        <button
-                            type="button"
-                            onClick={() =>
-                                updateCharacter(
-                                    selectedCharacterIndex,
-                                    "portrait",
-                                    ""
-                                )
-                            }
-                        >
-                            Clear Portrait
-                        </button>
-                    )}
 
                     {customCharacterFields.length > 0 && (
                         <div className="character-custom-field-editor">
@@ -498,6 +691,100 @@ export default function CharacterEditor({
                     </button>
                 </div>
             </section>
+
+            <div className="character-import-divider">
+                <span>IMAGES</span>
+            </div>
+
+            <div className="character-import-box portrait-assets-box">
+                <div className="character-import-title">Portrait Images</div>
+
+                <p className="command-menu-help-text">
+                    Upload portraits for your characters. The image file name
+                    must match the character Name. Ideal size: square.
+                    Valid types: PNG, JPG, JPEG, WebP, GIF.
+                </p>
+
+                <div className="menu-button-grid">
+                    <label className="menu-file-button">
+                        Upload Images
+                        <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            onChange={(event) => {
+                                handlePortraitAssetsUpload(event.target.files);
+                                event.target.value = "";
+                            }}
+                        />
+                    </label>
+
+                    {portraitAssetEntries.length > 0 && (
+                        <button type="button" onClick={clearPortraitAssets}>
+                            Clear All
+                        </button>
+                    )}
+                </div>
+
+                {(portraitUploadStatus || portraitAssetEntries.length > 0) && (
+                    <p className="character-editor-count">
+                        {portraitUploadStatus ||
+                            `Matched ${portraitMatchInfo.charactersMatched}/${portraitMatchInfo.characterCount}`}
+                    </p>
+                )}
+
+                {portraitAssetEntries.length > 0 && (
+                    <div className="portrait-assets-grid">
+                        {portraitAssetEntries.map(([filename, imageSrc]) => {
+                            const matchCount =
+                                portraitMatchInfo.matchCountByFilename[filename] || 0;
+                            const isMatched = matchCount > 0;
+
+                            return (
+                                <div
+                                    className={
+                                        isMatched
+                                            ? "portrait-asset-card matched"
+                                            : "portrait-asset-card unused"
+                                    }
+                                    key={filename}
+                                    title={
+                                        isMatched
+                                            ? `${filename} · matched`
+                                            : `${filename} · unused`
+                                    }
+                                >
+                                    <div className="portrait-asset-preview">
+                                        <img src={imageSrc} alt={filename} />
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        className="portrait-asset-remove"
+                                        title={`Remove ${filename}`}
+                                        onClick={() => removePortraitAsset(filename)}
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+
+                {portraitMatchInfo.missingPortraits.length > 0 && (
+                    <p className="character-import-warning">
+                        Missing images for:{" "}
+                        {portraitMatchInfo.missingPortraits
+                            .slice(0, 6)
+                            .map((item) => item.name)
+                            .join(", ")}
+                        {portraitMatchInfo.missingPortraits.length > 6
+                            ? ` +${portraitMatchInfo.missingPortraits.length - 6} more`
+                            : ""}
+                    </p>
+                )}
+            </div>
 
             <div className="character-import-divider">
                 <span>CSV</span>

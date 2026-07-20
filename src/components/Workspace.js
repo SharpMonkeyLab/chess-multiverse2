@@ -7,6 +7,7 @@ export default function Workspace({
   movingPiece,
   pieceNames,
   characterLibrary,
+  portraitAssets = {},
   worldTheme,
   worldMechanics,
   worldFeatures,
@@ -44,6 +45,9 @@ export default function Workspace({
           <BoardToolbar
             selectedBoardAction={selectedBoardAction}
             actionLog={actionLog}
+            characterDisplayMode={
+              worldTheme?.characterDisplayMode || "piece-with-portrait"
+            }
             onToggleCharacterDisplayMode={onToggleCharacterDisplayMode}
             onStandardSetup={onStandardSetup}
             onUndo={onUndo}
@@ -58,6 +62,7 @@ export default function Workspace({
               movingPiece={movingPiece}
               pieceNames={pieceNames}
               characterLibrary={characterLibrary}
+              portraitAssets={portraitAssets}
               worldTheme={worldTheme}
               worldMechanics={worldMechanics}
               fogCells={fogCells}

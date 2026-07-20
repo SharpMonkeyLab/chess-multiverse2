@@ -187,7 +187,7 @@ export default function LobbyClient() {
     event.preventDefault();
 
     if (!currentUser) {
-      setChatStatus("Sign in to chat in the lobby.");
+      setChatStatus("Sign in to chat in the Multiverse Community.");
       return;
     }
 
@@ -223,7 +223,7 @@ export default function LobbyClient() {
     <div className="lobby-content lobby-live-content">
       <section className="lobby-header-strip">
         <div>
-          <p className="home-kicker">Lobby</p>
+          <p className="home-kicker">Multiverse Community</p>
           <h1>Ready up. Chat. Find a fight.</h1>
           <p>
             Match across every published universe, talk with players online, and
@@ -243,7 +243,7 @@ export default function LobbyClient() {
 
       {!currentUser && (
         <p className="lobby-auth-nudge">
-          <Link href="/account">Sign in</Link> to Ready up and use lobby chat.
+          <Link href="/account">Sign in</Link> to Ready up and use community chat.
         </p>
       )}
 
@@ -329,7 +329,7 @@ export default function LobbyClient() {
           <div className="lobby-panel-heading">
             <div>
               <p className="home-kicker">Global Chat</p>
-              <h2>Lobby talk</h2>
+              <h2>Community chat</h2>
             </div>
           </div>
 
@@ -360,7 +360,7 @@ export default function LobbyClient() {
               value={chatDraft}
               maxLength={500}
               placeholder={
-                currentUser ? "Message the lobby..." : "Sign in to chat"
+                currentUser ? "Message the community..." : "Sign in to chat"
               }
               disabled={!currentUser || isSendingChat}
               onChange={(event) => setChatDraft(event.target.value)}

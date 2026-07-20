@@ -285,7 +285,6 @@ export default function WorldLibraryClient() {
                     >
                         <option value="all">All systems</option>
                         <option value="characters">Characters</option>
-                        <option value="worldTokens">Tokens</option>
                         <option value="terrains">Terrains</option>
                         <option value="counters">Counters</option>
                         <option value="conditions">Conditions</option>

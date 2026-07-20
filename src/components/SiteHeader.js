@@ -13,7 +13,7 @@ export default function SiteHeader() {
       <div className="site-header-right">
         <nav className="site-nav" aria-label="Main navigation">
           <Link href="/worlds">Universes</Link>
-          <Link href="/lobby">Lobby</Link>
+          <Link href="/lobby">Multiverse</Link>
           <Link href="/creator">Create</Link>
         </nav>
 

@@ -1,7 +1,7 @@
-import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import HomeFeaturedWorlds from "@/components/HomeFeaturedWorlds";
+import HomeHeroActions from "@/components/HomeHeroActions";
 
 export default function Home() {
   return (
@@ -22,14 +22,7 @@ export default function Home() {
             the Multiverse.
           </p>
 
-          <div className="home-action-row">
-            <Link className="home-primary-link" href="/worlds">
-              Play Now
-            </Link>
-            <Link className="home-secondary-link" href="/lobby">
-              Enter Lobby
-            </Link>
-          </div>
+          <HomeHeroActions />
         </div>
       </section>
 

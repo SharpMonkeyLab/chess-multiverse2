@@ -1,6 +1,7 @@
 import {
     DEFAULT_WORLD_FEATURES,
     DEFAULT_WORLD_MECHANICS,
+    getCounterListFromMechanics,
     makeKeyFromLabel
 } from "@/lib/defaultWorld";
 
@@ -13,6 +14,7 @@ export function normalizeWorldFeatures(features = {}) {
     };
 
     delete nextFeatures.playerStats;
+    delete nextFeatures.worldTokens;
 
     return nextFeatures;
 }
@@ -238,16 +240,80 @@ export function resolveObjectivesForSetup(objectivesConfig, chosenKeys = []) {
         : items.slice(0, 1).map((item) => ({ ...item }));
 }
 
+export function getMatchLoadoutCatalog(worldFeatures, worldMechanics) {
+    const features = normalizeWorldFeatures(worldFeatures);
+    const mechanics = normalizeWorldMechanics(worldMechanics);
+
+    const terrains = features.terrains
+        ? (mechanics.terrains || []).filter((terrain) => terrain?.key)
+        : [];
+    const counters = features.counters
+        ? getCounterListFromMechanics(mechanics).filter((counter) => counter?.key)
+        : [];
+    const conditions = features.conditions
+        ? (mechanics.conditions || []).filter((condition) => condition?.key)
+        : [];
+
+    return {
+        terrains,
+        counters,
+        conditions,
+        terrainKeys: terrains.map((terrain) => terrain.key),
+        counterKeys: counters.map((counter) => counter.key),
+        conditionKeys: conditions.map((condition) => condition.key),
+        hasLoadoutOptions:
+            terrains.length > 0 || counters.length > 0 || conditions.length > 0
+    };
+}
+
+export function normalizeMatchLoadout(setupChoices, catalog) {
+    const safeCatalog = catalog || {
+        terrainKeys: [],
+        counterKeys: [],
+        conditionKeys: []
+    };
+
+    function pickKeys(chosenKeys, availableKeys) {
+        if (!Array.isArray(availableKeys) || availableKeys.length === 0) {
+            return [];
+        }
+
+        if (!Array.isArray(chosenKeys)) {
+            return [...availableKeys];
+        }
+
+        const availableSet = new Set(availableKeys);
+        const selected = chosenKeys.filter((key) => availableSet.has(key));
+
+        return selected;
+    }
+
+    return {
+        terrainKeys: pickKeys(setupChoices?.terrainKeys, safeCatalog.terrainKeys),
+        counterKeys: pickKeys(setupChoices?.counterKeys, safeCatalog.counterKeys),
+        conditionKeys: pickKeys(
+            setupChoices?.conditionKeys,
+            safeCatalog.conditionKeys
+        )
+    };
+}
+
 export function getSystemsSetupRequirements(worldFeatures, worldMechanics) {
     const features = normalizeWorldFeatures(worldFeatures);
     const mechanics = normalizeWorldMechanics(worldMechanics);
+    const catalog = getMatchLoadoutCatalog(features, mechanics);
     const requirements = {
         needsObjectives: false,
         needsDeckBuild: false,
         needsDiceEdit: false,
         needsTimerEdit: false,
+        needsLoadout: false,
         needsAny: false
     };
+
+    if (catalog.hasLoadoutOptions) {
+        requirements.needsLoadout = true;
+    }
 
     if (
         features.objectives &&
@@ -274,6 +340,7 @@ export function getSystemsSetupRequirements(worldFeatures, worldMechanics) {
     }
 
     requirements.needsAny =
+        requirements.needsLoadout ||
         requirements.needsObjectives ||
         requirements.needsDeckBuild ||
         requirements.needsDiceEdit ||
@@ -322,11 +389,16 @@ export function createAdvancedSystemsRuntime({
     const features = normalizeWorldFeatures(worldFeatures);
     const mechanics = normalizeWorldMechanics(worldMechanics);
     const requirements = getSystemsSetupRequirements(features, mechanics);
+    const catalog = getMatchLoadoutCatalog(features, mechanics);
+    const setupComplete = !requirements.needsAny || Boolean(setupChoices);
     const runtime = {
         setup: {
-            isComplete: !requirements.needsAny || Boolean(setupChoices),
+            isComplete: setupComplete,
             requirements
-        }
+        },
+        matchLoadout: setupComplete
+            ? normalizeMatchLoadout(setupChoices, catalog)
+            : null
     };
 
     if (features.cardDecks) {

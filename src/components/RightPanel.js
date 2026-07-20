@@ -14,12 +14,14 @@ import {
 
 import CharacterCard from "./CharacterCard";
 import MatchChatPanel from "./MatchChatPanel";
+import { resolveCharacterPortrait } from "@/lib/portraitAssets";
 
 function TeamTray({
   team,
   worldTheme,
   pieceNames,
   characterLibrary,
+  portraitAssets = {},
   selectedTeam,
   selectedPiece,
   onSelectPiece,
@@ -70,6 +72,11 @@ function TeamTray({
               assignedCharacterName.trim().toLowerCase()
           );
 
+          const assignedPortraitSrc = resolveCharacterPortrait(
+            assignedCharacter,
+            portraitAssets
+          );
+
           return (
             <button
               key={piece.key}
@@ -91,10 +98,10 @@ function TeamTray({
               onClick={() => onSelectPiece(team, piece.key)}
             >
               <span className="piece-tray-face">
-                {assignedCharacter?.portrait ? (
+                {assignedPortraitSrc ? (
                   <img
                     className="piece-tray-portrait"
-                    src={assignedCharacter.portrait}
+                    src={assignedPortraitSrc}
                     alt={assignedCharacter.name}
                   />
                 ) : pieceSkin ? (
@@ -150,7 +157,7 @@ export default function RightPanel({
   worldFeatures,
   worldTheme,
   characterLibrary,
-  worldTokens: _worldTokens,
+  portraitAssets = {},
   selectedTeam,
   selectedPiece,
   selectedToken,
@@ -220,6 +227,7 @@ export default function RightPanel({
         worldTheme={worldTheme}
         pieceNames={pieceNames}
         characterLibrary={characterLibrary}
+        portraitAssets={portraitAssets}
         selectedTeam={selectedTeam}
         selectedPiece={selectedPiece}
         onSelectPiece={onSelectPiece}
@@ -239,6 +247,7 @@ export default function RightPanel({
         worldTheme={worldTheme}
         pieceNames={pieceNames}
         characterLibrary={characterLibrary}
+        portraitAssets={portraitAssets}
         selectedTeam={selectedTeam}
         selectedPiece={selectedPiece}
         onSelectPiece={onSelectPiece}
@@ -251,6 +260,7 @@ export default function RightPanel({
           pieceNames={pieceNames}
           pieceNameLocked={pieceNameLocked}
           characterLibrary={characterLibrary}
+          portraitAssets={portraitAssets}
           selectedToken={selectedToken}
           onSelectToken={onSelectToken}
           onNameChange={onNameChange}

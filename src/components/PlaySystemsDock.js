@@ -7,6 +7,7 @@ import SystemsSetupOverlay from "./SystemsSetupOverlay";
 import {
     completeSystemsSetup,
     createAdvancedSystemsRuntime,
+    getMatchLoadoutCatalog,
     hasAnyAdvancedPlaySystem,
     normalizeWorldFeatures,
     normalizeWorldMechanics,
@@ -36,7 +37,12 @@ export default function PlaySystemsDock({
     const [selectedCardInstanceId, setSelectedCardInstanceId] = useState("");
 
     const showDock = hasAnyAdvancedPlaySystem(features);
-    const setupIncomplete = systemsRuntime?.setup && !systemsRuntime.setup.isComplete;
+    const setupIncomplete =
+        Boolean(systemsRuntime?.setup) && !systemsRuntime.setup.isComplete;
+    const loadoutCatalog = useMemo(
+        () => getMatchLoadoutCatalog(features, mechanics),
+        [features, mechanics]
+    );
 
     const activeHand = systemsRuntime?.cardDecks?.[turnTeam]?.hand || [];
     const libraryCount = systemsRuntime?.cardDecks?.[turnTeam]?.library?.length || 0;
@@ -70,7 +76,7 @@ export default function PlaySystemsDock({
         onSystemsRuntimeChange
     ]);
 
-    if (!showDock || !isPlayMode) {
+    if (!isPlayMode || (!showDock && !setupIncomplete)) {
         return null;
     }
 
@@ -95,7 +101,7 @@ export default function PlaySystemsDock({
         });
 
         onSystemsRuntimeChange?.(completeSystemsSetup(nextRuntime));
-        onLogAction("Match systems configured.", "systems");
+        onLogAction("Match started. Play tools locked to loadout.", "systems");
     }
 
     function handleSetupDefaults() {
@@ -104,6 +110,9 @@ export default function PlaySystemsDock({
             worldMechanics: mechanics,
             turnTeam,
             setupChoices: {
+                terrainKeys: loadoutCatalog.terrainKeys,
+                counterKeys: loadoutCatalog.counterKeys,
+                conditionKeys: loadoutCatalog.conditionKeys,
                 objectiveKeys: (mechanics.objectives.items || [])
                     .slice(0, 1)
                     .map((item) => item.key),
@@ -118,7 +127,7 @@ export default function PlaySystemsDock({
         });
 
         onSystemsRuntimeChange?.(completeSystemsSetup(nextRuntime));
-        onLogAction("Match systems set to defaults.", "systems");
+        onLogAction("Match started with default loadout.", "systems");
     }
 
     function handleDrawCard() {
@@ -262,6 +271,7 @@ export default function PlaySystemsDock({
                 />
             )}
 
+            {showDock && (
             <section className="play-systems-dock" aria-label="Advanced play systems">
                 {features.timers && systemsRuntime?.timers && (
                     <div className="play-system-card">
@@ -417,6 +427,7 @@ export default function PlaySystemsDock({
                     </div>
                 )}
             </section>
+            )}
         </>
     );
 }

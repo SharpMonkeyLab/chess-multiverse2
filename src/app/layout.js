@@ -1,6 +1,7 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import GlobalMatchmakingBar from "@/components/GlobalMatchmakingBar";
+import AuthModalProvider from "@/components/AuthModalProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -22,8 +23,10 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body>
-        <GlobalMatchmakingBar />
-        {children}
+        <AuthModalProvider>
+          <GlobalMatchmakingBar />
+          {children}
+        </AuthModalProvider>
       </body>
     </html>
   );

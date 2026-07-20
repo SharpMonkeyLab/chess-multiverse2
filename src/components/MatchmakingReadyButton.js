@@ -8,6 +8,8 @@ import {
     readStoredWaitingMatch,
     readyForMatch
 } from "@/lib/matchmakingClient";
+import { getUserPreferences } from "@/lib/userPreferences";
+import { hasSupabaseConfig, supabase } from "@/lib/supabaseClient";
 
 export default function MatchmakingReadyButton({
     worldId,
@@ -77,6 +79,24 @@ export default function MatchmakingReadyButton({
             if (matchResult.status === "waiting") {
                 onStatusChange("Waiting for an opponent…");
                 setIsJoiningMatchmaking(false);
+
+                try {
+                    let userId = "guest";
+                    if (hasSupabaseConfig() && supabase) {
+                        const {
+                            data: { user }
+                        } = await supabase.auth.getUser();
+                        if (user?.id) userId = user.id;
+                    }
+
+                    if (getUserPreferences(userId).preferCommunityAfterReady) {
+                        window.location.assign("/lobby");
+                        return;
+                    }
+                } catch {
+                    // Stay on the current page if preference lookup fails.
+                }
+
                 return;
             }
 

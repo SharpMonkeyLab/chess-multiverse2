@@ -19,14 +19,16 @@ export default function WorldDescriptionModal({
   const [description, setDescription] = useState("");
   const [rulesNotes, setRulesNotes] = useState("");
   const [complexity, setComplexity] = useState("Basic");
+  const [formError, setFormError] = useState("");
 
   useEffect(() => {
     if (!isOpen) return;
 
-    setName(worldDetails?.name || "");
+    setName(worldDetails?.name || UNNAMED_WORLD_LABEL);
     setDescription(worldDetails?.description || "");
     setRulesNotes(worldDetails?.rulesNotes || "");
     setComplexity(normalizeWorldComplexity(worldDetails?.complexity));
+    setFormError("");
   }, [isOpen, worldDetails]);
 
   if (!isOpen) {
@@ -36,10 +38,33 @@ export default function WorldDescriptionModal({
   function handleConfirm(event) {
     event.preventDefault();
 
+    const cleanName = String(name || "").trim() || UNNAMED_WORLD_LABEL;
+    const cleanDescription = String(description || "").trim().slice(0, 180);
+    const cleanRulesNotes = String(rulesNotes || "").trim();
+
+    if (!cleanDescription && !cleanRulesNotes) {
+      setFormError(
+        "Add a description and rules summary before saving this universe."
+      );
+      return;
+    }
+
+    if (!cleanDescription) {
+      setFormError("Add a description before saving this universe.");
+      return;
+    }
+
+    if (!cleanRulesNotes) {
+      setFormError("Add a rules summary before saving this universe.");
+      return;
+    }
+
+    setFormError("");
+
     onConfirm({
-      name: String(name || "").trim(),
-      description: description.slice(0, 180),
-      rulesNotes,
+      name: cleanName,
+      description: cleanDescription,
+      rulesNotes: cleanRulesNotes,
       complexity: normalizeWorldComplexity(complexity)
     });
   }
@@ -76,7 +101,10 @@ export default function WorldDescriptionModal({
             value={name}
             placeholder={UNNAMED_WORLD_LABEL}
             disabled={isSaving}
-            onChange={(event) => setName(event.target.value)}
+            onChange={(event) => {
+              setFormError("");
+              setName(event.target.value);
+            }}
           />
 
           <label htmlFor="world-description-field">Universe Description</label>
@@ -86,7 +114,10 @@ export default function WorldDescriptionModal({
             maxLength={180}
             placeholder="Briefly describe this universe."
             disabled={isSaving}
-            onChange={(event) => setDescription(event.target.value)}
+            onChange={(event) => {
+              setFormError("");
+              setDescription(event.target.value);
+            }}
           />
 
           <div className="field-counter">{description.length}/180</div>
@@ -97,7 +128,10 @@ export default function WorldDescriptionModal({
             value={rulesNotes}
             placeholder="Write the main custom rules for this universe."
             disabled={isSaving}
-            onChange={(event) => setRulesNotes(event.target.value)}
+            onChange={(event) => {
+              setFormError("");
+              setRulesNotes(event.target.value);
+            }}
           />
 
           <label htmlFor="world-complexity-field">Complexity</label>
@@ -116,6 +150,12 @@ export default function WorldDescriptionModal({
             ))}
           </select>
         </div>
+
+        {formError && (
+          <p className="world-description-modal-error" role="alert">
+            {formError}
+          </p>
+        )}
 
         <div className="world-description-modal-actions">
           <button type="button" onClick={onCancel} disabled={isSaving}>
