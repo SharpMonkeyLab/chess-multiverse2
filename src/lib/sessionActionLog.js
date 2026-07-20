@@ -14,6 +14,31 @@ export function getPieceLabel(pieceNames, team, pieceKey) {
     return pieceKey;
 }
 
+export function getActionActorLabel(team, sessionParticipants = []) {
+    if (!Array.isArray(sessionParticipants)) {
+        return getTeamLabel(team);
+    }
+
+    const participant = sessionParticipants.find(
+        (entry) =>
+            entry.team === team &&
+            entry.participant_status !== "left" &&
+            !entry.left_at
+    );
+
+    const displayName = participant?.displayName?.trim();
+    if (displayName) {
+        return displayName;
+    }
+
+    return getTeamLabel(team);
+}
+
+export function getColoredPieceLabel(pieceNames, team, pieceKey) {
+    const color = team === "black" ? "black" : "white";
+    return `${color} ${getPieceLabel(pieceNames, team, pieceKey)}`;
+}
+
 export function createActionLogEntry({
     message,
     category = "action",

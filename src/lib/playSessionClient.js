@@ -124,7 +124,8 @@ export function buildSessionGameState({
     turnTeam,
     moveNumber,
     actionLog,
-    systemsRuntime = null
+    systemsRuntime = null,
+    enPassantTargetIndex = null
 }) {
     return createSessionGameState({
         cells,
@@ -133,7 +134,8 @@ export function buildSessionGameState({
         turnTeam,
         moveNumber,
         actionLog,
-        systemsRuntime
+        systemsRuntime,
+        enPassantTargetIndex
     });
 }
 

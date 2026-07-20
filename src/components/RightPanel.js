@@ -126,32 +126,6 @@ function TeamTray({
   );
 }
 
-function TurnControlPanel({ turnTeam, moveNumber, onPassTurn }) {
-  const teamLabel = turnTeam === "black" ? "Black" : "White";
-
-  return (
-    <section className="turn-strip" aria-label="Turn control">
-      <div className="turn-strip-info">
-        <span className="turn-strip-move">Move {moveNumber}</span>
-        <span className="turn-strip-dot" aria-hidden="true">
-          ·
-        </span>
-        <span className={`turn-strip-team ${turnTeam}`}>{teamLabel}</span>
-      </div>
-
-      <button
-        type="button"
-        className="turn-strip-pass"
-        onClick={onPassTurn}
-        disabled={typeof onPassTurn !== "function"}
-        title="Pass turn to the other team"
-      >
-        Pass Turn
-      </button>
-    </section>
-  );
-}
-
 export default function RightPanel({
   isPlayMode = false,
   worldFeatures,
@@ -233,14 +207,6 @@ export default function RightPanel({
         onSelectPiece={onSelectPiece}
         playerLabel={formatTrayPlayer(blackPlayer)}
       />
-
-      {isPlayMode && (
-        <TurnControlPanel
-          turnTeam={turnTeam}
-          moveNumber={moveNumber}
-          onPassTurn={onPassTurn}
-        />
-      )}
 
       <TeamTray
         team="white"

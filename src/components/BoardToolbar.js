@@ -143,22 +143,34 @@ export default function BoardToolbar({
         </div>
       </div>
 
-      {showActionLog && isLogOpen && (
-        <div className="board-action-log-drawer" role="dialog" aria-label="Action log">
-          {actionLog.length === 0 ? (
-            <p className="board-action-log-empty">No actions yet.</p>
-          ) : (
-            <ol className="board-action-log-list">
-              {actionLog.map((entry, index) => (
-                <li key={`${entry.id || entry.message}-${index}`}>
-                  <span className="board-action-log-index">
-                    {actionLog.length - index}
-                  </span>
-                  <span>{entry.message}</span>
-                </li>
-              ))}
-            </ol>
-          )}
+      {showActionLog && (
+        <div
+          className={`board-action-log-drawer${isLogOpen ? " open" : ""}`}
+          role="dialog"
+          aria-label="Action log"
+          aria-hidden={!isLogOpen}
+        >
+          <div className="board-action-log-drawer-inner">
+            {actionLog.length === 0 ? (
+              <p className="board-action-log-empty">No actions yet.</p>
+            ) : (
+              <ol className="board-action-log-list">
+                {actionLog.map((entry, index) => (
+                  <li
+                    className="board-action-log-entry"
+                    key={`${entry.id || entry.message}-${index}`}
+                  >
+                    <span className="board-action-log-number">
+                      {actionLog.length - index}
+                    </span>
+                    <span className="board-action-log-entry-body">
+                      <strong>{entry.message}</strong>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
         </div>
       )}
     </div>

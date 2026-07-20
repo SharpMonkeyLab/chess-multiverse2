@@ -5,6 +5,8 @@ import { isPieceHiddenByFog } from "@/lib/worldSystems";
 export default function Board({
   cells,
   movingPiece,
+  legalMoveIndexes = [],
+  legalCaptureIndexes = [],
   pieceNames,
   characterLibrary,
   portraitAssets = {},
@@ -15,6 +17,9 @@ export default function Board({
   revealOwnPiecesInFog = true,
   onCellClick
 }) {
+  const legalMoveSet = new Set(legalMoveIndexes);
+  const legalCaptureSet = new Set(legalCaptureIndexes);
+
   return (
     <div
       className={worldTheme?.boardSkinImage ? "board has-board-skin" : "board"}
@@ -35,6 +40,8 @@ export default function Board({
 
           const isLightSquare = (row + col) % 2 === 1;
           const isSelected = movingPiece?.fromIndex === index;
+          const isLegalMove = legalMoveSet.has(index);
+          const isLegalCapture = legalCaptureSet.has(index);
           const isFogged = Array.isArray(fogCells) && fogCells.includes(index);
           const hideOccupants = isPieceHiddenByFog({
             cellIndex: index,
@@ -51,6 +58,8 @@ export default function Board({
               isLightSquare={isLightSquare}
               cellData={cellData}
               isSelected={isSelected}
+              isLegalMove={isLegalMove}
+              isLegalCapture={isLegalCapture}
               pieceNames={pieceNames}
               characterLibrary={characterLibrary}
               portraitAssets={portraitAssets}

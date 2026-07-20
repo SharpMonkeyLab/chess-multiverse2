@@ -5,7 +5,8 @@ export function createSessionGameState({
     turnTeam = "white",
     moveNumber = 1,
     actionLog = [],
-    systemsRuntime = null
+    systemsRuntime = null,
+    enPassantTargetIndex = null
 }) {
     return {
         version: 3,
@@ -20,6 +21,10 @@ export function createSessionGameState({
         // Current turn state.
         turnTeam,
         moveNumber,
+
+        // Square jumped by a double pawn push (opponent may capture EP here).
+        enPassantTargetIndex:
+            enPassantTargetIndex == null ? null : Number(enPassantTargetIndex),
 
         // Shared visible action history for this session.
         actionLog: Array.isArray(actionLog) ? actionLog : [],

@@ -2,15 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import SystemsSetupOverlay from "./SystemsSetupOverlay";
-
 import {
-    completeSystemsSetup,
-    createAdvancedSystemsRuntime,
-    getMatchLoadoutCatalog,
     hasAnyAdvancedPlaySystem,
     normalizeWorldFeatures,
-    normalizeWorldMechanics,
     rollDiceDefinitions,
     tickTimers
 } from "@/lib/worldSystems";
@@ -25,7 +19,7 @@ function formatClock(totalSeconds) {
 
 export default function PlaySystemsDock({
     worldFeatures,
-    worldMechanics,
+    worldMechanics: _worldMechanics,
     systemsRuntime,
     onSystemsRuntimeChange,
     turnTeam = "white",
@@ -33,16 +27,9 @@ export default function PlaySystemsDock({
     onLogAction = () => {}
 }) {
     const features = normalizeWorldFeatures(worldFeatures);
-    const mechanics = normalizeWorldMechanics(worldMechanics);
     const [selectedCardInstanceId, setSelectedCardInstanceId] = useState("");
 
     const showDock = hasAnyAdvancedPlaySystem(features);
-    const setupIncomplete =
-        Boolean(systemsRuntime?.setup) && !systemsRuntime.setup.isComplete;
-    const loadoutCatalog = useMemo(
-        () => getMatchLoadoutCatalog(features, mechanics),
-        [features, mechanics]
-    );
 
     const activeHand = systemsRuntime?.cardDecks?.[turnTeam]?.hand || [];
     const libraryCount = systemsRuntime?.cardDecks?.[turnTeam]?.library?.length || 0;
@@ -76,7 +63,7 @@ export default function PlaySystemsDock({
         onSystemsRuntimeChange
     ]);
 
-    if (!isPlayMode || (!showDock && !setupIncomplete)) {
+    if (!showDock || !isPlayMode) {
         return null;
     }
 
@@ -90,44 +77,6 @@ export default function PlaySystemsDock({
             ...(current || {}),
             ...patchOrUpdater
         }));
-    }
-
-    function handleSetupConfirm(setupChoices) {
-        const nextRuntime = createAdvancedSystemsRuntime({
-            worldFeatures: features,
-            worldMechanics: mechanics,
-            turnTeam,
-            setupChoices
-        });
-
-        onSystemsRuntimeChange?.(completeSystemsSetup(nextRuntime));
-        onLogAction("Match started. Play tools locked to loadout.", "systems");
-    }
-
-    function handleSetupDefaults() {
-        const nextRuntime = createAdvancedSystemsRuntime({
-            worldFeatures: features,
-            worldMechanics: mechanics,
-            turnTeam,
-            setupChoices: {
-                terrainKeys: loadoutCatalog.terrainKeys,
-                counterKeys: loadoutCatalog.counterKeys,
-                conditionKeys: loadoutCatalog.conditionKeys,
-                objectiveKeys: (mechanics.objectives.items || [])
-                    .slice(0, 1)
-                    .map((item) => item.key),
-                deckCardKeys: {
-                    white: (mechanics.cardDecks.cards || []).map((card) => card.key),
-                    black: (mechanics.cardDecks.cards || []).map((card) => card.key)
-                },
-                dice: mechanics.diceSystem.dice,
-                timerSeconds: mechanics.timers.seconds,
-                timerMode: mechanics.timers.mode
-            }
-        });
-
-        onSystemsRuntimeChange?.(completeSystemsSetup(nextRuntime));
-        onLogAction("Match started with default loadout.", "systems");
     }
 
     function handleDrawCard() {
@@ -261,173 +210,160 @@ export default function PlaySystemsDock({
     }
 
     return (
-        <>
-            {setupIncomplete && (
-                <SystemsSetupOverlay
-                    worldFeatures={features}
-                    worldMechanics={mechanics}
-                    onConfirm={handleSetupConfirm}
-                    onSkipDefaults={handleSetupDefaults}
-                />
+        <section className="play-systems-dock" aria-label="Advanced play systems">
+            {features.timers && systemsRuntime?.timers && (
+                <div className="play-system-card">
+                    <h3>Timer</h3>
+                    <p className="play-system-clock">
+                        {systemsRuntime.timers.mode === "per_side_total"
+                            ? `W ${formatClock(systemsRuntime.timers.whiteRemaining)} · B ${formatClock(systemsRuntime.timers.blackRemaining)}`
+                            : formatClock(systemsRuntime.timers.turnSeconds)}
+                    </p>
+                    <div className="play-system-card-actions">
+                        <button type="button" onClick={handleToggleTimer}>
+                            {systemsRuntime.timers.isRunning ? "Pause" : "Start"}
+                        </button>
+                    </div>
+                    <p className="small muted">
+                        {systemsRuntime.timers.mode === "per_side_total"
+                            ? "Per side total"
+                            : "Per turn"}
+                        {systemsRuntime.timers.flaggedTeam
+                            ? ` · ${systemsRuntime.timers.flaggedTeam} flagged`
+                            : ""}
+                    </p>
+                </div>
             )}
 
-            {showDock && (
-            <section className="play-systems-dock" aria-label="Advanced play systems">
-                {features.timers && systemsRuntime?.timers && (
-                    <div className="play-system-card">
-                        <h3>Timer</h3>
-                        <p className="play-system-clock">
-                            {systemsRuntime.timers.mode === "per_side_total"
-                                ? `W ${formatClock(systemsRuntime.timers.whiteRemaining)} · B ${formatClock(systemsRuntime.timers.blackRemaining)}`
-                                : formatClock(systemsRuntime.timers.turnSeconds)}
-                        </p>
-                        <div className="play-system-card-actions">
-                            <button type="button" onClick={handleToggleTimer}>
-                                {systemsRuntime.timers.isRunning ? "Pause" : "Start"}
-                            </button>
-                        </div>
-                        <p className="small muted">
-                            {systemsRuntime.timers.mode === "per_side_total"
-                                ? "Per side total"
-                                : "Per turn"}
-                            {systemsRuntime.timers.flaggedTeam
-                                ? ` · ${systemsRuntime.timers.flaggedTeam} flagged`
-                                : ""}
-                        </p>
-                    </div>
-                )}
-
-                {features.diceSystem && systemsRuntime?.dice && (
-                    <div className="play-system-card">
-                        <h3>Dice</h3>
-                        <div className="play-system-card-actions">
-                            <button type="button" onClick={() => handleRollDice()}>
-                                Roll
-                            </button>
-                            {systemsRuntime.dice.allowReroll && (
-                                <button
-                                    type="button"
-                                    disabled={!systemsRuntime.dice.lastRoll}
-                                    onClick={() => handleRollDice({ isReroll: true })}
-                                >
-                                    Reroll
-                                </button>
-                            )}
-                        </div>
-                        {systemsRuntime.dice.lastRoll ? (
-                            <p className="play-system-roll">
-                                {systemsRuntime.dice.lastRoll.results
-                                    .map((result) => `${result.label}: ${result.value}`)
-                                    .join(" · ")}
-                            </p>
-                        ) : (
-                            <p className="small muted">No rolls yet.</p>
-                        )}
-                    </div>
-                )}
-
-                {features.cardDecks && systemsRuntime?.cardDecks && (
-                    <div className="play-system-card play-system-card-wide">
-                        <h3>Cards · {turnTeam} · {libraryCount} left</h3>
-                        <div className="play-system-card-actions">
-                            <button type="button" onClick={handleDrawCard}>
-                                Draw
-                            </button>
+            {features.diceSystem && systemsRuntime?.dice && (
+                <div className="play-system-card">
+                    <h3>Dice</h3>
+                    <div className="play-system-card-actions">
+                        <button type="button" onClick={() => handleRollDice()}>
+                            Roll
+                        </button>
+                        {systemsRuntime.dice.allowReroll && (
                             <button
                                 type="button"
-                                disabled={!selectedCardInstanceId}
-                                onClick={handlePlaySelectedCard}
+                                disabled={!systemsRuntime.dice.lastRoll}
+                                onClick={() => handleRollDice({ isReroll: true })}
                             >
-                                Play Selected
+                                Reroll
                             </button>
-                        </div>
-                        <div className="play-system-hand">
-                            {activeHand.length === 0 ? (
-                                <p className="small muted">Hand empty — draw a card.</p>
-                            ) : (
-                                activeHand.map((card) => {
-                                    const cardId = card.instanceId || card.key;
+                        )}
+                    </div>
+                    {systemsRuntime.dice.lastRoll ? (
+                        <p className="play-system-roll">
+                            {systemsRuntime.dice.lastRoll.results
+                                .map((result) => `${result.label}: ${result.value}`)
+                                .join(" · ")}
+                        </p>
+                    ) : (
+                        <p className="small muted">No rolls yet.</p>
+                    )}
+                </div>
+            )}
 
-                                    return (
+            {features.cardDecks && systemsRuntime?.cardDecks && (
+                <div className="play-system-card play-system-card-wide">
+                    <h3>Cards · {turnTeam} · {libraryCount} left</h3>
+                    <div className="play-system-card-actions">
+                        <button type="button" onClick={handleDrawCard}>
+                            Draw
+                        </button>
+                        <button
+                            type="button"
+                            disabled={!selectedCardInstanceId}
+                            onClick={handlePlaySelectedCard}
+                        >
+                            Play Selected
+                        </button>
+                    </div>
+                    <div className="play-system-hand">
+                        {activeHand.length === 0 ? (
+                            <p className="small muted">Hand empty — draw a card.</p>
+                        ) : (
+                            activeHand.map((card) => {
+                                const cardId = card.instanceId || card.key;
+
+                                return (
+                                    <button
+                                        type="button"
+                                        key={cardId}
+                                        className={
+                                            selectedCardInstanceId === cardId
+                                                ? "play-hand-card active"
+                                                : "play-hand-card"
+                                        }
+                                        onClick={() => setSelectedCardInstanceId(cardId)}
+                                        title={card.effectHint || card.description || ""}
+                                    >
+                                        <strong>{card.name || "Card"}</strong>
+                                        <small>
+                                            {card.effectHint ||
+                                                card.description ||
+                                                "Play, then edit the board"}
+                                        </small>
+                                    </button>
+                                );
+                            })
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {features.objectives && systemsRuntime?.objectives && (
+                <div className="play-system-card">
+                    <h3>Objectives</h3>
+                    {selectedObjectives.length === 0 ? (
+                        <p className="small muted">No objectives selected.</p>
+                    ) : (
+                        <ul className="play-system-objectives">
+                            {selectedObjectives.map((item) => {
+                                const isComplete = (
+                                    systemsRuntime.objectives.completedKeys || []
+                                ).includes(item.key);
+
+                                return (
+                                    <li key={item.key}>
                                         <button
                                             type="button"
-                                            key={cardId}
                                             className={
-                                                selectedCardInstanceId === cardId
-                                                    ? "play-hand-card active"
-                                                    : "play-hand-card"
+                                                isComplete
+                                                    ? "play-objective-toggle done"
+                                                    : "play-objective-toggle"
                                             }
-                                            onClick={() => setSelectedCardInstanceId(cardId)}
-                                            title={card.effectHint || card.description || ""}
+                                            onClick={() =>
+                                                handleToggleObjectiveComplete(item.key)
+                                            }
                                         >
-                                            <strong>{card.name || "Card"}</strong>
-                                            <small>
-                                                {card.effectHint ||
-                                                    card.description ||
-                                                    "Play, then edit the board"}
-                                            </small>
+                                            {isComplete ? "✓ " : ""}
+                                            {item.title || "Objective"}
                                         </button>
-                                    );
-                                })
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {features.objectives && systemsRuntime?.objectives && (
-                    <div className="play-system-card">
-                        <h3>Objectives</h3>
-                        {selectedObjectives.length === 0 ? (
-                            <p className="small muted">No objectives selected.</p>
-                        ) : (
-                            <ul className="play-system-objectives">
-                                {selectedObjectives.map((item) => {
-                                    const isComplete = (
-                                        systemsRuntime.objectives.completedKeys || []
-                                    ).includes(item.key);
-
-                                    return (
-                                        <li key={item.key}>
-                                            <button
-                                                type="button"
-                                                className={
-                                                    isComplete
-                                                        ? "play-objective-toggle done"
-                                                        : "play-objective-toggle"
-                                                }
-                                                onClick={() =>
-                                                    handleToggleObjectiveComplete(item.key)
-                                                }
-                                            >
-                                                {isComplete ? "✓ " : ""}
-                                                {item.title || "Objective"}
-                                            </button>
-                                        </li>
-                                    );
-                                })}
-                            </ul>
-                        )}
-                    </div>
-                )}
-
-                {features.fogOfWar && systemsRuntime?.fogOfWar && (
-                    <div className="play-system-card">
-                        <h3>Fog of War</h3>
-                        <p className="small muted">
-                            {(systemsRuntime.fogOfWar.fogCells || []).length} fogged
-                            cells. Enemy pieces inside fog stay hidden.
-                        </p>
-                        {systemsRuntime.fogOfWar.allowPlayerEdit ? (
-                            <p className="small muted">
-                                Use Fog tools in the left panel to paint or clear.
-                            </p>
-                        ) : (
-                            <p className="small muted">Fog zones are fixed by the creator.</p>
-                        )}
-                    </div>
-                )}
-            </section>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    )}
+                </div>
             )}
-        </>
+
+            {features.fogOfWar && systemsRuntime?.fogOfWar && (
+                <div className="play-system-card">
+                    <h3>Fog of War</h3>
+                    <p className="small muted">
+                        {(systemsRuntime.fogOfWar.fogCells || []).length} fogged
+                        cells. Enemy pieces inside fog stay hidden.
+                    </p>
+                    {systemsRuntime.fogOfWar.allowPlayerEdit ? (
+                        <p className="small muted">
+                            Use Fog tools in the left panel to paint or clear.
+                        </p>
+                    ) : (
+                        <p className="small muted">Fog zones are fixed by the creator.</p>
+                    )}
+                </div>
+            )}
+        </section>
     );
 }

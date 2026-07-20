@@ -19,6 +19,8 @@ export default function Cell({
   isLightSquare,
   cellData,
   isSelected,
+  isLegalMove = false,
+  isLegalCapture = false,
   pieceNames,
   characterLibrary,
   portraitAssets = {},
@@ -110,7 +112,7 @@ export default function Cell({
   return (
     <div
       className={`cell ${squareClass} ${terrainClass} ${fogClass} ${hasBoardSkin ? "board-skin-cell" : ""
-        } ${isSelected ? "selected-moving" : ""}`}
+        } ${isSelected ? "selected-moving" : ""} ${isLegalMove ? "legal-move" : ""} ${isLegalCapture ? "legal-capture" : ""}`}
       style={terrainStyle}
       onClick={onClick}
     >

@@ -1,7 +1,6 @@
 import {
     DEFAULT_WORLD_FEATURES,
     DEFAULT_WORLD_MECHANICS,
-    getCounterListFromMechanics,
     makeKeyFromLabel
 } from "@/lib/defaultWorld";
 
@@ -240,80 +239,19 @@ export function resolveObjectivesForSetup(objectivesConfig, chosenKeys = []) {
         : items.slice(0, 1).map((item) => ({ ...item }));
 }
 
-export function getMatchLoadoutCatalog(worldFeatures, worldMechanics) {
-    const features = normalizeWorldFeatures(worldFeatures);
-    const mechanics = normalizeWorldMechanics(worldMechanics);
-
-    const terrains = features.terrains
-        ? (mechanics.terrains || []).filter((terrain) => terrain?.key)
-        : [];
-    const counters = features.counters
-        ? getCounterListFromMechanics(mechanics).filter((counter) => counter?.key)
-        : [];
-    const conditions = features.conditions
-        ? (mechanics.conditions || []).filter((condition) => condition?.key)
-        : [];
-
-    return {
-        terrains,
-        counters,
-        conditions,
-        terrainKeys: terrains.map((terrain) => terrain.key),
-        counterKeys: counters.map((counter) => counter.key),
-        conditionKeys: conditions.map((condition) => condition.key),
-        hasLoadoutOptions:
-            terrains.length > 0 || counters.length > 0 || conditions.length > 0
-    };
-}
-
-export function normalizeMatchLoadout(setupChoices, catalog) {
-    const safeCatalog = catalog || {
-        terrainKeys: [],
-        counterKeys: [],
-        conditionKeys: []
-    };
-
-    function pickKeys(chosenKeys, availableKeys) {
-        if (!Array.isArray(availableKeys) || availableKeys.length === 0) {
-            return [];
-        }
-
-        if (!Array.isArray(chosenKeys)) {
-            return [...availableKeys];
-        }
-
-        const availableSet = new Set(availableKeys);
-        const selected = chosenKeys.filter((key) => availableSet.has(key));
-
-        return selected;
-    }
-
-    return {
-        terrainKeys: pickKeys(setupChoices?.terrainKeys, safeCatalog.terrainKeys),
-        counterKeys: pickKeys(setupChoices?.counterKeys, safeCatalog.counterKeys),
-        conditionKeys: pickKeys(
-            setupChoices?.conditionKeys,
-            safeCatalog.conditionKeys
-        )
-    };
-}
-
 export function getSystemsSetupRequirements(worldFeatures, worldMechanics) {
     const features = normalizeWorldFeatures(worldFeatures);
     const mechanics = normalizeWorldMechanics(worldMechanics);
-    const catalog = getMatchLoadoutCatalog(features, mechanics);
+
+    // Flags kept for future in-play / pre-game setup UX.
+    // needsAny stays false so Play never blocks behind a Match Setup overlay.
     const requirements = {
         needsObjectives: false,
         needsDeckBuild: false,
         needsDiceEdit: false,
         needsTimerEdit: false,
-        needsLoadout: false,
         needsAny: false
     };
-
-    if (catalog.hasLoadoutOptions) {
-        requirements.needsLoadout = true;
-    }
 
     if (
         features.objectives &&
@@ -338,13 +276,6 @@ export function getSystemsSetupRequirements(worldFeatures, worldMechanics) {
     if (features.timers && mechanics.timers.allowPlayerEdit) {
         requirements.needsTimerEdit = true;
     }
-
-    requirements.needsAny =
-        requirements.needsLoadout ||
-        requirements.needsObjectives ||
-        requirements.needsDeckBuild ||
-        requirements.needsDiceEdit ||
-        requirements.needsTimerEdit;
 
     return requirements;
 }
@@ -389,16 +320,14 @@ export function createAdvancedSystemsRuntime({
     const features = normalizeWorldFeatures(worldFeatures);
     const mechanics = normalizeWorldMechanics(worldMechanics);
     const requirements = getSystemsSetupRequirements(features, mechanics);
-    const catalog = getMatchLoadoutCatalog(features, mechanics);
-    const setupComplete = !requirements.needsAny || Boolean(setupChoices);
+
+    // Always complete: Play opens the raw board with universe defaults.
+    // Future pre-game setup can pass setupChoices without gating behind an overlay.
     const runtime = {
         setup: {
-            isComplete: setupComplete,
+            isComplete: true,
             requirements
-        },
-        matchLoadout: setupComplete
-            ? normalizeMatchLoadout(setupChoices, catalog)
-            : null
+        }
     };
 
     if (features.cardDecks) {
@@ -406,15 +335,10 @@ export function createAdvancedSystemsRuntime({
 
         const whiteKeys = setupChoices?.deckCardKeys?.white || null;
         const blackKeys = setupChoices?.deckCardKeys?.black || null;
-        const autoBuild = !requirements.needsDeckBuild || Boolean(setupChoices);
 
         runtime.cardDecks = {
-            white: autoBuild
-                ? createTeamCardState(mechanics, whiteKeys)
-                : { library: [], hand: [], discard: [] },
-            black: autoBuild
-                ? createTeamCardState(mechanics, blackKeys || whiteKeys)
-                : { library: [], hand: [], discard: [] },
+            white: createTeamCardState(mechanics, whiteKeys),
+            black: createTeamCardState(mechanics, blackKeys || whiteKeys),
             config: {
                 deckSize: mechanics.cardDecks.deckSize,
                 startingHandSize: mechanics.cardDecks.startingHandSize,
@@ -455,18 +379,13 @@ export function createAdvancedSystemsRuntime({
     }
 
     if (features.objectives) {
-        const selected =
-            requirements.needsObjectives && !setupChoices
-                ? []
-                : resolveObjectivesForSetup(
-                      mechanics.objectives,
-                      setupChoices?.objectiveKeys || []
-                  );
-
         runtime.objectives = {
             selectionMode: mechanics.objectives.selectionMode,
             available: mechanics.objectives.items,
-            selected,
+            selected: resolveObjectivesForSetup(
+                mechanics.objectives,
+                setupChoices?.objectiveKeys || []
+            ),
             completedKeys: []
         };
     }

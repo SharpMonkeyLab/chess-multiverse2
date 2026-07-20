@@ -45,6 +45,7 @@ export default function AccountPage() {
   const [profileStatus, setProfileStatus] = useState("");
   const [preferCommunityAfterReady, setPreferCommunityAfterReady] =
     useState(false);
+  const [showLegalMoveHints, setShowLegalMoveHints] = useState(true);
 
   const [onlineWorlds, setOnlineWorlds] = useState([]);
   const [onlineWorldsStatus, setOnlineWorldsStatus] = useState("");
@@ -169,6 +170,7 @@ export default function AccountPage() {
   function loadPreferences(userId) {
     const prefs = getUserPreferences(userId);
     setPreferCommunityAfterReady(prefs.preferCommunityAfterReady);
+    setShowLegalMoveHints(prefs.showLegalMoveHints !== false);
   }
 
   async function handleSaveProfile(event) {
@@ -211,7 +213,8 @@ export default function AccountPage() {
 
       setDisplayName(savedProfile.display_name || "");
       saveUserPreferences(currentUser.id, {
-        preferCommunityAfterReady
+        preferCommunityAfterReady,
+        showLegalMoveHints
       });
       setProfileStatus("Settings saved.");
     } catch (error) {
@@ -471,6 +474,28 @@ export default function AccountPage() {
                             checked={preferCommunityAfterReady}
                             onChange={(event) =>
                               setPreferCommunityAfterReady(event.target.checked)
+                            }
+                          />
+                          <span className="account-settings-toggle-track" aria-hidden="true">
+                            <span className="account-settings-toggle-thumb" />
+                          </span>
+                        </label>
+                      </div>
+
+                      <div className="account-settings-row">
+                        <div className="account-settings-row-copy">
+                          <strong>Show legal move hints</strong>
+                          <span>
+                            Highlight available squares when you select a piece in Rules play.
+                          </span>
+                        </div>
+
+                        <label className="account-settings-toggle">
+                          <input
+                            type="checkbox"
+                            checked={showLegalMoveHints}
+                            onChange={(event) =>
+                              setShowLegalMoveHints(event.target.checked)
                             }
                           />
                           <span className="account-settings-toggle-track" aria-hidden="true">

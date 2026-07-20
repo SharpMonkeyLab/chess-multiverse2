@@ -299,9 +299,7 @@ export default function WorldLibraryClient() {
                 {isLoadingPublicWorlds && (
                     <div className="empty-worlds-card">
                         <h3>Loading universes…</h3>
-                        <p>
-                            Fetching the public library. The archive goblin is finding the right shelf.
-                        </p>
+                        <p>Fetching the public library…</p>
                     </div>
                 )}
 
@@ -442,7 +440,7 @@ export default function WorldLibraryClient() {
 
                                             <p>
                                                 {world.description ||
-                                                    "No description yet. This universe is public, mysterious, and probably balanced by goblins."}
+                                                    "No description yet. This universe is public, mysterious, and still negotiating with causality."}
                                             </p>
 
                                             <div className="world-card-stat-strip">

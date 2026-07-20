@@ -5,6 +5,7 @@ export const DISPLAY_MODE_PORTRAIT = "portrait-with-piece";
 
 const DEFAULT_PREFERENCES = {
   preferCommunityAfterReady: false,
+  showLegalMoveHints: true,
   displayModeByWorld: {}
 };
 
@@ -48,6 +49,10 @@ export function getUserPreferences(userId) {
       ...DEFAULT_PREFERENCES,
       ...parsed,
       preferCommunityAfterReady: Boolean(parsed.preferCommunityAfterReady),
+      showLegalMoveHints:
+        parsed.showLegalMoveHints == null
+          ? DEFAULT_PREFERENCES.showLegalMoveHints
+          : Boolean(parsed.showLegalMoveHints),
       displayModeByWorld
     };
   } catch {
@@ -74,6 +79,9 @@ export function saveUserPreferences(userId, preferences) {
   const next = {
     preferCommunityAfterReady: Boolean(
       preferences.preferCommunityAfterReady ?? current.preferCommunityAfterReady
+    ),
+    showLegalMoveHints: Boolean(
+      preferences.showLegalMoveHints ?? current.showLegalMoveHints
     ),
     displayModeByWorld
   };

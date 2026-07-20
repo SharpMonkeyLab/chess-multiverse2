@@ -8,6 +8,7 @@ import SiteHeader from "./SiteHeader";
 import LeftSidebar from "./LeftSidebar";
 import Workspace from "./Workspace";
 import RightPanel from "./RightPanel";
+import TurnControlPanel from "./TurnControlPanel";
 
 import {
     createBoardCells,
@@ -24,6 +25,7 @@ import { hasSupabaseConfig, supabase } from "@/lib/supabaseClient";
 import { normalizeWorldTheme } from "@/lib/worldData";
 import {
     DISPLAY_MODE_PIECE,
+    getUserPreferences,
     getWorldDisplayMode,
     saveWorldDisplayMode
 } from "@/lib/userPreferences";
@@ -64,6 +66,13 @@ import {
     updateCellAtIndex
 } from "@/lib/boardCellActions";
 
+import {
+    canPickPiece,
+    isPlayersTurn,
+    resolvePlayOccupantDrop
+} from "@/lib/boardPlayMoves";
+import { getPseudoLegalMoves } from "@/lib/boardChessMoves";
+
 import { useResponsiveStageLayout } from "@/lib/useResponsiveStageLayout";
 import {
     STAGE_DESIGN_HEIGHT,
@@ -77,7 +86,8 @@ import { usePlaySessionSync } from "@/lib/usePlaySessionSync";
 
 import {
     addActionLogEntryToLog,
-    getPieceLabel,
+    getActionActorLabel,
+    getColoredPieceLabel,
     getTeamLabel
 } from "@/lib/sessionActionLog";
 
@@ -192,8 +202,25 @@ export default function PlayMode() {
     const [isInvitePanelOpen, setIsInvitePanelOpen] = useState(false);
     const [turnTeam, setTurnTeam] = useState("white");
     const [moveNumber, setMoveNumber] = useState(1);
+    const [enPassantTargetIndex, setEnPassantTargetIndex] = useState(null);
+    const [playInteractionMode, setPlayInteractionMode] = useState("rules");
+    const [showLegalMoveHints, setShowLegalMoveHints] = useState(true);
     const [actionLog, setActionLog] = useState([]);
     const [systemsRuntime, setSystemsRuntime] = useState(null);
+
+    // Chess limits apply in live matches always; offline Play can toggle Free.
+    const usesChessMoveRules =
+        Boolean(playSessionId) || playInteractionMode === "rules";
+    const showLegalMoveHighlights =
+        usesChessMoveRules && showLegalMoveHints;
+    const playViewerTeam =
+        getViewerTeam(sessionParticipants, currentUserId) ||
+        (!playSessionId ? turnTeam : "");
+    const isPlayerTurn = isPlayersTurn({
+        viewerTeam: playViewerTeam,
+        turnTeam,
+        requireSeated: Boolean(playSessionId)
+    });
 
     // Keeps status messages temporary instead of permanently screaming.
     const sessionSyncStatusTimeoutRef = useRef(null);
@@ -290,6 +317,7 @@ export default function PlayMode() {
         moveNumber,
         actionLog,
         systemsRuntime,
+        enPassantTargetIndex,
         setCells,
         setPieceNames,
         setPieceNameLocked,
@@ -297,6 +325,7 @@ export default function PlayMode() {
         setMoveNumber,
         setActionLog,
         setSystemsRuntime,
+        setEnPassantTargetIndex,
         setMovingPiece,
         setActivePiece,
         setSessionLifecycleStatus,
@@ -308,6 +337,22 @@ export default function PlayMode() {
         loadSessionParticipants,
         clearLocalCellHistory
     });
+
+    useEffect(() => {
+        if (!playSessionId) {
+            return;
+        }
+
+        setPlayInteractionMode("rules");
+        setMovingPiece(null);
+        setSelectedTeam(null);
+        setSelectedPiece(null);
+    }, [playSessionId]);
+
+    useEffect(() => {
+        const prefs = getUserPreferences(currentUserId || "guest");
+        setShowLegalMoveHints(prefs.showLegalMoveHints !== false);
+    }, [currentUserId]);
 
     useEffect(() => {
         async function loadPlaySession(sessionId) {
@@ -530,6 +575,11 @@ export default function PlayMode() {
                 ? Number(sessionGameState.moveNumber)
                 : 1
         );
+        setEnPassantTargetIndex(
+            sessionGameState?.enPassantTargetIndex == null
+                ? null
+                : Number(sessionGameState.enPassantTargetIndex)
+        );
 
         setActionLog(
             Array.isArray(sessionGameState?.actionLog)
@@ -576,7 +626,11 @@ export default function PlayMode() {
             turnTeam: startingTurnTeam,
             moveNumber: startingMoveNumber,
             actionLog: startingActionLog,
-            systemsRuntime: startingSystemsRuntime
+            systemsRuntime: startingSystemsRuntime,
+            enPassantTargetIndex:
+                sessionGameState?.enPassantTargetIndex == null
+                    ? null
+                    : Number(sessionGameState.enPassantTargetIndex)
         });
 
         seedSavedGameState(startingGameState);
@@ -631,20 +685,6 @@ export default function PlayMode() {
         setSelectedFogAction(null);
     }
 
-    function canUseMatchLoadoutKey(kind, key) {
-        if (systemsRuntime?.setup && !systemsRuntime.setup.isComplete) {
-            return false;
-        }
-
-        const loadout = systemsRuntime?.matchLoadout;
-        if (!loadout) return true;
-
-        const allowedKeys = loadout[`${kind}Keys`];
-        if (!Array.isArray(allowedKeys)) return true;
-
-        return allowedKeys.includes(key);
-    }
-
     useEffect(() => {
         function handleKeyboardShortcut(event) {
             const tagName = event.target.tagName;
@@ -668,9 +708,7 @@ export default function PlayMode() {
             const isEscape = key === "escape";
 
             if (terrainShortcutKeys.includes(key)) {
-                const terrainList = (worldMechanics.terrains || []).filter(
-                    (terrain) => canUseMatchLoadoutKey("terrain", terrain.key)
-                );
+                const terrainList = worldMechanics.terrains || [];
                 const terrainIndex = terrainShortcutKeys.indexOf(key);
                 const terrain = terrainList[terrainIndex];
 
@@ -683,10 +721,7 @@ export default function PlayMode() {
             }
 
             if (conditionShortcutKeys.includes(key)) {
-                const conditionList = (worldMechanics.conditions || []).filter(
-                    (condition) =>
-                        canUseMatchLoadoutKey("condition", condition.key)
-                );
+                const conditionList = worldMechanics.conditions || [];
                 const conditionIndex = conditionShortcutKeys.indexOf(key);
                 const condition = conditionList[conditionIndex];
 
@@ -699,11 +734,7 @@ export default function PlayMode() {
             }
 
             if (counterShortcutKeys.includes(key)) {
-                const counterList = getCounterListFromMechanics(
-                    worldMechanics
-                ).filter((counter) =>
-                    canUseMatchLoadoutKey("counter", counter.key)
-                );
+                const counterList = getCounterListFromMechanics(worldMechanics);
                 const activeCounter =
                     counterList.find((counter) => counter.key === selectedCounterKey) ||
                     counterList[0];
@@ -885,8 +916,6 @@ export default function PlayMode() {
     }, []);
 
     function handleSelectCounterDelta(counterKey, delta) {
-        if (!canUseMatchLoadoutKey("counter", counterKey)) return;
-
         setSelectedCounterKey(counterKey);
         setSelectedCounterDelta(delta);
         setSelectedCounterAction("adjust");
@@ -906,8 +935,6 @@ export default function PlayMode() {
     }
 
     function handleSelectSetCounter(counterKey, nextSetValue = 0) {
-        if (!canUseMatchLoadoutKey("counter", counterKey)) return;
-
         setSelectedCounterKey(counterKey);
         setCounterSetValue(String(nextSetValue));
         setSelectedCounterAction("set");
@@ -928,8 +955,6 @@ export default function PlayMode() {
     }
 
     function handleSelectClearCounter(counterKey) {
-        if (!canUseMatchLoadoutKey("counter", counterKey)) return;
-
         setSelectedCounterKey(counterKey);
         setSelectedCounterAction("clear");
         setSelectedCounterDelta(null);
@@ -950,7 +975,6 @@ export default function PlayMode() {
 
     function handleSelectCondition(conditionKey) {
         if (!worldFeatures.conditions) return;
-        if (!canUseMatchLoadoutKey("condition", conditionKey)) return;
 
         setSelectedCondition(conditionKey);
         setSelectedConditionAction("toggle");
@@ -964,7 +988,6 @@ export default function PlayMode() {
 
     function handleSelectClearConditions() {
         if (!worldFeatures.conditions) return;
-        if (systemsRuntime?.setup && !systemsRuntime.setup.isComplete) return;
 
         setSelectedCondition(null);
         setSelectedConditionAction("clear");
@@ -978,7 +1001,6 @@ export default function PlayMode() {
 
     function handleSelectTerrain(terrainKey) {
         if (!worldFeatures.terrains) return;
-        if (!canUseMatchLoadoutKey("terrain", terrainKey)) return;
 
         setSelectedTerrain(terrainKey);
         setSelectedTerrainAction("paint");
@@ -992,7 +1014,6 @@ export default function PlayMode() {
 
     function handleSelectClearTerrain() {
         if (!worldFeatures.terrains) return;
-        if (systemsRuntime?.setup && !systemsRuntime.setup.isComplete) return;
 
         setSelectedTerrain(null);
         setSelectedTerrainAction("clear");
@@ -1163,6 +1184,7 @@ export default function PlayMode() {
             return;
         }
         updateCellsWithHistory(() => createStandardSetupCells());
+        setEnPassantTargetIndex(null);
         addActionLogEntry("Board reset to standard setup.", "board");
         clearAllSelections();
         setActivePiece(null);
@@ -1174,6 +1196,7 @@ export default function PlayMode() {
             return;
         }
         updateCellsWithHistory(() => createBoardCells());
+        setEnPassantTargetIndex(null);
         addActionLogEntry("Board cleared.", "board");
         clearAllSelections();
         setActivePiece(null);
@@ -1229,6 +1252,33 @@ export default function PlayMode() {
         setActivePiece({ team, pieceKey });
     }
 
+    function getPlayViewerTeam() {
+        return playViewerTeam;
+    }
+
+    function advanceTurnAfterChessMove(nextEnPassantTargetIndex = null) {
+        const nextTurnTeam = turnTeam === "white" ? "black" : "white";
+        const nextMoveNumber =
+            turnTeam === "black" ? moveNumber + 1 : moveNumber;
+
+        setEnPassantTargetIndex(
+            nextEnPassantTargetIndex == null
+                ? null
+                : Number(nextEnPassantTargetIndex)
+        );
+        setTurnTeam(nextTurnTeam);
+        setMoveNumber(nextMoveNumber);
+
+        setSystemsRuntime((current) => {
+            if (!current?.timers) return current;
+
+            return {
+                ...current,
+                timers: resetTurnTimer(current.timers, nextTurnTeam)
+            };
+        });
+    }
+
     function handleCellClick(index, event) {
         if (isResultFlowBlockingBoard) {
             showSessionSyncStatus("Resolve the match result first.");
@@ -1236,6 +1286,7 @@ export default function PlayMode() {
         }
         const clickedCell = cells[index];
         const clickedToken = getPrimaryToken(clickedCell);
+        const viewerTeam = getPlayViewerTeam();
 
         if (selectedBoardAction === "delete-piece") {
             updateCellsWithHistory((currentCells) =>
@@ -1430,6 +1481,15 @@ export default function PlayMode() {
             }
 
             if (selectedTeam && selectedPiece) {
+                if (usesChessMoveRules) {
+                    showSessionSyncStatus(
+                        "Piece tray placement is disabled in Rules mode. Move pieces with chess rules."
+                    );
+                    setSelectedTeam(null);
+                    setSelectedPiece(null);
+                    return;
+                }
+
                 const placedPieceKey = resolvePlacementPieceKey(selectedPiece);
 
                 updateCellsWithHistory((currentCells) => {
@@ -1456,7 +1516,7 @@ export default function PlayMode() {
                 });
 
                 addActionLogEntry(
-                    `${getTeamLabel(selectedTeam)} placed ${getPieceLabel(pieceNames, selectedTeam, placedPieceKey)}.`,
+                    `${getActionActorLabel(selectedTeam, sessionParticipants)} placed ${getColoredPieceLabel(pieceNames, selectedTeam, placedPieceKey)}.`,
                     "piece"
                 );
 
@@ -1469,6 +1529,23 @@ export default function PlayMode() {
             }
 
             if (clickedCell.pieceType) {
+                if (
+                    usesChessMoveRules &&
+                    !canPickPiece({
+                        cell: clickedCell,
+                        viewerTeam,
+                        turnTeam,
+                        requireSeated: Boolean(playSessionId)
+                    })
+                ) {
+                    showSessionSyncStatus(
+                        playSessionId && !viewerTeam
+                            ? "Join a seat before moving pieces."
+                            : `Only ${turnTeam} can move right now.`
+                    );
+                    return;
+                }
+
                 setMovingPiece(createMovingPiece(clickedCell, index));
                 setActivePiece({
                     team: clickedCell.team,
@@ -1496,6 +1573,18 @@ export default function PlayMode() {
             clickedCell.pieceType &&
             clickedCell.team === movingPiece.team
         ) {
+            if (
+                usesChessMoveRules &&
+                !canPickPiece({
+                    cell: clickedCell,
+                    viewerTeam,
+                    turnTeam,
+                    requireSeated: Boolean(playSessionId)
+                })
+            ) {
+                return;
+            }
+
             setMovingPiece(createMovingPiece(clickedCell, index));
             setActivePiece({
                 team: clickedCell.team,
@@ -1504,20 +1593,24 @@ export default function PlayMode() {
             return;
         }
 
-        updateCellsWithHistory((currentCells) =>
-            moveOccupantForPlay(currentCells, movingPiece, index)
-        );
-
         if (movingPiece.kind === "token") {
-            addActionLogEntry(
-                `Token moved.`,
-                "token"
+            updateCellsWithHistory((currentCells) =>
+                moveOccupantForPlay(currentCells, movingPiece, index)
             );
 
+            addActionLogEntry(`Token moved.`, "token");
             setActivePiece(null);
-        } else {
+            setMovingPiece(null);
+            return;
+        }
+
+        if (!usesChessMoveRules) {
+            updateCellsWithHistory((currentCells) =>
+                moveOccupantForPlay(currentCells, movingPiece, index)
+            );
+
             addActionLogEntry(
-                `${getTeamLabel(movingPiece.team)} moved ${getPieceLabel(
+                `${getActionActorLabel(movingPiece.team, sessionParticipants)} moved ${getColoredPieceLabel(
                     pieceNames,
                     movingPiece.team,
                     movingPiece.pieceType
@@ -1529,9 +1622,39 @@ export default function PlayMode() {
                 team: movingPiece.team,
                 pieceKey: movingPiece.pieceType
             });
+            setMovingPiece(null);
+            return;
         }
 
+        const dropResult = resolvePlayOccupantDrop({
+            cells,
+            movingPiece,
+            toIndex: index,
+            enPassantTargetIndex
+        });
+
+        if (!dropResult.ok) {
+            showSessionSyncStatus("That square is not a legal move.");
+            return;
+        }
+
+        updateCellsWithHistory(() => dropResult.cells);
+
+        addActionLogEntry(
+            `${getActionActorLabel(movingPiece.team, sessionParticipants)} moved ${getColoredPieceLabel(
+                pieceNames,
+                movingPiece.team,
+                movingPiece.pieceType
+            )}.`,
+            "piece"
+        );
+
+        setActivePiece({
+            team: movingPiece.team,
+            pieceKey: movingPiece.pieceType
+        });
         setMovingPiece(null);
+        advanceTurnAfterChessMove(dropResult.enPassantTargetIndex);
     }
 
     function handlePassTurn() {
@@ -1551,6 +1674,7 @@ export default function PlayMode() {
 
         setTurnTeam(nextTurnTeam);
         setMoveNumber(nextMoveNumber);
+        setEnPassantTargetIndex(null);
 
         setSystemsRuntime((current) => {
             if (!current?.timers) return current;
@@ -1615,6 +1739,19 @@ export default function PlayMode() {
     }
 
     if (!isWorldLoaded) {
+        const isLoadingBoard =
+            loadStatus === "Loading board…" || loadStatus === "Loading session…";
+        const isEmptyUniverse =
+            loadStatus === "No universe selected. Open a universe first.";
+
+        let supportingCopy = "Try another universe, or go back to browse.";
+        if (isLoadingBoard) {
+            supportingCopy = "Warping through the wormhole…";
+        } else if (isEmptyUniverse) {
+            supportingCopy =
+                "Choose a published universe first, then open its board from the universe page.";
+        }
+
         return (
             <main className="simple-page">
                 <SiteHeader />
@@ -1624,19 +1761,19 @@ export default function PlayMode() {
 
                     <h1>{loadStatus}</h1>
 
-                    <p>
-                        Choose a published universe first, then open its board from the universe page.
-                    </p>
+                    <p>{supportingCopy}</p>
 
-                    <div className="home-action-row">
-                        <Link className="home-primary-link" href="/worlds">
-                            Browse Universes
-                        </Link>
+                    {!isLoadingBoard && (
+                        <div className="home-action-row">
+                            <Link className="home-primary-link" href="/worlds">
+                                Browse Universes
+                            </Link>
 
-                        <Link className="home-secondary-link" href="/lobby">
-                            Multiverse Community
-                        </Link>
-                    </div>
+                            <Link className="home-secondary-link" href="/lobby">
+                                Multiverse Community
+                            </Link>
+                        </div>
+                    )}
                 </section>
             </main>
         );
@@ -1680,12 +1817,6 @@ export default function PlayMode() {
 
                             <div className="top-command-actions play-command-actions">
                                 <div className="play-command-nav-row">
-                                    <div className="play-command-nav-group">
-                                        <button type="button" onClick={handleBackToWorld}>
-                                            Back
-                                        </button>
-                                    </div>
-
                                     <div className="play-command-session-group">
                                         {!playSessionId && (
                                             <MatchmakingReadyButton
@@ -1728,7 +1859,70 @@ export default function PlayMode() {
                                             />
                                         </div>
                                     </div>
+
+                                    <div className="play-command-nav-group">
+                                        <button type="button" onClick={handleBackToWorld}>
+                                            Back
+                                        </button>
+                                    </div>
                                 </div>
+
+                                {!playSessionId && (
+                                    <div className="play-command-mode-row">
+                                        <div
+                                            className={`board-display-switch board-interaction-switch${playInteractionMode === "free" ? " free" : " rules"}`}
+                                            role="group"
+                                            aria-label="Play interaction mode"
+                                        >
+                                            <button
+                                                type="button"
+                                                className={
+                                                    playInteractionMode !== "free"
+                                                        ? "active"
+                                                        : ""
+                                                }
+                                                aria-pressed={
+                                                    playInteractionMode !== "free"
+                                                }
+                                                onClick={() => {
+                                                    if (playInteractionMode === "free") {
+                                                        setPlayInteractionMode("rules");
+                                                        setMovingPiece(null);
+                                                        setSelectedTeam(null);
+                                                        setSelectedPiece(null);
+                                                    }
+                                                }}
+                                                title="Legal moves: only valid chess moves for the side to play"
+                                            >
+                                                Legal Moves
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className={
+                                                    playInteractionMode === "free"
+                                                        ? "active"
+                                                        : ""
+                                                }
+                                                aria-pressed={
+                                                    playInteractionMode === "free"
+                                                }
+                                                onClick={() => {
+                                                    if (playInteractionMode !== "free") {
+                                                        setPlayInteractionMode("free");
+                                                        setMovingPiece(null);
+                                                    }
+                                                }}
+                                                title="Free moves: move and place pieces like the editor"
+                                            >
+                                                Free Moves
+                                            </button>
+                                            <span
+                                                className="board-display-switch-thumb"
+                                                aria-hidden="true"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
 
                                 <PlaySessionResultPanel
                                     playSessionId={playSessionId}
@@ -1756,16 +1950,6 @@ export default function PlayMode() {
                             worldTheme={worldTheme}
                             worldFeatures={worldFeatures}
                             worldMechanics={worldMechanics}
-                            matchLoadout={
-                                systemsRuntime?.setup &&
-                                !systemsRuntime.setup.isComplete
-                                    ? {
-                                          terrainKeys: [],
-                                          counterKeys: [],
-                                          conditionKeys: []
-                                      }
-                                    : systemsRuntime?.matchLoadout || null
-                            }
                             onClearSelections={clearAllSelections}
                             onWorldDetailsChange={() => { }}
                             onThemeChange={() => { }}
@@ -1808,6 +1992,24 @@ export default function PlayMode() {
                         <Workspace
                             cells={cells}
                             movingPiece={movingPiece}
+                            legalMoveIndexes={
+                                showLegalMoveHighlights && movingPiece?.kind === "piece"
+                                    ? getPseudoLegalMoves(cells, movingPiece.fromIndex, {
+                                          enPassantTargetIndex
+                                      }).map((move) => move.toIndex)
+                                    : []
+                            }
+                            legalCaptureIndexes={
+                                showLegalMoveHighlights && movingPiece?.kind === "piece"
+                                    ? getPseudoLegalMoves(cells, movingPiece.fromIndex, {
+                                          enPassantTargetIndex
+                                      })
+                                          .filter((move) =>
+                                              move.flags?.includes("capture")
+                                          )
+                                          .map((move) => move.toIndex)
+                                    : []
+                            }
                             pieceNames={pieceNames}
                             characterLibrary={characterLibrary}
                             portraitAssets={portraitAssets}
@@ -1819,10 +2021,7 @@ export default function PlayMode() {
                             turnTeam={turnTeam}
                             isPlayMode={true}
                             fogCells={systemsRuntime?.fogOfWar?.fogCells || []}
-                            viewerTeam={
-                                getViewerTeam(sessionParticipants, currentUserId) ||
-                                (!playSessionId ? turnTeam : "")
-                            }
+                            viewerTeam={playViewerTeam}
                             revealOwnPiecesInFog={
                                 systemsRuntime?.fogOfWar?.revealOwnPieces !== false
                             }
@@ -1833,6 +2032,11 @@ export default function PlayMode() {
                                 loadStatus,
                                 sessionSyncStatus,
                                 matchmakingStatus,
+                                !playSessionId
+                                    ? playInteractionMode === "free"
+                                        ? "Free moves"
+                                        : "Legal moves"
+                                    : "",
                                 playSessionId
                                     ? getMatchPhaseLabel(matchResultState.matchPhase)
                                     : "",
@@ -1857,6 +2061,13 @@ export default function PlayMode() {
                             onClearSelections={clearAllSelections}
                         />
 
+                        <aside className="stage-rail stage-rail-right" aria-label="Board side controls">
+                            <TurnControlPanel
+                                isPlayerTurn={isPlayerTurn}
+                                onPassTurn={handlePassTurn}
+                            />
+                        </aside>
+
                         <RightPanel
                             isPlayMode={true}
                             worldFeatures={worldFeatures}
@@ -1871,7 +2082,6 @@ export default function PlayMode() {
                             pieceNameLocked={pieceNameLocked}
                             turnTeam={turnTeam}
                             moveNumber={moveNumber}
-                            onPassTurn={handlePassTurn}
                             playSessionId={playSessionId}
                             sessionLifecycleStatus={sessionLifecycleStatus}
                             sessionParticipants={sessionParticipants}

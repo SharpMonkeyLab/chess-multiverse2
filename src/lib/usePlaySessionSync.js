@@ -31,6 +31,7 @@ export function usePlaySessionSync({
     moveNumber,
     actionLog,
     systemsRuntime,
+    enPassantTargetIndex = null,
     setCells,
     setPieceNames,
     setPieceNameLocked,
@@ -38,6 +39,7 @@ export function usePlaySessionSync({
     setMoveNumber,
     setActionLog,
     setSystemsRuntime,
+    setEnPassantTargetIndex,
     setMovingPiece,
     setActivePiece,
     setSessionLifecycleStatus,
@@ -63,6 +65,7 @@ export function usePlaySessionSync({
         setMoveNumber,
         setActionLog,
         setSystemsRuntime,
+        setEnPassantTargetIndex,
         setMovingPiece,
         setActivePiece,
         setSessionLifecycleStatus,
@@ -128,6 +131,12 @@ export function usePlaySessionSync({
                 : 1
         );
 
+        callbacksRef.current.setEnPassantTargetIndex?.(
+            remoteGameState.enPassantTargetIndex == null
+                ? null
+                : Number(remoteGameState.enPassantTargetIndex)
+        );
+
         callbacksRef.current.setActionLog?.(
             Array.isArray(remoteGameState.actionLog)
                 ? remoteGameState.actionLog
@@ -164,7 +173,8 @@ export function usePlaySessionSync({
             turnTeam,
             moveNumber,
             actionLog,
-            systemsRuntime
+            systemsRuntime,
+            enPassantTargetIndex
         });
 
         const nextGameStateJson = getGameStateJson(nextGameState);
@@ -232,6 +242,7 @@ export function usePlaySessionSync({
         moveNumber,
         actionLog,
         systemsRuntime,
+        enPassantTargetIndex,
         playSessionId,
         isWorldLoaded,
         sessionLifecycleStatus,

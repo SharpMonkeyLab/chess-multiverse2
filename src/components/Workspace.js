@@ -5,6 +5,8 @@ import PlaySystemsDock from "./PlaySystemsDock";
 export default function Workspace({
   cells,
   movingPiece,
+  legalMoveIndexes = [],
+  legalCaptureIndexes = [],
   pieceNames,
   characterLibrary,
   portraitAssets = {},
@@ -60,6 +62,8 @@ export default function Workspace({
             <Board
               cells={cells}
               movingPiece={movingPiece}
+              legalMoveIndexes={legalMoveIndexes}
+              legalCaptureIndexes={legalCaptureIndexes}
               pieceNames={pieceNames}
               characterLibrary={characterLibrary}
               portraitAssets={portraitAssets}

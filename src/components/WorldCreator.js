@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import TopCommandBar from "./TopCommandBar";
 import LeftSidebar from "./LeftSidebar";
 import Workspace from "./Workspace";
@@ -121,6 +121,7 @@ export default function WorldCreator() {
   const [onlineWorldId, setOnlineWorldId] = useState(null);
   const [isSavingOnline, setIsSavingOnline] = useState(false);
   const [isSavingLocal, setIsSavingLocal] = useState(false);
+  const universeBaselineRef = useRef(null);
 
   const [characterLibrary, setCharacterLibrary] = useState({});
   const [characterFields, setCharacterFields] = useState(() =>
@@ -180,24 +181,57 @@ export default function WorldCreator() {
 
   //  SAVE DATA
 
-  function createWorldSaveData(detailsOverride = null) {
+  function buildUniverseSnapshotPayload({
+    details = worldDetails,
+    theme = worldTheme,
+    mechanics = worldMechanics,
+    features = worldFeatures,
+    library = characterLibrary,
+    fields = characterFields,
+    portraits = portraitAssets,
+    tokens = worldTokens
+  } = {}) {
     return {
       version: 2,
-
-      // Permanent world template data.
-      // This is what defines the universe for browsing, publishing, and starting games.
-      worldDetails: detailsOverride
-        ? { ...worldDetails, ...detailsOverride }
-        : worldDetails,
-      worldTheme,
-      worldMechanics: normalizeWorldMechanics(worldMechanics),
-      worldFeatures: normalizeWorldFeatures(worldFeatures),
-      characterLibrary,
-      characterFields,
-      portraitAssets,
-      worldTokens
+      worldDetails: details,
+      worldTheme: theme,
+      worldMechanics: normalizeWorldMechanics(mechanics),
+      worldFeatures: normalizeWorldFeatures(features),
+      characterLibrary: library,
+      characterFields: fields,
+      portraitAssets: portraits,
+      worldTokens: tokens
     };
   }
+
+  function createWorldSaveData(detailsOverride = null) {
+    return buildUniverseSnapshotPayload({
+      details: detailsOverride
+        ? { ...worldDetails, ...detailsOverride }
+        : worldDetails
+    });
+  }
+
+  function captureUniverseBaseline(snapshotPayload = null) {
+    const payload = snapshotPayload || createWorldSaveData();
+    universeBaselineRef.current = JSON.stringify(payload);
+  }
+
+  function hasUnsavedUniverseChanges() {
+    if (universeBaselineRef.current == null) {
+      return false;
+    }
+
+    return JSON.stringify(createWorldSaveData()) !== universeBaselineRef.current;
+  }
+
+  useEffect(() => {
+    if (universeBaselineRef.current == null) {
+      captureUniverseBaseline();
+    }
+    // Capture the initial blank universe once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function getOnlineWorldFields(worldData) {
     const details = worldData.worldDetails || {};
@@ -612,32 +646,52 @@ export default function WorldCreator() {
 
     const loadedDetails = worldData.worldDetails || {};
 
-    setWorldDetails({
+    const nextDetails = {
       name: loadedDetails.name || "Unnamed Universe",
       description: loadedDetails.description || "",
       rulesNotes: loadedDetails.rulesNotes || "",
       ...loadedDetails,
       complexity: normalizeWorldComplexity(loadedDetails.complexity)
-    });
+    };
 
     const defaultTheme = createDefaultWorldTheme();
-
-    setWorldTheme(normalizeWorldTheme(worldData.worldTheme || {}, defaultTheme));
-
-    setWorldMechanics(normalizeWorldMechanics(worldData.worldMechanics));
-    setWorldFeatures(normalizeWorldFeatures(worldData.worldFeatures));
-    setCharacterLibrary(worldData.characterLibrary || {});
-    setCharacterFields(
-      Array.isArray(worldData.characterFields)
-        ? worldData.characterFields
-        : createDefaultCharacterFields()
+    const nextTheme = normalizeWorldTheme(
+      worldData.worldTheme || {},
+      defaultTheme
     );
-    setPortraitAssets(
+    const nextMechanics = normalizeWorldMechanics(worldData.worldMechanics);
+    const nextFeatures = normalizeWorldFeatures(worldData.worldFeatures);
+    const nextLibrary = worldData.characterLibrary || {};
+    const nextFields = Array.isArray(worldData.characterFields)
+      ? worldData.characterFields
+      : createDefaultCharacterFields();
+    const nextPortraits =
       worldData.portraitAssets && typeof worldData.portraitAssets === "object"
         ? { ...worldData.portraitAssets }
-        : {}
+        : {};
+    const nextTokens = worldData.worldTokens || {};
+
+    setWorldDetails(nextDetails);
+    setWorldTheme(nextTheme);
+    setWorldMechanics(nextMechanics);
+    setWorldFeatures(nextFeatures);
+    setCharacterLibrary(nextLibrary);
+    setCharacterFields(nextFields);
+    setPortraitAssets(nextPortraits);
+    setWorldTokens(nextTokens);
+
+    captureUniverseBaseline(
+      buildUniverseSnapshotPayload({
+        details: nextDetails,
+        theme: nextTheme,
+        mechanics: nextMechanics,
+        features: nextFeatures,
+        library: nextLibrary,
+        fields: nextFields,
+        portraits: nextPortraits,
+        tokens: nextTokens
+      })
     );
-    setWorldTokens(worldData.worldTokens || {});
 
     // Important:
     // Loading a world template should not restore old playtest character assignments.
@@ -1288,14 +1342,16 @@ export default function WorldCreator() {
     setSaveStatus("Saving universe locally...");
 
     try {
+      const worldData = createWorldSaveData();
       const savedWorld = saveLocalItem(
         "worlds",
         worldDetails.name,
-        createWorldSaveData()
+        worldData
       );
 
       setSelectedSavedWorldId(savedWorld.id);
       refreshSavedLists();
+      captureUniverseBaseline(worldData);
       setSaveStatus(`Local backup saved: ${savedWorld.name}`);
     } catch (error) {
       console.error("Local world save failed:", error);
@@ -1305,26 +1361,33 @@ export default function WorldCreator() {
     }
   }
 
-  async function handleSaveWorldOnline(detailsOverride = null) {
+  async function handleSaveWorldOnline(
+    detailsOverride = null,
+    options = {}
+  ) {
+    const { skipDescriptionGate = false } = options;
+
     if (!hasSupabaseConfig() || !supabase) {
       setOnlineSaveStatus("Supabase is not configured.");
-      return;
+      return false;
     }
 
     if (isSavingOnline || isSavingLocal) {
       setOnlineSaveStatus("Please wait for the current save to finish.");
-      return;
+      return false;
     }
 
     const nextDetails = detailsOverride
       ? { ...worldDetails, ...detailsOverride }
       : worldDetails;
 
-    const saveBlocker = getUniverseSaveBlocker(nextDetails);
+    if (!skipDescriptionGate) {
+      const saveBlocker = getUniverseSaveBlocker(nextDetails);
 
-    if (saveBlocker) {
-      setOnlineSaveStatus(saveBlocker);
-      return;
+      if (saveBlocker) {
+        setOnlineSaveStatus(saveBlocker);
+        return false;
+      }
     }
 
     if (detailsOverride) {
@@ -1332,7 +1395,11 @@ export default function WorldCreator() {
     }
 
     setIsSavingOnline(true);
-    setOnlineSaveStatus("Checking account...");
+    setOnlineSaveStatus(
+      skipDescriptionGate
+        ? "Saving current changes..."
+        : "Checking account..."
+    );
 
     try {
       const {
@@ -1342,7 +1409,7 @@ export default function WorldCreator() {
 
       if (userError || !user) {
         setOnlineSaveStatus("Please sign in before saving online.");
-        return;
+        return false;
       }
 
       const targetOnlineWorldId = onlineWorldId || crypto.randomUUID();
@@ -1391,19 +1458,26 @@ export default function WorldCreator() {
 
       if (error) {
         setOnlineSaveStatus(error.message);
-        return;
+        return false;
       }
 
       setOnlineWorldId(savedWorld.id);
+      captureUniverseBaseline(rawWorldData);
       setOnlineSaveStatus(
         `Universe saved: ${savedWorld.name}. ${getOnlineWorldAuditMessage(onlineAudit)}`
       );
+      return true;
     } catch (error) {
       console.error("Online world save failed:", error);
       setOnlineSaveStatus("Could not reach Supabase to save this universe.");
+      return false;
     } finally {
       setIsSavingOnline(false);
     }
+  }
+
+  async function handleQuietSaveWorldOnline() {
+    return handleSaveWorldOnline(null, { skipDescriptionGate: true });
   }
 
   function handleLoadWorld() {
@@ -2088,6 +2162,8 @@ export default function WorldCreator() {
               onSelectedSavedWorldChange={setSelectedSavedWorldId}
 
               onSaveWorldOnline={handleSaveWorldOnline}
+              onQuietSaveWorldOnline={handleQuietSaveWorldOnline}
+              hasUnsavedChanges={hasUnsavedUniverseChanges}
               onlineSaveStatus={onlineSaveStatus}
               isSavingOnline={isSavingOnline}
               isSavingLocal={isSavingLocal}

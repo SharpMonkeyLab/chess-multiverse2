@@ -1,3 +1,5 @@
+import { BOARD_SIZE } from "@/lib/defaultWorld";
+
 export function getCellCounters(cell) {
     return {
         ...(cell?.counters || {})
@@ -311,4 +313,54 @@ export function moveOccupantForPlay(cells, movingPiece, toIndex) {
     clearPieceFromCell(sourceCell);
 
     return nextCells;
+}
+
+/**
+ * Apply a validated chess move in Play Mode (capture, en passant, auto-queen).
+ * Returns next cells plus the en-passant target for the opponent (or null).
+ */
+export function applyChessMoveForPlay(cells, movingPiece, move) {
+    if (!Array.isArray(cells) || !movingPiece || !move) {
+        return {
+            cells: Array.isArray(cells) ? cells : [],
+            enPassantTargetIndex: null
+        };
+    }
+
+    const flags = Array.isArray(move.flags) ? move.flags : [];
+    const toIndex = move.toIndex;
+    const nextCells = cells.map(cloneCell);
+    const sourceCell = nextCells[movingPiece.fromIndex];
+    const targetCell = nextCells[toIndex];
+
+    if (flags.includes("enPassant") && movingPiece.team) {
+        const fromRow = Math.floor(movingPiece.fromIndex / BOARD_SIZE);
+        const toCol = toIndex % BOARD_SIZE;
+        const capturedIndex = fromRow * BOARD_SIZE + toCol;
+        clearPieceFromCell(nextCells[capturedIndex]);
+    }
+
+    clearPieceFromCell(targetCell);
+    applyMovingOccupantToTarget(targetCell, movingPiece);
+
+    if (flags.includes("promotion") && movingPiece.pieceType === "pawn") {
+        targetCell.pieceType = "queen";
+    }
+
+    clearPieceFromCell(sourceCell);
+
+    let enPassantTargetIndex = null;
+
+    if (flags.includes("doublePawn") && movingPiece.pieceType === "pawn") {
+        const fromRow = Math.floor(movingPiece.fromIndex / BOARD_SIZE);
+        const toRow = Math.floor(toIndex / BOARD_SIZE);
+        const col = toIndex % BOARD_SIZE;
+        const midRow = (fromRow + toRow) / 2;
+        enPassantTargetIndex = midRow * BOARD_SIZE + col;
+    }
+
+    return {
+        cells: nextCells,
+        enPassantTargetIndex
+    };
 }

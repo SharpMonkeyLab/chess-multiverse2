@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import FeatureToggleEditor from "./FeatureToggleEditor";
 import ThemeEditor from "./ThemeEditor";
 import WorldDescriptionModal from "./WorldDescriptionModal";
+import WorldExitConfirmModal from "./WorldExitConfirmModal";
 import { getDisplayWorldName } from "@/lib/stageLayoutConfig";
 
 const MENU_SECTIONS = [
@@ -39,6 +40,8 @@ export default function TopCommandBar({
   onSelectedSavedWorldChange,
 
   onSaveWorldOnline,
+  onQuietSaveWorldOnline,
+  hasUnsavedChanges,
   onlineSaveStatus,
   isSavingOnline,
   isSavingLocal,
@@ -53,6 +56,7 @@ export default function TopCommandBar({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [openMenuSection, setOpenMenuSection] = useState("features");
   const [isDescriptionModalOpen, setIsDescriptionModalOpen] = useState(false);
+  const [isExitConfirmOpen, setIsExitConfirmOpen] = useState(false);
   const menuPanelRef = useRef(null);
 
   useEffect(() => {
@@ -82,7 +86,36 @@ export default function TopCommandBar({
   }
 
   function handleExit() {
+    if (isSavingOnline || isSavingLocal) return;
+
+    const isDirty =
+      typeof hasUnsavedChanges === "function"
+        ? hasUnsavedChanges()
+        : Boolean(hasUnsavedChanges);
+
+    if (isDirty) {
+      setIsExitConfirmOpen(true);
+      return;
+    }
+
     router.push("/worlds");
+  }
+
+  function handleDiscardAndExit() {
+    if (isSavingOnline || isSavingLocal) return;
+    setIsExitConfirmOpen(false);
+    router.push("/worlds");
+  }
+
+  async function handleSaveAndExit() {
+    if (isSavingOnline || isSavingLocal) return;
+
+    const saved = await onQuietSaveWorldOnline?.();
+
+    if (saved) {
+      setIsExitConfirmOpen(false);
+      router.push("/worlds");
+    }
   }
 
   function handleSaveWorldClick() {
@@ -295,7 +328,11 @@ export default function TopCommandBar({
             {isSavingOnline ? "Saving..." : "Save Universe"}
           </button>
 
-          <button type="button" onClick={handleExit}>
+          <button
+            type="button"
+            onClick={handleExit}
+            disabled={isSavingOnline || isSavingLocal}
+          >
             Exit
           </button>
 
@@ -333,6 +370,14 @@ export default function TopCommandBar({
         isSaving={isSavingOnline}
         onCancel={() => setIsDescriptionModalOpen(false)}
         onConfirm={handleDescriptionConfirm}
+      />
+
+      <WorldExitConfirmModal
+        isOpen={isExitConfirmOpen}
+        isSaving={isSavingOnline || isSavingLocal}
+        onStay={() => setIsExitConfirmOpen(false)}
+        onDiscardAndExit={handleDiscardAndExit}
+        onSaveAndExit={handleSaveAndExit}
       />
     </header>
   );
