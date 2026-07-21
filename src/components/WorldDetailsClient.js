@@ -24,6 +24,7 @@ import {
 import { resolveCharacterPortrait } from "@/lib/portraitAssets";
 
 import InvitePlayersPanel from "@/components/InvitePlayersPanel";
+import MatchmakingReadyButton from "@/components/MatchmakingReadyButton";
 import WorldPostsSection from "@/components/WorldPostsSection";
 
 export default function WorldDetailsClient({ worldId }) {
@@ -245,45 +246,63 @@ export default function WorldDetailsClient({ worldId }) {
                     <p>{description}</p>
 
                     <div className="world-details-play-choices">
-                        <div className="world-details-invite-wrap">
-                            <button
-                                type="button"
-                                className="world-details-invite-choice"
-                                disabled={
-                                    worldSource !== "online" || !currentUser
-                                }
-                                onClick={() =>
-                                    setIsInvitePanelOpen((current) => !current)
-                                }
-                            >
-                                <span className="world-details-choice-copy">
-                                    <strong>
-                                        {worldSource !== "online"
-                                            ? "Online Only"
-                                            : !currentUser
-                                              ? "Sign In to Invite"
-                                              : "Invite"}
-                                    </strong>
-                                    <small>
-                                        {worldSource !== "online"
-                                            ? "Publish this universe online to invite friends to a playtest."
-                                            : !currentUser
-                                              ? "Sign in to invite friends to a private playtest in this universe."
-                                              : "Invite friends to a private playtest in this universe."}
-                                    </small>
-                                </span>
-                            </button>
+                        {fromAccount ? (
+                            <div className="world-details-invite-wrap">
+                                <button
+                                    type="button"
+                                    className="world-details-invite-choice"
+                                    disabled={
+                                        worldSource !== "online" || !currentUser
+                                    }
+                                    onClick={() =>
+                                        setIsInvitePanelOpen((current) => !current)
+                                    }
+                                >
+                                    <span className="world-details-choice-copy">
+                                        <strong>
+                                            {worldSource !== "online"
+                                                ? "Online Only"
+                                                : !currentUser
+                                                  ? "Sign In to Invite"
+                                                  : "Invite"}
+                                        </strong>
+                                        <small>
+                                            {worldSource !== "online"
+                                                ? "Publish this universe online to invite friends to a playtest."
+                                                : !currentUser
+                                                  ? "Sign in to invite friends to a private playtest in this universe."
+                                                  : "Invite friends to a private playtest in this universe."}
+                                        </small>
+                                    </span>
+                                </button>
 
-                            <InvitePlayersPanel
-                                isOpen={isInvitePanelOpen}
-                                onClose={() => setIsInvitePanelOpen(false)}
-                                currentUserId={currentUser?.id || ""}
-                                playSessionId={inviteSessionId}
-                                onSessionReady={handleInviteSessionReady}
+                                <InvitePlayersPanel
+                                    isOpen={isInvitePanelOpen}
+                                    onClose={() => setIsInvitePanelOpen(false)}
+                                    currentUserId={currentUser?.id || ""}
+                                    playSessionId={inviteSessionId}
+                                    onSessionReady={handleInviteSessionReady}
+                                    worldId={world.id}
+                                    onStatusChange={setPlayStatus}
+                                />
+                            </div>
+                        ) : (
+                            <MatchmakingReadyButton
+                                className="world-details-ready-choice"
                                 worldId={world.id}
+                                worldName={world.name}
+                                disabled={worldSource !== "online"}
+                                disabledLabel="Online Only"
+                                readyLabel="Ready"
+                                loadingLabel="Finding Match..."
+                                description={
+                                    worldSource === "online"
+                                        ? "Find a public opponent and start a live match in this universe."
+                                        : "Publish this universe online to match with other players."
+                                }
                                 onStatusChange={setPlayStatus}
                             />
-                        </div>
+                        )}
 
                         <Link
                             className="world-details-visit-choice"
@@ -291,12 +310,14 @@ export default function WorldDetailsClient({ worldId }) {
                         >
                             <span className="world-details-choice-copy">
                                 <strong>
-                                    {inviteSessionId ? "Enter Playtest" : "Visit Universe"}
+                                    {fromAccount && inviteSessionId
+                                        ? "Enter Playtest"
+                                        : "Visit Board"}
                                 </strong>
                                 <small>
-                                    {inviteSessionId
+                                    {fromAccount && inviteSessionId
                                         ? "Join the private table you just opened for this playtest."
-                                        : "Open this universe&apos;s board for local play or setup."}
+                                        : "Open this universe&apos;s board for local play, setup, or private invites."}
                                 </small>
                             </span>
                         </Link>
