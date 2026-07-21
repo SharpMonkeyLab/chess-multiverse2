@@ -20,9 +20,14 @@ function readCssPixelValue(variableName, fallbackValue) {
 
 export function useResponsiveStageLayout({
     fallbackWidth = DEFAULT_FALLBACK_STAGE_WIDTH,
-    fallbackHeight = DEFAULT_FALLBACK_STAGE_HEIGHT
+    fallbackHeight = DEFAULT_FALLBACK_STAGE_HEIGHT,
+    contentRef = null,
+    measureContentHeight = false
 } = {}) {
     const baseDevicePixelRatioRef = useRef(null);
+    const scaleRef = useRef(1);
+    const designWidthRef = useRef(fallbackWidth);
+    const designHeightRef = useRef(fallbackHeight);
 
     const [stageLayout, setStageLayout] = useState({
         scale: 1,
@@ -48,6 +53,18 @@ export function useResponsiveStageLayout({
             };
         }
 
+        function readMeasuredContentHeight() {
+            const contentElement = contentRef?.current;
+
+            if (!measureContentHeight || !contentElement) {
+                return designHeightRef.current;
+            }
+
+            const measuredHeight = contentElement.offsetHeight;
+
+            return measuredHeight > 0 ? measuredHeight : designHeightRef.current;
+        }
+
         function updateStageScale() {
             const designWidth = readCssPixelValue(
                 "--stage-design-width",
@@ -58,6 +75,9 @@ export function useResponsiveStageLayout({
                 "--stage-design-height",
                 fallbackHeight
             );
+
+            designWidthRef.current = designWidth;
+            designHeightRef.current = designHeight;
 
             const viewportPadding = readCssPixelValue("--viewport-padding", 0);
             const viewportSize = getZoomCompensatedViewportSize();
@@ -72,15 +92,20 @@ export function useResponsiveStageLayout({
                 1
             );
 
+            // Scale from the base board-band design size only — never shrink for dock height.
             const nextScale = Math.min(
                 availableWidth / designWidth,
                 availableHeight / designHeight
             );
 
+            scaleRef.current = nextScale;
+
+            const contentHeight = readMeasuredContentHeight();
+
             setStageLayout({
                 scale: nextScale,
                 width: designWidth * nextScale,
-                height: designHeight * nextScale
+                height: contentHeight * nextScale
             });
         }
 
@@ -88,10 +113,42 @@ export function useResponsiveStageLayout({
 
         window.addEventListener("resize", updateStageScale);
 
+        let resizeObserver = null;
+        const contentElement = contentRef?.current;
+
+        if (measureContentHeight && contentElement && typeof ResizeObserver !== "undefined") {
+            resizeObserver = new ResizeObserver(() => {
+                const contentHeight = readMeasuredContentHeight();
+
+                setStageLayout((current) => {
+                    const nextHeight = contentHeight * scaleRef.current;
+
+                    // Ignore sub-pixel / tiny dock reflows that only jitter the frame.
+                    if (
+                        current.scale === scaleRef.current &&
+                        current.width ===
+                            designWidthRef.current * scaleRef.current &&
+                        Math.abs(current.height - nextHeight) < 1.5
+                    ) {
+                        return current;
+                    }
+
+                    return {
+                        scale: scaleRef.current,
+                        width: designWidthRef.current * scaleRef.current,
+                        height: nextHeight
+                    };
+                });
+            });
+
+            resizeObserver.observe(contentElement);
+        }
+
         return () => {
             window.removeEventListener("resize", updateStageScale);
+            resizeObserver?.disconnect();
         };
-    }, [fallbackWidth, fallbackHeight]);
+    }, [fallbackWidth, fallbackHeight, contentRef, measureContentHeight]);
 
     return stageLayout;
 }

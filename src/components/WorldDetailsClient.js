@@ -8,11 +8,6 @@ import { loadLocalItem } from "@/lib/saveLoad";
 import { hasSupabaseConfig, supabase } from "@/lib/supabaseClient";
 
 import {
-    MATCHMAKING_EVENT_NAME,
-    readStoredWaitingMatch
-} from "@/lib/matchmakingClient";
-
-import {
     getCharacterList,
     getConditionList,
     getCounterList,
@@ -28,7 +23,7 @@ import {
 
 import { resolveCharacterPortrait } from "@/lib/portraitAssets";
 
-import MatchmakingReadyButton from "@/components/MatchmakingReadyButton";
+import InvitePlayersPanel from "@/components/InvitePlayersPanel";
 import WorldPostsSection from "@/components/WorldPostsSection";
 
 export default function WorldDetailsClient({ worldId }) {
@@ -38,6 +33,9 @@ export default function WorldDetailsClient({ worldId }) {
     const [playStatus, setPlayStatus] = useState("");
     const [currentUser, setCurrentUser] = useState(null);
     const [openPostsInitially, setOpenPostsInitially] = useState(false);
+    const [fromAccount, setFromAccount] = useState(false);
+    const [isInvitePanelOpen, setIsInvitePanelOpen] = useState(false);
+    const [inviteSessionId, setInviteSessionId] = useState("");
 
     const [selectedCharacterIndex, setSelectedCharacterIndex] = useState(0);
     const [selectedTerrainIndex, setSelectedTerrainIndex] = useState(0);
@@ -49,6 +47,9 @@ export default function WorldDetailsClient({ worldId }) {
             setStatus("Loading universe…");
             setWorld(null);
             setWorldSource("");
+            setInviteSessionId("");
+            setIsInvitePanelOpen(false);
+            setPlayStatus("");
 
             // Keep local support as a fallback for old links/dev use.
             const savedWorld = loadLocalItem("worlds", worldId);
@@ -66,15 +67,23 @@ export default function WorldDetailsClient({ worldId }) {
             }
 
             try {
+                const {
+                    data: { user }
+                } = await supabase.auth.getUser();
+
                 const { data: onlineWorld, error } = await supabase
                     .from("worlds")
                     .select("id, owner_id, name, description, is_public, updated_at, world_data")
                     .eq("id", worldId)
-                    .eq("is_public", true)
                     .single();
 
-                if (error || !onlineWorld) {
-                    setStatus("Could not find this published universe.");
+                const canView =
+                    onlineWorld &&
+                    (onlineWorld.is_public ||
+                        (user?.id && onlineWorld.owner_id === user.id));
+
+                if (error || !canView) {
+                    setStatus("Could not find this universe.");
                     setWorld(null);
                     return;
                 }
@@ -105,6 +114,7 @@ export default function WorldDetailsClient({ worldId }) {
 
         const params = new URLSearchParams(window.location.search);
         setOpenPostsInitially(params.get("tab") === "posts");
+        setFromAccount(params.get("from") === "account");
     }, [worldId]);
 
     useEffect(() => {
@@ -139,44 +149,15 @@ export default function WorldDetailsClient({ worldId }) {
         };
     }, []);
 
-    useEffect(() => {
-        function syncLocalPlayStatusWithGlobalMatchmaking() {
-            const waitingMatch = readStoredWaitingMatch();
+    function handleInviteSessionReady(sessionId) {
+        if (!sessionId) return;
 
-            if (!waitingMatch) {
-                setPlayStatus((currentStatus) =>
-                    currentStatus === "Waiting for an opponent…" ||
-                        currentStatus === "Looking for an opponent…" ||
-                        currentStatus === "Waiting for opponent..." ||
-                        currentStatus === "Looking for opponent..."
-                        ? ""
-                        : currentStatus
-                );
-            }
-        }
+        setInviteSessionId(sessionId);
+        setPlayStatus("Private playtest table ready. Share the invite, then enter the board.");
+    }
 
-        window.addEventListener(
-            MATCHMAKING_EVENT_NAME,
-            syncLocalPlayStatusWithGlobalMatchmaking
-        );
-
-        window.addEventListener(
-            "storage",
-            syncLocalPlayStatusWithGlobalMatchmaking
-        );
-
-        return () => {
-            window.removeEventListener(
-                MATCHMAKING_EVENT_NAME,
-                syncLocalPlayStatusWithGlobalMatchmaking
-            );
-
-            window.removeEventListener(
-                "storage",
-                syncLocalPlayStatusWithGlobalMatchmaking
-            );
-        };
-    }, []);
+    const backHref = fromAccount ? "/account" : "/worlds";
+    const backLabel = fromAccount ? "Back to Account" : "Back to Universes";
 
     if (!world) {
         return (
@@ -190,8 +171,8 @@ export default function WorldDetailsClient({ worldId }) {
                         browser.
                     </p>
 
-                    <Link className="home-secondary-link" href="/worlds">
-                        Back to Universes
+                    <Link className="home-secondary-link" href={backHref}>
+                        {backLabel}
                     </Link>
                 </section>
             </div>
@@ -222,12 +203,14 @@ export default function WorldDetailsClient({ worldId }) {
     const selectedCounter = counters[selectedCounterIndex] || counters[0];
     const selectedCondition = conditions[selectedConditionIndex] || conditions[0];
 
-    const playHref = `/play?world=${encodeURIComponent(world.id)}`;
+    const playHref = inviteSessionId
+        ? `/play?session=${encodeURIComponent(inviteSessionId)}`
+        : `/play?world=${encodeURIComponent(world.id)}`;
 
     return (
         <div className="world-details-content">
-            <Link className="world-details-back-link" href="/worlds">
-                Back to Universes
+            <Link className="world-details-back-link" href={backHref}>
+                {backLabel}
             </Link>
 
             <section className="world-details-hero">
@@ -262,30 +245,58 @@ export default function WorldDetailsClient({ worldId }) {
                     <p>{description}</p>
 
                     <div className="world-details-play-choices">
-                        <MatchmakingReadyButton
-                            className="world-details-ready-choice"
-                            worldId={world.id}
-                            worldName={world.name}
-                            disabled={worldSource !== "online"}
-                            disabledLabel="Online Only"
-                            readyLabel="Ready"
-                            loadingLabel="Finding Match..."
-                            description={
-                                worldSource === "online"
-                                    ? "Find a public opponent and start a live match in this universe."
-                                    : "Publish this universe online to match with other players."
-                            }
-                            onStatusChange={setPlayStatus}
-                        />
+                        <div className="world-details-invite-wrap">
+                            <button
+                                type="button"
+                                className="world-details-invite-choice"
+                                disabled={
+                                    worldSource !== "online" || !currentUser
+                                }
+                                onClick={() =>
+                                    setIsInvitePanelOpen((current) => !current)
+                                }
+                            >
+                                <span className="world-details-choice-copy">
+                                    <strong>
+                                        {worldSource !== "online"
+                                            ? "Online Only"
+                                            : !currentUser
+                                              ? "Sign In to Invite"
+                                              : "Invite"}
+                                    </strong>
+                                    <small>
+                                        {worldSource !== "online"
+                                            ? "Publish this universe online to invite friends to a playtest."
+                                            : !currentUser
+                                              ? "Sign in to invite friends to a private playtest in this universe."
+                                              : "Invite friends to a private playtest in this universe."}
+                                    </small>
+                                </span>
+                            </button>
+
+                            <InvitePlayersPanel
+                                isOpen={isInvitePanelOpen}
+                                onClose={() => setIsInvitePanelOpen(false)}
+                                currentUserId={currentUser?.id || ""}
+                                playSessionId={inviteSessionId}
+                                onSessionReady={handleInviteSessionReady}
+                                worldId={world.id}
+                                onStatusChange={setPlayStatus}
+                            />
+                        </div>
 
                         <Link
                             className="world-details-visit-choice"
                             href={playHref}
                         >
                             <span className="world-details-choice-copy">
-                                <strong>Visit Board</strong>
+                                <strong>
+                                    {inviteSessionId ? "Enter Playtest" : "Visit Universe"}
+                                </strong>
                                 <small>
-                                    Open this universe&apos;s board for local play, setup, or private invites.
+                                    {inviteSessionId
+                                        ? "Join the private table you just opened for this playtest."
+                                        : "Open this universe&apos;s board for local play or setup."}
                                 </small>
                             </span>
                         </Link>

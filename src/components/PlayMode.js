@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -9,6 +9,7 @@ import LeftSidebar from "./LeftSidebar";
 import Workspace from "./Workspace";
 import RightPanel from "./RightPanel";
 import TurnControlPanel from "./TurnControlPanel";
+import PlayLeftSystemsRail from "./PlayLeftSystemsRail";
 
 import {
     createBoardCells,
@@ -99,7 +100,8 @@ import {
     paintFogCell,
     clearFogCell,
     applyFogToWholeBoard,
-    resetTurnTimer
+    resetTurnTimer,
+    tickTimers
 } from "@/lib/worldSystems";
 import { markUserOnline } from "@/lib/presenceClient";
 
@@ -185,6 +187,7 @@ export default function PlayMode() {
 
     const [playWorldId, setPlayWorldId] = useState("");
     const [playWorldSource, setPlayWorldSource] = useState("");
+    const [playBackTo, setPlayBackTo] = useState("");
     const [playSessionId, setPlaySessionId] = useState("");
     const [sessionLifecycleStatus, setSessionLifecycleStatus] = useState("open");
     const [sessionEndReason, setSessionEndReason] = useState("");
@@ -224,11 +227,66 @@ export default function PlayMode() {
 
     // Keeps status messages temporary instead of permanently screaming.
     const sessionSyncStatusTimeoutRef = useRef(null);
+    const stageContentRef = useRef(null);
+
+    const hasScrollablePlaySystems = useMemo(
+        () => Boolean(normalizeWorldFeatures(worldFeatures).cardDecks),
+        [worldFeatures]
+    );
+
+    const hasPlayPaintTools = useMemo(() => {
+        const features = normalizeWorldFeatures(worldFeatures);
+        return Boolean(
+            features.terrains ||
+                features.fogOfWar ||
+                features.counters ||
+                features.conditions
+        );
+    }, [worldFeatures]);
 
     const stageLayout = useResponsiveStageLayout({
         fallbackWidth: STAGE_DESIGN_WIDTH,
-        fallbackHeight: STAGE_DESIGN_HEIGHT
+        fallbackHeight: STAGE_DESIGN_HEIGHT,
+        contentRef: stageContentRef,
+        measureContentHeight: hasScrollablePlaySystems
     });
+
+    useEffect(() => {
+        if (!systemsRuntime?.timers || !systemsRuntime.timers.isRunning) {
+            return undefined;
+        }
+
+        const intervalId = window.setInterval(() => {
+            setSystemsRuntime((currentRuntime) => {
+                if (!currentRuntime?.timers?.isRunning) {
+                    return currentRuntime;
+                }
+
+                return {
+                    ...currentRuntime,
+                    timers: tickTimers(currentRuntime.timers, turnTeam)
+                };
+            });
+        }, 1000);
+
+        return () => window.clearInterval(intervalId);
+    }, [systemsRuntime?.timers?.isRunning, turnTeam]);
+
+    function handleToggleTimer() {
+        setSystemsRuntime((currentRuntime) => {
+            if (!currentRuntime?.timers) {
+                return currentRuntime;
+            }
+
+            return {
+                ...currentRuntime,
+                timers: {
+                    ...currentRuntime.timers,
+                    isRunning: !currentRuntime.timers.isRunning
+                }
+            };
+        });
+    }
 
     function showSessionSyncStatus(message) {
         setSessionSyncStatus(message);
@@ -457,12 +515,17 @@ export default function PlayMode() {
                 try {
                     const { data: onlineWorld, error } = await supabase
                         .from("worlds")
-                        .select("id, name, is_public, world_data")
+                        .select("id, name, is_public, owner_id, world_data")
                         .eq("id", worldId)
-                        .eq("is_public", true)
                         .single();
 
-                    if (!error && onlineWorld?.world_data) {
+                    const canVisit =
+                        !error &&
+                        onlineWorld?.world_data &&
+                        (onlineWorld.is_public ||
+                            (prefsUserId && onlineWorld.owner_id === prefsUserId));
+
+                    if (canVisit) {
                         setPlayWorldSource("online");
                         applyWorldData(
                             onlineWorld.world_data,
@@ -470,12 +533,14 @@ export default function PlayMode() {
                             prefsUserId,
                             onlineWorld.id
                         );
-                        setLoadStatus("Ready.");
+                        setLoadStatus(
+                            onlineWorld.is_public ? "Ready." : "Ready (private draft)."
+                        );
                         setIsWorldLoaded(true);
                         return;
                     }
                 } catch (error) {
-                    console.warn("Could not load published universe for play:", error);
+                    console.warn("Could not load universe for play:", error);
                 }
             }
 
@@ -497,6 +562,11 @@ export default function PlayMode() {
             const searchParams = new URLSearchParams(window.location.search);
             const sessionId = searchParams.get("session");
             const worldId = searchParams.get("world");
+            const from = searchParams.get("from");
+
+            if (from === "account") {
+                setPlayBackTo("account");
+            }
 
             if (sessionId) {
                 await loadPlaySession(sessionId);
@@ -798,13 +868,14 @@ export default function PlayMode() {
         playSessionId
     ]);
 
-    function addActionLogEntry(message, category = "action") {
+    function addActionLogEntry(message, category = "action", meta = {}) {
         setActionLog((currentLog) =>
             addActionLogEntryToLog(currentLog, {
                 message,
                 category,
                 turnTeam,
                 moveNumber,
+                card: meta.card || null,
                 maxActionLog: MAX_ACTION_LOG
             })
         );
@@ -1716,6 +1787,11 @@ export default function PlayMode() {
     }
 
     function handleBackToWorld() {
+        if (playBackTo === "account") {
+            router.push("/account");
+            return;
+        }
+
         if (playWorldId) {
             router.push(`/worlds/${playWorldId}`);
             return;
@@ -1790,7 +1866,13 @@ export default function PlayMode() {
                     : {}
             }
         >
-            <div className="game-stage">
+            <div
+                className={
+                    hasScrollablePlaySystems
+                        ? "game-stage game-stage--scrollable"
+                        : "game-stage"
+                }
+            >
                 <div
                     className="stage-scale-frame"
                     style={{
@@ -1799,7 +1881,16 @@ export default function PlayMode() {
                     }}
                 >
                     <div
-                        className="stage-content"
+                        ref={stageContentRef}
+                        className={[
+                            "stage-content",
+                            hasScrollablePlaySystems
+                                ? "stage-content--scrollable"
+                                : "",
+                            hasPlayPaintTools ? "" : "stage-content--no-paint-tools"
+                        ]
+                            .filter(Boolean)
+                            .join(" ")}
                         style={{ "--stage-scale": stageLayout.scale }}
                         onClick={(event) => {
                             if (event.target === event.currentTarget) {
@@ -1867,63 +1958,6 @@ export default function PlayMode() {
                                     </div>
                                 </div>
 
-                                {!playSessionId && (
-                                    <div className="play-command-mode-row">
-                                        <div
-                                            className={`board-display-switch board-interaction-switch${playInteractionMode === "free" ? " free" : " rules"}`}
-                                            role="group"
-                                            aria-label="Play interaction mode"
-                                        >
-                                            <button
-                                                type="button"
-                                                className={
-                                                    playInteractionMode !== "free"
-                                                        ? "active"
-                                                        : ""
-                                                }
-                                                aria-pressed={
-                                                    playInteractionMode !== "free"
-                                                }
-                                                onClick={() => {
-                                                    if (playInteractionMode === "free") {
-                                                        setPlayInteractionMode("rules");
-                                                        setMovingPiece(null);
-                                                        setSelectedTeam(null);
-                                                        setSelectedPiece(null);
-                                                    }
-                                                }}
-                                                title="Legal moves: only valid chess moves for the side to play"
-                                            >
-                                                Legal Moves
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className={
-                                                    playInteractionMode === "free"
-                                                        ? "active"
-                                                        : ""
-                                                }
-                                                aria-pressed={
-                                                    playInteractionMode === "free"
-                                                }
-                                                onClick={() => {
-                                                    if (playInteractionMode !== "free") {
-                                                        setPlayInteractionMode("free");
-                                                        setMovingPiece(null);
-                                                    }
-                                                }}
-                                                title="Free moves: move and place pieces like the editor"
-                                            >
-                                                Free Moves
-                                            </button>
-                                            <span
-                                                className="board-display-switch-thumb"
-                                                aria-hidden="true"
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-
                                 <PlaySessionResultPanel
                                     playSessionId={playSessionId}
                                     matchResultState={matchResultState}
@@ -1946,6 +1980,7 @@ export default function PlayMode() {
 
                         <LeftSidebar
                             isPlayMode={true}
+                            prefsUserId={currentUserId || "guest"}
                             worldDetails={worldDetails}
                             worldTheme={worldTheme}
                             worldFeatures={worldFeatures}
@@ -1988,6 +2023,15 @@ export default function PlayMode() {
                             onSelectClearTerrain={handleSelectClearTerrain}
                             onApplyTerrainToWholeBoard={handleApplyTerrainToWholeBoard}
                         />
+
+                        <aside className="stage-rail stage-rail-left" aria-label="Board systems">
+                            <PlayLeftSystemsRail
+                                worldFeatures={worldFeatures}
+                                systemsRuntime={systemsRuntime}
+                                onSystemsRuntimeChange={setSystemsRuntime}
+                                onLogAction={addActionLogEntry}
+                            />
+                        </aside>
 
                         <Workspace
                             cells={cells}
@@ -2065,6 +2109,17 @@ export default function PlayMode() {
                             <TurnControlPanel
                                 isPlayerTurn={isPlayerTurn}
                                 onPassTurn={handlePassTurn}
+                                showInteractionMode={!playSessionId}
+                                playInteractionMode={playInteractionMode}
+                                onPlayInteractionModeChange={(nextMode) => {
+                                    setPlayInteractionMode(nextMode);
+                                    setMovingPiece(null);
+
+                                    if (nextMode === "rules") {
+                                        setSelectedTeam(null);
+                                        setSelectedPiece(null);
+                                    }
+                                }}
                             />
                         </aside>
 
@@ -2086,6 +2141,12 @@ export default function PlayMode() {
                             sessionLifecycleStatus={sessionLifecycleStatus}
                             sessionParticipants={sessionParticipants}
                             currentUserId={currentUserId}
+                            timers={
+                                worldFeatures?.timers
+                                    ? systemsRuntime?.timers || null
+                                    : null
+                            }
+                            onToggleTimer={handleToggleTimer}
                             onClearSelections={clearAllSelections}
                             onSelectPiece={handleSelectPiece}
                             onSelectToken={handleSelectToken}

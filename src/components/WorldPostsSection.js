@@ -6,6 +6,8 @@ import Link from "next/link";
 import {
   createWorldPost,
   createWorldPostReply,
+  deleteWorldPost,
+  deleteWorldPostReply,
   fetchLatestWorldPost,
   fetchWorldPostsWithReplies
 } from "@/lib/worldPostsClient";
@@ -40,6 +42,7 @@ export default function WorldPostsSection({
   const [postDraft, setPostDraft] = useState("");
   const [replyDrafts, setReplyDrafts] = useState({});
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState("");
 
   const canComposePost =
     worldSource === "online" &&
@@ -76,6 +79,8 @@ export default function WorldPostsSection({
 
     if (nextPosts[0]) {
       setLatestPost(nextPosts[0]);
+    } else {
+      setLatestPost(null);
     }
   }
 
@@ -142,6 +147,61 @@ export default function WorldPostsSection({
     );
     setStatus("");
     setIsSaving(false);
+  }
+
+  async function handleDeletePost(post) {
+    if (!currentUser?.id || post.author_id !== currentUser.id || deletingId) {
+      return;
+    }
+
+    const confirmed = window.confirm("Delete this post and its replies?");
+    if (!confirmed) return;
+
+    setDeletingId(post.id);
+    const { error } = await deleteWorldPost(post.id);
+
+    if (error) {
+      setStatus(error.message || "Could not delete post.");
+      setDeletingId("");
+      return;
+    }
+
+    const nextPosts = posts.filter((item) => item.id !== post.id);
+    setPosts(nextPosts);
+    setLatestPost(nextPosts[0] || null);
+    setStatus("Post deleted.");
+    setDeletingId("");
+  }
+
+  async function handleDeleteReply(postId, reply) {
+    if (!currentUser?.id || reply.author_id !== currentUser.id || deletingId) {
+      return;
+    }
+
+    const confirmed = window.confirm("Delete this reply?");
+    if (!confirmed) return;
+
+    setDeletingId(reply.id);
+    const { error } = await deleteWorldPostReply(reply.id);
+
+    if (error) {
+      setStatus(error.message || "Could not delete reply.");
+      setDeletingId("");
+      return;
+    }
+
+    setPosts((current) =>
+      current.map((post) =>
+        post.id === postId
+          ? {
+              ...post,
+              replies: (post.replies || []).filter((item) => item.id !== reply.id)
+            }
+          : post
+      )
+    );
+    setStatus("Reply deleted.");
+    setDeletingId("");
   }
 
   if (worldSource !== "online") {
@@ -229,6 +289,16 @@ export default function WorldPostsSection({
                   <div className="world-post-thread-meta">
                     <strong>{post.author_name}</strong>
                     <span>{formatPostTime(post.created_at)}</span>
+                    {currentUser?.id === post.author_id ? (
+                      <button
+                        type="button"
+                        className="world-post-delete-button"
+                        disabled={Boolean(deletingId)}
+                        onClick={() => handleDeletePost(post)}
+                      >
+                        {deletingId === post.id ? "Deleting…" : "Delete"}
+                      </button>
+                    ) : null}
                   </div>
                   <p>{post.body}</p>
 
@@ -238,6 +308,16 @@ export default function WorldPostsSection({
                         <div className="world-post-thread-meta">
                           <strong>{reply.author_name}</strong>
                           <span>{formatPostTime(reply.created_at)}</span>
+                          {currentUser?.id === reply.author_id ? (
+                            <button
+                              type="button"
+                              className="world-post-delete-button"
+                              disabled={Boolean(deletingId)}
+                              onClick={() => handleDeleteReply(post.id, reply)}
+                            >
+                              {deletingId === reply.id ? "Deleting…" : "Delete"}
+                            </button>
+                          ) : null}
                         </div>
                         <p>{reply.body}</p>
                       </div>

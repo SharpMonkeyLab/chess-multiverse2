@@ -43,7 +43,8 @@ export function createActionLogEntry({
     message,
     category = "action",
     turnTeam = "white",
-    moveNumber = 1
+    moveNumber = 1,
+    card = null
 }) {
     return {
         id:
@@ -54,6 +55,13 @@ export function createActionLogEntry({
         category,
         turnTeam,
         moveNumber,
+        card: card
+            ? {
+                  name: card.name || "Card",
+                  effectHint: card.effectHint || "",
+                  description: card.description || ""
+              }
+            : null,
         createdAt: new Date().toISOString()
     };
 }
@@ -65,6 +73,7 @@ export function addActionLogEntryToLog(
         category = "action",
         turnTeam = "white",
         moveNumber = 1,
+        card = null,
         maxActionLog = 40
     }
 ) {
@@ -72,7 +81,8 @@ export function addActionLogEntryToLog(
         message,
         category,
         turnTeam,
-        moveNumber
+        moveNumber,
+        card
     });
 
     const safeCurrentLog = Array.isArray(currentLog) ? currentLog : [];

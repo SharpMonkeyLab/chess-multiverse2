@@ -16,6 +16,14 @@ import CharacterCard from "./CharacterCard";
 import MatchChatPanel from "./MatchChatPanel";
 import { resolveCharacterPortrait } from "@/lib/portraitAssets";
 
+function formatClock(totalSeconds) {
+  const safeSeconds = Math.max(0, Number(totalSeconds) || 0);
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
 function TeamTray({
   team,
   worldTheme,
@@ -25,7 +33,10 @@ function TeamTray({
   selectedTeam,
   selectedPiece,
   onSelectPiece,
-  playerLabel = ""
+  playerLabel = "",
+  timers = null,
+  turnTeam = "white",
+  onToggleTimer
 }) {
   const characterList = Array.isArray(characterLibrary)
     ? characterLibrary
@@ -46,10 +57,54 @@ function TeamTray({
     }
   ];
 
+  const isActiveTeam = turnTeam === team;
+  const isFlagged = timers?.flaggedTeam === team;
+
+  let clockLabel = "";
+  if (timers) {
+    if (timers.mode === "per_side_total") {
+      clockLabel = formatClock(
+        team === "black" ? timers.blackRemaining : timers.whiteRemaining
+      );
+    } else {
+      // Per-turn: both trays show the shared turn clock (same starting value).
+      clockLabel = formatClock(timers.turnSeconds);
+    }
+  }
+
   return (
     <section className="panel-box team-tray-box">
       <div className="team-tray-heading">
         <h2>{team === "black" ? "Black Team" : "White Team"}</h2>
+
+        {timers ? (
+          <div
+            className={[
+              "team-tray-clock",
+              isActiveTeam ? "is-active" : "",
+              isFlagged ? "is-flagged" : ""
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
+            <span className="team-tray-clock-time" title={
+              timers.mode === "per_side_total" ? "Per side total" : "Per turn"
+            }>
+              {clockLabel}
+            </span>
+            {isActiveTeam && typeof onToggleTimer === "function" ? (
+              <button
+                type="button"
+                className="team-tray-clock-toggle"
+                onClick={onToggleTimer}
+                title={timers.isRunning ? "Pause timer" : "Start timer"}
+              >
+                {timers.isRunning ? "Pause" : "Start"}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
         {playerLabel ? (
           <span className="team-tray-player">{playerLabel}</span>
         ) : null}
@@ -148,6 +203,9 @@ export default function RightPanel({
   sessionParticipants = [],
   currentUserId = "",
 
+  timers = null,
+  onToggleTimer,
+
   onClearSelections,
 
   onSelectPiece,
@@ -206,6 +264,9 @@ export default function RightPanel({
         selectedPiece={selectedPiece}
         onSelectPiece={onSelectPiece}
         playerLabel={formatTrayPlayer(blackPlayer)}
+        timers={timers}
+        turnTeam={turnTeam}
+        onToggleTimer={onToggleTimer}
       />
 
       <TeamTray
@@ -218,6 +279,9 @@ export default function RightPanel({
         selectedPiece={selectedPiece}
         onSelectPiece={onSelectPiece}
         playerLabel={formatTrayPlayer(whitePlayer)}
+        timers={timers}
+        turnTeam={turnTeam}
+        onToggleTimer={onToggleTimer}
       />
 
       {worldFeatures?.characters && (

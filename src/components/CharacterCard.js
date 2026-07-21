@@ -54,6 +54,10 @@ function humanizeFieldLabel(fieldKey) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function isGenericCustomFieldLabel(label) {
+  return /^custom\s*field\s*\d+$/i.test(String(label || "").trim());
+}
+
 function getVisibleCustomFields(character) {
   return Object.entries({
     ...(character?.meta || {}),
@@ -211,7 +215,9 @@ export default function CharacterCard({
                 <div className="character-meta-chip-row">
                   {visibleCustomFields.map((field) => (
                     <span className="character-meta-chip" key={field.key}>
-                      <strong>{field.label}</strong>
+                      {!isGenericCustomFieldLabel(field.label) && (
+                        <strong>{field.label}</strong>
+                      )}
                       {field.value}
                     </span>
                   ))}

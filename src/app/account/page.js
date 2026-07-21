@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 import SiteHeader from "@/components/SiteHeader";
@@ -52,6 +52,7 @@ export default function AccountPage() {
   const [isLoadingOnlineWorlds, setIsLoadingOnlineWorlds] = useState(false);
   const [deletingOnlineWorldId, setDeletingOnlineWorldId] = useState("");
   const [publishingWorldId, setPublishingWorldId] = useState("");
+  const worldsLoadSeqRef = useRef(0);
 
   useEffect(() => {
     if (!hasSupabaseConfig() || !supabase) {
@@ -59,45 +60,15 @@ export default function AccountPage() {
       return;
     }
 
-    async function loadCurrentUser() {
-      try {
-        const {
-          data: { user },
-          error
-        } = await supabase.auth.getUser();
+    let cancelled = false;
 
-        if (error) {
-          console.warn("Could not load current user:", error.message);
-          setCurrentUser(null);
-          setDisplayName("");
-          setHasCheckedAuth(true);
-          return;
-        }
-
-        setCurrentUser(user);
-
-        if (user) {
-          loadOrCreateProfile(user);
-          loadOnlineWorlds(user);
-          loadPreferences(user.id);
-        }
-
-        setHasCheckedAuth(true);
-      } catch (error) {
-        console.error("Supabase user fetch failed:", error);
-
-        setCurrentUser(null);
-        setDisplayName("");
-        setAuthStatus("Could not reach the account service. Check your connection.");
-        setHasCheckedAuth(true);
-      }
-    }
-
-    loadCurrentUser();
-
+    // Single auth source: onAuthStateChange (includes INITIAL_SESSION).
+    // Avoid also calling getUser → loadOnlineWorlds, which duplicated fetches.
     const {
       data: { subscription }
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (cancelled) return;
+
       const user = session?.user || null;
 
       setCurrentUser(user);
@@ -115,6 +86,8 @@ export default function AccountPage() {
     });
 
     return () => {
+      cancelled = true;
+      worldsLoadSeqRef.current += 1;
       subscription.unsubscribe();
     };
   }, []);
@@ -229,8 +202,9 @@ export default function AccountPage() {
       return;
     }
 
+    const loadSeq = ++worldsLoadSeqRef.current;
+
     setIsLoadingOnlineWorlds(true);
-    setOnlineWorldsStatus("Loading online universes…");
 
     try {
       const { data, error } = await supabase
@@ -240,6 +214,10 @@ export default function AccountPage() {
         )
         .eq("owner_id", user.id)
         .order("updated_at", { ascending: false });
+
+      if (loadSeq !== worldsLoadSeqRef.current) {
+        return;
+      }
 
       if (error) {
         setOnlineWorldsStatus(error.message);
@@ -252,10 +230,14 @@ export default function AccountPage() {
     } catch (error) {
       console.error("Online worlds fetch failed:", error);
 
+      if (loadSeq !== worldsLoadSeqRef.current) return;
+
       setOnlineWorlds([]);
-      setOnlineWorldsStatus("Could not load online universes.");
+      setOnlineWorldsStatus("Could not load universes.");
     } finally {
-      setIsLoadingOnlineWorlds(false);
+      if (loadSeq === worldsLoadSeqRef.current) {
+        setIsLoadingOnlineWorlds(false);
+      }
     }
   }
 
@@ -538,7 +520,7 @@ export default function AccountPage() {
               </div>
 
               {isLoadingOnlineWorlds && (
-                <p className="account-auth-status">Loading online universes…</p>
+                <p className="account-auth-status">Loading universes...</p>
               )}
 
               {onlineWorldsStatus && (
@@ -610,6 +592,14 @@ export default function AccountPage() {
                           </div>
 
                           <div className="account-online-world-action-row">
+                            <Link
+                              className="world-play-link"
+                              href={`/worlds/${encodeURIComponent(world.id)}?from=account`}
+                              title={`Enter ${world.name}`}
+                            >
+                              Enter Universe
+                            </Link>
+
                             <Link
                               className="world-play-link"
                               href={`/creator?onlineWorld=${world.id}`}

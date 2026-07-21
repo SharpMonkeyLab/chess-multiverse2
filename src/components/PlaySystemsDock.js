@@ -1,21 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 
-import {
-    hasAnyAdvancedPlaySystem,
-    normalizeWorldFeatures,
-    rollDiceDefinitions,
-    tickTimers
-} from "@/lib/worldSystems";
-
-function formatClock(totalSeconds) {
-    const safeSeconds = Math.max(0, Number(totalSeconds) || 0);
-    const minutes = Math.floor(safeSeconds / 60);
-    const seconds = safeSeconds % 60;
-
-    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-}
+import { normalizeWorldFeatures } from "@/lib/worldSystems";
 
 export default function PlaySystemsDock({
     worldFeatures,
@@ -28,42 +15,15 @@ export default function PlaySystemsDock({
 }) {
     const features = normalizeWorldFeatures(worldFeatures);
     const [selectedCardInstanceId, setSelectedCardInstanceId] = useState("");
+    const [enteringCardId, setEnteringCardId] = useState("");
 
-    const showDock = hasAnyAdvancedPlaySystem(features);
+    const showDock =
+        isPlayMode && features.cardDecks && systemsRuntime?.cardDecks;
 
     const activeHand = systemsRuntime?.cardDecks?.[turnTeam]?.hand || [];
     const libraryCount = systemsRuntime?.cardDecks?.[turnTeam]?.library?.length || 0;
 
-    const selectedObjectives = useMemo(() => {
-        return systemsRuntime?.objectives?.selected || [];
-    }, [systemsRuntime]);
-
-    useEffect(() => {
-        if (!systemsRuntime?.timers || !systemsRuntime.timers.isRunning) {
-            return undefined;
-        }
-
-        const intervalId = window.setInterval(() => {
-            onSystemsRuntimeChange?.((currentRuntime) => {
-                if (!currentRuntime?.timers?.isRunning) {
-                    return currentRuntime;
-                }
-
-                return {
-                    ...currentRuntime,
-                    timers: tickTimers(currentRuntime.timers, turnTeam)
-                };
-            });
-        }, 1000);
-
-        return () => window.clearInterval(intervalId);
-    }, [
-        systemsRuntime?.timers?.isRunning,
-        turnTeam,
-        onSystemsRuntimeChange
-    ]);
-
-    if (!showDock || !isPlayMode) {
+    if (!showDock) {
         return null;
     }
 
@@ -96,6 +56,7 @@ export default function PlaySystemsDock({
         }
 
         const [drawnCard, ...rest] = library;
+        const cardId = drawnCard.instanceId || drawnCard.key;
 
         updateRuntime({
             cardDecks: {
@@ -107,6 +68,11 @@ export default function PlaySystemsDock({
                 }
             }
         });
+
+        setEnteringCardId(cardId);
+        window.setTimeout(() => {
+            setEnteringCardId((current) => (current === cardId ? "" : current));
+        }, 320);
 
         onLogAction(
             `${turnTeam} drew ${drawnCard.name || "a card"}.`,
@@ -141,229 +107,99 @@ export default function PlaySystemsDock({
         });
 
         setSelectedCardInstanceId("");
-        onLogAction(
-            `${turnTeam} played ${playedCard.name || "a card"}${
-                playedCard.effectHint ? ` — ${playedCard.effectHint}` : ""
-            }. Modify the board to resolve the effect.`,
-            "cards"
-        );
-    }
-
-    function handleRollDice({ isReroll = false } = {}) {
-        if (!systemsRuntime?.dice) return;
-
-        if (isReroll && !systemsRuntime.dice.allowReroll) {
-            return;
-        }
-
-        const results = rollDiceDefinitions(systemsRuntime.dice.definitions);
-
-        updateRuntime({
-            dice: {
-                ...systemsRuntime.dice,
-                lastRoll: {
-                    at: new Date().toISOString(),
-                    results,
-                    isReroll
-                }
-            }
-        });
-
-        onLogAction(
-            `${isReroll ? "Reroll" : "Roll"}: ${results
-                .map((result) => `${result.label} ${result.value}`)
-                .join(", ")}.`,
-            "dice"
-        );
-    }
-
-    function handleToggleTimer() {
-        if (!systemsRuntime?.timers) return;
-
-        updateRuntime({
-            timers: {
-                ...systemsRuntime.timers,
-                isRunning: !systemsRuntime.timers.isRunning
-            }
-        });
-    }
-
-    function handleToggleObjectiveComplete(objectiveKey) {
-        if (!systemsRuntime?.objectives) return;
-
-        const completedKeys = new Set(
-            systemsRuntime.objectives.completedKeys || []
-        );
-
-        if (completedKeys.has(objectiveKey)) {
-            completedKeys.delete(objectiveKey);
-        } else {
-            completedKeys.add(objectiveKey);
-        }
-
-        updateRuntime({
-            objectives: {
-                ...systemsRuntime.objectives,
-                completedKeys: Array.from(completedKeys)
+        onLogAction(`${turnTeam} played ${playedCard.name || "a card"}.`, "cards", {
+            card: {
+                name: playedCard.name || "Card",
+                effectHint: playedCard.effectHint || "",
+                description: playedCard.description || ""
             }
         });
     }
 
     return (
-        <section className="play-systems-dock" aria-label="Advanced play systems">
-            {features.timers && systemsRuntime?.timers && (
-                <div className="play-system-card">
-                    <h3>Timer</h3>
-                    <p className="play-system-clock">
-                        {systemsRuntime.timers.mode === "per_side_total"
-                            ? `W ${formatClock(systemsRuntime.timers.whiteRemaining)} · B ${formatClock(systemsRuntime.timers.blackRemaining)}`
-                            : formatClock(systemsRuntime.timers.turnSeconds)}
-                    </p>
-                    <div className="play-system-card-actions">
-                        <button type="button" onClick={handleToggleTimer}>
-                            {systemsRuntime.timers.isRunning ? "Pause" : "Start"}
-                        </button>
-                    </div>
-                    <p className="small muted">
-                        {systemsRuntime.timers.mode === "per_side_total"
-                            ? "Per side total"
-                            : "Per turn"}
-                        {systemsRuntime.timers.flaggedTeam
-                            ? ` · ${systemsRuntime.timers.flaggedTeam} flagged`
-                            : ""}
-                    </p>
-                </div>
-            )}
+        <section className="play-systems-dock play-card-felt" aria-label="Card deck">
+            <header className="play-card-felt-header">
+                <h3>Cards · {turnTeam}</h3>
+            </header>
 
-            {features.diceSystem && systemsRuntime?.dice && (
-                <div className="play-system-card">
-                    <h3>Dice</h3>
-                    <div className="play-system-card-actions">
-                        <button type="button" onClick={() => handleRollDice()}>
-                            Roll
-                        </button>
-                        {systemsRuntime.dice.allowReroll && (
-                            <button
-                                type="button"
-                                disabled={!systemsRuntime.dice.lastRoll}
-                                onClick={() => handleRollDice({ isReroll: true })}
-                            >
-                                Reroll
-                            </button>
-                        )}
-                    </div>
-                    {systemsRuntime.dice.lastRoll ? (
-                        <p className="play-system-roll">
-                            {systemsRuntime.dice.lastRoll.results
-                                .map((result) => `${result.label}: ${result.value}`)
-                                .join(" · ")}
-                        </p>
+            <div className="play-card-felt-row">
+                <button
+                    type="button"
+                    className={`play-draw-pile${libraryCount === 0 ? " is-empty" : ""}`}
+                    onClick={handleDrawCard}
+                    disabled={libraryCount === 0}
+                    title={
+                        libraryCount === 0
+                            ? "Library empty"
+                            : `Draw a card (${libraryCount} left)`
+                    }
+                    aria-label={`Draw a card, ${libraryCount} remaining`}
+                >
+                    <span className="play-draw-pile-face" aria-hidden="true" />
+                    <span className="play-draw-pile-count">{libraryCount}</span>
+                    <span className="play-draw-pile-label">Draw</span>
+                </button>
+
+                <div className="play-card-hand" role="list">
+                    {activeHand.length === 0 ? (
+                        <div className="play-card-hand-empty" aria-hidden="true">
+                            <span className="play-hand-card play-hand-card-ghost" />
+                            <span className="play-card-hand-empty-label">Draw to begin</span>
+                        </div>
                     ) : (
-                        <p className="small muted">No rolls yet.</p>
+                        activeHand.map((card) => {
+                            const cardId = card.instanceId || card.key;
+                            const isSelected = selectedCardInstanceId === cardId;
+                            const isEntering = enteringCardId === cardId;
+
+                            return (
+                                <button
+                                    type="button"
+                                    key={cardId}
+                                    role="listitem"
+                                    className={[
+                                        "play-hand-card",
+                                        isSelected ? "active" : "",
+                                        isEntering ? "is-entering" : ""
+                                    ]
+                                        .filter(Boolean)
+                                        .join(" ")}
+                                    onClick={() =>
+                                        setSelectedCardInstanceId(
+                                            isSelected ? "" : cardId
+                                        )
+                                    }
+                                    title={card.effectHint || card.description || ""}
+                                >
+                                    <strong className="play-hand-card-name">
+                                        {card.name || "Card"}
+                                    </strong>
+                                    <small className="play-hand-card-body">
+                                        {card.effectHint ||
+                                            card.description ||
+                                            "Play, then edit the board"}
+                                    </small>
+                                    <span className="play-hand-card-pip" aria-hidden="true" />
+                                </button>
+                            );
+                        })
                     )}
                 </div>
-            )}
 
-            {features.cardDecks && systemsRuntime?.cardDecks && (
-                <div className="play-system-card play-system-card-wide">
-                    <h3>Cards · {turnTeam} · {libraryCount} left</h3>
-                    <div className="play-system-card-actions">
-                        <button type="button" onClick={handleDrawCard}>
-                            Draw
-                        </button>
-                        <button
-                            type="button"
-                            disabled={!selectedCardInstanceId}
-                            onClick={handlePlaySelectedCard}
-                        >
-                            Play Selected
-                        </button>
-                    </div>
-                    <div className="play-system-hand">
-                        {activeHand.length === 0 ? (
-                            <p className="small muted">Hand empty — draw a card.</p>
-                        ) : (
-                            activeHand.map((card) => {
-                                const cardId = card.instanceId || card.key;
-
-                                return (
-                                    <button
-                                        type="button"
-                                        key={cardId}
-                                        className={
-                                            selectedCardInstanceId === cardId
-                                                ? "play-hand-card active"
-                                                : "play-hand-card"
-                                        }
-                                        onClick={() => setSelectedCardInstanceId(cardId)}
-                                        title={card.effectHint || card.description || ""}
-                                    >
-                                        <strong>{card.name || "Card"}</strong>
-                                        <small>
-                                            {card.effectHint ||
-                                                card.description ||
-                                                "Play, then edit the board"}
-                                        </small>
-                                    </button>
-                                );
-                            })
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {features.objectives && systemsRuntime?.objectives && (
-                <div className="play-system-card">
-                    <h3>Objectives</h3>
-                    {selectedObjectives.length === 0 ? (
-                        <p className="small muted">No objectives selected.</p>
-                    ) : (
-                        <ul className="play-system-objectives">
-                            {selectedObjectives.map((item) => {
-                                const isComplete = (
-                                    systemsRuntime.objectives.completedKeys || []
-                                ).includes(item.key);
-
-                                return (
-                                    <li key={item.key}>
-                                        <button
-                                            type="button"
-                                            className={
-                                                isComplete
-                                                    ? "play-objective-toggle done"
-                                                    : "play-objective-toggle"
-                                            }
-                                            onClick={() =>
-                                                handleToggleObjectiveComplete(item.key)
-                                            }
-                                        >
-                                            {isComplete ? "✓ " : ""}
-                                            {item.title || "Objective"}
-                                        </button>
-                                    </li>
-                                );
-                            })}
-                        </ul>
-                    )}
-                </div>
-            )}
-
-            {features.fogOfWar && systemsRuntime?.fogOfWar && (
-                <div className="play-system-card">
-                    <h3>Fog of War</h3>
-                    <p className="small muted">
-                        {(systemsRuntime.fogOfWar.fogCells || []).length} fogged
-                        cells. Enemy pieces inside fog stay hidden.
-                    </p>
-                    {systemsRuntime.fogOfWar.allowPlayerEdit ? (
-                        <p className="small muted">
-                            Use Fog tools in the left panel to paint or clear.
-                        </p>
-                    ) : (
-                        <p className="small muted">Fog zones are fixed by the creator.</p>
-                    )}
-                </div>
-            )}
+                <button
+                    type="button"
+                    className="play-card-play-btn"
+                    disabled={!selectedCardInstanceId}
+                    onClick={handlePlaySelectedCard}
+                    title={
+                        selectedCardInstanceId
+                            ? "Play selected card"
+                            : "Select a card to play"
+                    }
+                >
+                    Play
+                </button>
+            </div>
         </section>
     );
 }

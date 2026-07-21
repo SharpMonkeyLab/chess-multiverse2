@@ -558,7 +558,8 @@
 // - body text (1–2000 chars)
 // - created_at / updated_at
 //
-// RLS: select if world public or owner; insert if author is world owner
+// RLS: select if world public or owner; insert if author is world owner;
+// delete if auth.uid() = author_id
 
 
 // ================================
@@ -575,7 +576,8 @@
 // - body text (1–1000 chars)
 // - created_at
 //
-// RLS: select with parent post visibility; any signed-in user may insert as self
+// RLS: select with parent post visibility; any signed-in user may insert as self;
+// delete if auth.uid() = author_id
 
 
 // ================================

@@ -3,10 +3,13 @@ const STORAGE_PREFIX = "cm.prefs.";
 export const DISPLAY_MODE_PIECE = "piece-with-portrait";
 export const DISPLAY_MODE_PORTRAIT = "portrait-with-piece";
 
+export const DEFAULT_TOOL_SHELF_ORDER = ["terrains", "conditions", "counters"];
+
 const DEFAULT_PREFERENCES = {
   preferCommunityAfterReady: false,
   showLegalMoveHints: true,
-  displayModeByWorld: {}
+  displayModeByWorld: {},
+  toolShelfOrder: [...DEFAULT_TOOL_SHELF_ORDER]
 };
 
 function storageKey(userId) {
@@ -19,11 +22,39 @@ function normalizeDisplayMode(mode) {
     : DISPLAY_MODE_PIECE;
 }
 
+export function normalizeToolShelfOrder(order) {
+  const allowed = new Set(DEFAULT_TOOL_SHELF_ORDER);
+  const cleaned = [];
+
+  if (Array.isArray(order)) {
+    for (const key of order) {
+      if (allowed.has(key) && !cleaned.includes(key)) {
+        cleaned.push(key);
+      }
+    }
+  }
+
+  for (const key of DEFAULT_TOOL_SHELF_ORDER) {
+    if (!cleaned.includes(key)) {
+      cleaned.push(key);
+    }
+  }
+
+  return cleaned;
+}
+
+function toolShelfOrderEquals(a, b) {
+  const left = normalizeToolShelfOrder(a);
+  const right = normalizeToolShelfOrder(b);
+  return left.length === right.length && left.every((key, index) => key === right[index]);
+}
+
 export function getUserPreferences(userId) {
   if (typeof window === "undefined") {
     return {
       ...DEFAULT_PREFERENCES,
-      displayModeByWorld: {}
+      displayModeByWorld: {},
+      toolShelfOrder: [...DEFAULT_TOOL_SHELF_ORDER]
     };
   }
 
@@ -32,7 +63,8 @@ export function getUserPreferences(userId) {
     if (!raw) {
       return {
         ...DEFAULT_PREFERENCES,
-        displayModeByWorld: {}
+        displayModeByWorld: {},
+        toolShelfOrder: [...DEFAULT_TOOL_SHELF_ORDER]
       };
     }
 
@@ -53,12 +85,14 @@ export function getUserPreferences(userId) {
         parsed.showLegalMoveHints == null
           ? DEFAULT_PREFERENCES.showLegalMoveHints
           : Boolean(parsed.showLegalMoveHints),
-      displayModeByWorld
+      displayModeByWorld,
+      toolShelfOrder: normalizeToolShelfOrder(parsed.toolShelfOrder)
     };
   } catch {
     return {
       ...DEFAULT_PREFERENCES,
-      displayModeByWorld: {}
+      displayModeByWorld: {},
+      toolShelfOrder: [...DEFAULT_TOOL_SHELF_ORDER]
     };
   }
 }
@@ -83,7 +117,10 @@ export function saveUserPreferences(userId, preferences) {
     showLegalMoveHints: Boolean(
       preferences.showLegalMoveHints ?? current.showLegalMoveHints
     ),
-    displayModeByWorld
+    displayModeByWorld,
+    toolShelfOrder: normalizeToolShelfOrder(
+      preferences.toolShelfOrder ?? current.toolShelfOrder
+    )
   };
 
   try {
@@ -93,6 +130,26 @@ export function saveUserPreferences(userId, preferences) {
   }
 
   return next;
+}
+
+export function getToolShelfOrder(userId) {
+  return normalizeToolShelfOrder(getUserPreferences(userId).toolShelfOrder);
+}
+
+export function saveToolShelfOrder(userId, order) {
+  const prefs = getUserPreferences(userId);
+  return saveUserPreferences(userId, {
+    ...prefs,
+    toolShelfOrder: normalizeToolShelfOrder(order)
+  });
+}
+
+export function resetToolShelfOrder(userId) {
+  return saveToolShelfOrder(userId, DEFAULT_TOOL_SHELF_ORDER);
+}
+
+export function isDefaultToolShelfOrder(order) {
+  return toolShelfOrderEquals(order, DEFAULT_TOOL_SHELF_ORDER);
 }
 
 export function getWorldDisplayMode(userId, worldId) {

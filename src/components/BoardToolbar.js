@@ -1,6 +1,71 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+
+function ActionLogCardPreview({ card, anchorRect }) {
+  if (!card || !anchorRect || typeof document === "undefined") {
+    return null;
+  }
+
+  const style = {
+    position: "fixed",
+    top: Math.min(anchorRect.bottom + 8, window.innerHeight - 150),
+    left: Math.min(anchorRect.left, window.innerWidth - 110),
+    zIndex: 3000
+  };
+
+  return createPortal(
+    <div
+      className="board-action-log-card-preview play-hand-card"
+      style={style}
+      aria-hidden="true"
+    >
+      <strong className="play-hand-card-name">{card.name || "Card"}</strong>
+      <small className="play-hand-card-body">
+        {card.effectHint || card.description || "Play, then edit the board"}
+      </small>
+      <span className="play-hand-card-pip" />
+    </div>,
+    document.body
+  );
+}
+
+function ActionLogMessage({ entry }) {
+  const card = entry?.card || null;
+  const cardName = card?.name?.trim();
+  const [previewAnchor, setPreviewAnchor] = useState(null);
+
+  if (!cardName) {
+    return <>{entry.message}</>;
+  }
+
+  const nameIndex = entry.message.indexOf(cardName);
+
+  if (nameIndex < 0) {
+    return <>{entry.message}</>;
+  }
+
+  const before = entry.message.slice(0, nameIndex);
+  const after = entry.message.slice(nameIndex + cardName.length);
+
+  return (
+    <>
+      {before}
+      <span
+        className="board-action-log-card-name"
+        onMouseEnter={(event) => {
+          setPreviewAnchor(event.currentTarget.getBoundingClientRect());
+        }}
+        onMouseLeave={() => setPreviewAnchor(null)}
+      >
+        {cardName}
+      </span>
+      {after}
+      <ActionLogCardPreview card={card} anchorRect={previewAnchor} />
+    </>
+  );
+}
 
 export default function BoardToolbar({
   selectedBoardAction,
@@ -52,21 +117,23 @@ export default function BoardToolbar({
 
   return (
     <div className="board-toolbar-stack">
-      <div className="board-toolbar" aria-label="Board tools">
-        {showPortraitToggle && (
+      <div className="board-toolbar">
+        {showPortraitToggle ? (
           <div
-            className={`board-display-switch${isPortraitMode ? " portrait" : " piece"}`}
+            className={`board-display-switch${isPortraitMode ? " portrait" : ""}`}
             role="group"
-            aria-label="Board display mode"
+            aria-label="Character display mode"
           >
             <button
               type="button"
               className={!isPortraitMode ? "active" : ""}
               aria-pressed={!isPortraitMode}
               onClick={() => {
-                if (isPortraitMode) onToggleCharacterDisplayMode();
+                if (isPortraitMode) {
+                  onToggleCharacterDisplayMode();
+                }
               }}
-              title="Show piece with portrait badge"
+              title="Piece with portrait"
             >
               Piece
             </button>
@@ -75,15 +142,17 @@ export default function BoardToolbar({
               className={isPortraitMode ? "active" : ""}
               aria-pressed={isPortraitMode}
               onClick={() => {
-                if (!isPortraitMode) onToggleCharacterDisplayMode();
+                if (!isPortraitMode) {
+                  onToggleCharacterDisplayMode();
+                }
               }}
-              title="Show portrait with piece badge"
+              title="Portrait with piece"
             >
               Portrait
             </button>
             <span className="board-display-switch-thumb" aria-hidden="true" />
           </div>
-        )}
+        ) : null}
 
         {showActionLog ? (
           <button
@@ -91,15 +160,15 @@ export default function BoardToolbar({
             className={`board-action-log-trigger${isLogOpen ? " open" : ""}`}
             onClick={() => setIsLogOpen((current) => !current)}
             aria-expanded={isLogOpen}
-            title={
-              latestEntry
-                ? `${latestEntry.message} — click to ${isLogOpen ? "close" : "open"} action log`
-                : "Action log"
-            }
+            title="Action log"
           >
             <span className="board-action-log-label">Action Log</span>
             <span className="board-action-log-latest">
-              {latestEntry ? latestEntry.message : "No actions yet."}
+              {latestEntry ? (
+                <ActionLogMessage entry={latestEntry} />
+              ) : (
+                "No actions yet."
+              )}
             </span>
             <span className="board-action-log-chevron" aria-hidden="true">
               {isLogOpen ? "▴" : "▾"}
@@ -164,7 +233,9 @@ export default function BoardToolbar({
                       {actionLog.length - index}
                     </span>
                     <span className="board-action-log-entry-body">
-                      <strong>{entry.message}</strong>
+                      <strong>
+                        <ActionLogMessage entry={entry} />
+                      </strong>
                     </span>
                   </li>
                 ))}

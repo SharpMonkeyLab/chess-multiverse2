@@ -297,3 +297,73 @@ export async function createWorldPostReply(postId, body) {
     return { reply: null, error };
   }
 }
+
+export async function deleteWorldPost(postId) {
+  if (!hasSupabaseConfig() || !supabase) {
+    return { error: new Error("Supabase is not configured.") };
+  }
+
+  if (!postId) {
+    return { error: new Error("Missing post.") };
+  }
+
+  try {
+    const {
+      data: { user },
+      error: userError
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return { error: new Error("Please sign in to delete posts.") };
+    }
+
+    const { error } = await supabase
+      .from("world_posts")
+      .delete()
+      .eq("id", postId)
+      .eq("author_id", user.id);
+
+    if (error) {
+      return { error };
+    }
+
+    return { error: null };
+  } catch (error) {
+    return { error };
+  }
+}
+
+export async function deleteWorldPostReply(replyId) {
+  if (!hasSupabaseConfig() || !supabase) {
+    return { error: new Error("Supabase is not configured.") };
+  }
+
+  if (!replyId) {
+    return { error: new Error("Missing reply.") };
+  }
+
+  try {
+    const {
+      data: { user },
+      error: userError
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return { error: new Error("Please sign in to delete replies.") };
+    }
+
+    const { error } = await supabase
+      .from("world_post_replies")
+      .delete()
+      .eq("id", replyId)
+      .eq("author_id", user.id);
+
+    if (error) {
+      return { error };
+    }
+
+    return { error: null };
+  } catch (error) {
+    return { error };
+  }
+}

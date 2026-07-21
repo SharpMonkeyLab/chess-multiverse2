@@ -11,7 +11,7 @@ import {
 import { fetchOnlinePlayerCount } from "@/lib/presenceClient";
 import { hasSupabaseConfig, supabase } from "@/lib/supabaseClient";
 import { getWorldComplexity, getWorldPreviewImages } from "@/lib/worldData";
-import { fetchRecentWorldPosts } from "@/lib/worldPostsClient";
+import { fetchRecentWorldPosts, deleteWorldPost } from "@/lib/worldPostsClient";
 import MatchmakingReadyButton from "@/components/MatchmakingReadyButton";
 
 function formatShortTime(value) {
@@ -45,6 +45,7 @@ export default function LobbyClient() {
   const [recentPosts, setRecentPosts] = useState([]);
   const [postsStatus, setPostsStatus] = useState("");
   const [readyStatus, setReadyStatus] = useState("");
+  const [deletingPostId, setDeletingPostId] = useState("");
 
   const chatListRef = useRef(null);
 
@@ -137,6 +138,28 @@ export default function LobbyClient() {
 
     setRecentPosts(posts);
     setPostsStatus("");
+  }
+
+  async function handleDeleteRecentPost(post) {
+    if (!currentUser?.id || post.author_id !== currentUser.id || deletingPostId) {
+      return;
+    }
+
+    const confirmed = window.confirm("Delete this post?");
+    if (!confirmed) return;
+
+    setDeletingPostId(post.id);
+    const { error } = await deleteWorldPost(post.id);
+
+    if (error) {
+      setPostsStatus(error.message || "Could not delete post.");
+      setDeletingPostId("");
+      return;
+    }
+
+    setRecentPosts((current) => current.filter((item) => item.id !== post.id));
+    setPostsStatus("Post deleted.");
+    setDeletingPostId("");
   }
 
   useEffect(() => {
@@ -403,6 +426,16 @@ export default function LobbyClient() {
                 <span>
                   {post.author_name} · {formatShortTime(post.created_at)}
                 </span>
+                {currentUser?.id === post.author_id ? (
+                  <button
+                    type="button"
+                    className="world-post-delete-button"
+                    disabled={Boolean(deletingPostId)}
+                    onClick={() => handleDeleteRecentPost(post)}
+                  >
+                    {deletingPostId === post.id ? "Deleting…" : "Delete"}
+                  </button>
+                ) : null}
               </div>
               <p>
                 {post.body.length > 160

@@ -183,7 +183,7 @@ export default function GlobalMatchmakingBar() {
             className="global-matchmaking-bar"
             role="status"
             aria-live="polite"
-            aria-label={`Seeking opponent in the Multiverse. Waiting ${queueTime}.`}
+            aria-label={`Seeking opponent. Waiting ${queueTime}.`}
         >
             <div className="mm-bar-atmosphere" aria-hidden="true">
                 <span className="mm-bar-scan" />
@@ -196,7 +196,7 @@ export default function GlobalMatchmakingBar() {
                 </span>
 
                 <div className="mm-bar-status-copy">
-                    <strong>Seeking opponent in the Multiverse</strong>
+                    <strong>Seeking opponent</strong>
                     <span className="mm-bar-pulse-label">
                         <span className="mm-bar-pulse-dot" aria-hidden="true" />
                         {isWorldScoped ? "In this universe" : "Across every universe"}
