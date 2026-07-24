@@ -193,6 +193,7 @@ export default function LeftSidebar({
   onSaveCharacter,
 
   onSelectCounterDelta,
+  onSelectBaseCounter,
   onSelectSetCounter,
   onSelectClearCounter,
 
@@ -588,7 +589,28 @@ export default function LeftSidebar({
                   {getCounterActionLabel(counter, "increase")}
                 </button>
 
-                {counter.allowSetCounter && (
+                {counter.allowBaseValue && (
+                  <button
+                    type="button"
+                    className={
+                      selectedCounterKey === counter.key &&
+                      selectedCounterAction === "base"
+                        ? "counter-tool-btn play-tool-armed active"
+                        : "counter-tool-btn"
+                    }
+                    title={`${counter.baseLabel || "Base"}: ${counter.baseValue ?? 0}`}
+                    onClick={() =>
+                      onSelectBaseCounter(
+                        counter.key,
+                        counter.baseValue ?? 0
+                      )
+                    }
+                  >
+                    {`${counter.baseLabel || "Base"} (${counter.baseValue ?? 0})`}
+                  </button>
+                )}
+
+                {counter.allowSetValue && (
                   <button
                     type="button"
                     className={
@@ -602,12 +624,7 @@ export default function LeftSidebar({
                         ? `${counter.setLabel || "Set"}: ${counter.setDescription}`
                         : counter.setLabel || "Set"
                     }
-                    onClick={() =>
-                      onSelectSetCounter(
-                        counter.key,
-                        counter.initialValue ?? counter.setValue ?? 0
-                      )
-                    }
+                    onClick={() => onSelectSetCounter(counter.key)}
                   >
                     {counter.setLabel || "Set"}
                   </button>
@@ -630,7 +647,7 @@ export default function LeftSidebar({
           })}
         </div>
 
-        {counterList.some((counter) => counter.allowSetCounter) && (
+        {counterList.some((counter) => counter.allowSetValue) && (
           <div className="counter-set-row">
             <input
               type="number"
@@ -651,23 +668,6 @@ export default function LeftSidebar({
     conditions: showConditions ? renderConditionsModule : null,
     counters: showCounters ? renderCountersModule : null
   };
-
-  const shelfColumns = useMemo(() => {
-    const left = [];
-    const right = [];
-
-    for (const key of visibleModuleKeys) {
-      if (left.length === 0 && right.length === 0) {
-        left.push(key);
-      } else if (right.length <= left.length) {
-        right.push(key);
-      } else {
-        left.push(key);
-      }
-    }
-
-    return { left, right };
-  }, [visibleModuleKeys]);
 
   function renderShelfModule(key) {
     const render = moduleRenderers[key];
@@ -743,20 +743,7 @@ export default function LeftSidebar({
       {hasPaintTools ? (
         <section className="sidebar-major-section">
           <div className="sidebar-major-content play-tool-shelf">
-            {visibleModuleKeys.length === 1 ? (
-              <div className="play-tool-shelf-col play-tool-shelf-col-full">
-                {renderShelfModule(visibleModuleKeys[0])}
-              </div>
-            ) : (
-              <>
-                <div className="play-tool-shelf-col">
-                  {shelfColumns.left.map((key) => renderShelfModule(key))}
-                </div>
-                <div className="play-tool-shelf-col">
-                  {shelfColumns.right.map((key) => renderShelfModule(key))}
-                </div>
-              </>
-            )}
+            {visibleModuleKeys.map((key) => renderShelfModule(key))}
           </div>
         </section>
       ) : null}

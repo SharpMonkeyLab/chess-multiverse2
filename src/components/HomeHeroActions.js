@@ -62,7 +62,7 @@ export default function HomeHeroActions() {
           Play Now
         </Link>
         <Link className="home-secondary-link" href="/lobby">
-          Visit Multiverse Community
+          Visit Multiverse
         </Link>
         <Link className="home-secondary-link" href="/creator">
           Create Universe

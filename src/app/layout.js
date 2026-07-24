@@ -17,6 +17,10 @@ export const metadata = {
   title: "Chess Multiverse",
   description:
     "Create, share, and play custom chess-inspired universes with characters, terrain, and rules.",
+  icons: {
+    icon: [{ url: "/favicon.png", type: "image/png" }],
+    apple: [{ url: "/favicon.png", type: "image/png" }],
+  },
 };
 
 export default function RootLayout({ children }) {

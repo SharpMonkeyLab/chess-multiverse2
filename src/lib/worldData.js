@@ -5,6 +5,8 @@
 //
 // See src/lib/supabasePlan.js for the future database model.
 
+import { getCounterListFromMechanics } from "@/lib/defaultWorld";
+
 export function getWorldData(world) {
   // Normal local saves use world.data.
   // Online rows use world.world_data.
@@ -100,9 +102,7 @@ export function getTerrainList(world) {
 
 export function getCounterList(world) {
   const worldData = getWorldData(world);
-  const counters = worldData.worldMechanics?.counters;
-
-  return Array.isArray(counters) ? counters : [];
+  return getCounterListFromMechanics(worldData.worldMechanics);
 }
 
 export function getConditionList(world) {

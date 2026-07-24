@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import TopCommandBar from "./TopCommandBar";
 import LeftSidebar from "./LeftSidebar";
 import Workspace from "./Workspace";
 import RightPanel from "./RightPanel";
+import PlayLeftSystemsRail from "./PlayLeftSystemsRail";
 import {
   createBoardCells,
   createDefaultWorldTheme,
@@ -17,11 +18,13 @@ import {
 } from "@/lib/defaultWorld";
 
 import {
+  createAdvancedSystemsRuntime,
   normalizeWorldFeatures,
   normalizeWorldMechanics,
   paintFogCell,
   clearFogCell,
-  applyFogToWholeBoard
+  applyFogToWholeBoard,
+  tickTimers
 } from "@/lib/worldSystems";
 
 import {
@@ -104,10 +107,19 @@ export default function WorldCreator() {
   const [worldTheme, setWorldTheme] = useState(createDefaultWorldTheme());
 
   const [worldMechanics, setWorldMechanics] = useState(DEFAULT_WORLD_MECHANICS);
+  const [systemsRuntime, setSystemsRuntime] = useState(null);
+  const stageContentRef = useRef(null);
+
+  const hasScrollablePlaySystems = useMemo(
+    () => Boolean(normalizeWorldFeatures(worldFeatures).cardDecks),
+    [worldFeatures]
+  );
 
   const stageLayout = useResponsiveStageLayout({
     fallbackWidth: STAGE_DESIGN_WIDTH,
-    fallbackHeight: STAGE_DESIGN_HEIGHT
+    fallbackHeight: STAGE_DESIGN_HEIGHT,
+    contentRef: stageContentRef,
+    measureContentHeight: hasScrollablePlaySystems
   });
 
   const [savedWorlds, setSavedWorlds] = useState([]);
@@ -121,6 +133,7 @@ export default function WorldCreator() {
   const [onlineWorldId, setOnlineWorldId] = useState(null);
   const [isSavingOnline, setIsSavingOnline] = useState(false);
   const [isSavingLocal, setIsSavingLocal] = useState(false);
+  const [exitHref, setExitHref] = useState("/worlds");
   const universeBaselineRef = useRef(null);
 
   const [characterLibrary, setCharacterLibrary] = useState({});
@@ -162,6 +175,7 @@ export default function WorldCreator() {
   const [selectedCounterKey, setSelectedCounterKey] = useState("main-counter");
   const [selectedCounterDelta, setSelectedCounterDelta] = useState(null);
   const [selectedCounterAction, setSelectedCounterAction] = useState(null);
+  const [selectedCounterBaseValue, setSelectedCounterBaseValue] = useState(null);
   const [counterSetValue, setCounterSetValue] = useState("3");
 
   const [selectedCondition, setSelectedCondition] = useState(null);
@@ -174,6 +188,59 @@ export default function WorldCreator() {
   const [activePiece, setActivePiece] = useState(null);
   const [pieceNames, setPieceNames] = useState(() => createPieceRecord(""));
   const [pieceNameLocked, setPieceNameLocked] = useState(() => createPieceRecord(false));
+
+  useEffect(() => {
+    setSystemsRuntime(
+      createAdvancedSystemsRuntime({
+        worldFeatures,
+        worldMechanics,
+        turnTeam: "white"
+      })
+    );
+  }, [
+    worldFeatures,
+    worldMechanics.cardDecks,
+    worldMechanics.diceSystem,
+    worldMechanics.timers,
+    worldMechanics.objectives
+  ]);
+
+  useEffect(() => {
+    if (!systemsRuntime?.timers || !systemsRuntime.timers.isRunning) {
+      return undefined;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setSystemsRuntime((currentRuntime) => {
+        if (!currentRuntime?.timers?.isRunning) {
+          return currentRuntime;
+        }
+
+        return {
+          ...currentRuntime,
+          timers: tickTimers(currentRuntime.timers, "white")
+        };
+      });
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [systemsRuntime?.timers?.isRunning]);
+
+  function handleToggleTimer() {
+    setSystemsRuntime((currentRuntime) => {
+      if (!currentRuntime?.timers) {
+        return currentRuntime;
+      }
+
+      return {
+        ...currentRuntime,
+        timers: {
+          ...currentRuntime.timers,
+          isRunning: !currentRuntime.timers.isRunning
+        }
+      };
+    });
+  }
 
   useEffect(() => {
     refreshSavedLists();
@@ -1038,6 +1105,7 @@ export default function WorldCreator() {
     setSelectedCounterKey(counterKey);
     setSelectedCounterDelta(delta);
     setSelectedCounterAction("adjust");
+    setSelectedCounterBaseValue(null);
 
     setSelectedTeam(null);
     setSelectedPiece(null);
@@ -1052,11 +1120,30 @@ export default function WorldCreator() {
     setMovingPiece(null);
   }
 
-  function handleSelectSetCounter(counterKey, nextSetValue = 0) {
+  function handleSelectBaseCounter(counterKey, baseValue = 0) {
     setSelectedCounterKey(counterKey);
-    setCounterSetValue(String(nextSetValue));
+    setSelectedCounterBaseValue(Number(baseValue) || 0);
+    setSelectedCounterAction("base");
+    setSelectedCounterDelta(null);
+
+    setSelectedTeam(null);
+    setSelectedPiece(null);
+    setSelectedToken(null);
+
+    setSelectedCondition(null);
+    setSelectedConditionAction(null);
+
+    setSelectedTerrain(null);
+    setSelectedTerrainAction(null);
+
+    setMovingPiece(null);
+  }
+
+  function handleSelectSetCounter(counterKey) {
+    setSelectedCounterKey(counterKey);
     setSelectedCounterAction("set");
     setSelectedCounterDelta(null);
+    setSelectedCounterBaseValue(null);
 
     setSelectedTeam(null);
     setSelectedPiece(null);
@@ -1075,6 +1162,7 @@ export default function WorldCreator() {
     setSelectedCounterKey(counterKey);
     setSelectedCounterAction("clear");
     setSelectedCounterDelta(null);
+    setSelectedCounterBaseValue(null);
 
     setSelectedTeam(null);
     setSelectedPiece(null);
@@ -1500,6 +1588,10 @@ export default function WorldCreator() {
       const localWorldIdFromUrl = searchParams.get("world");
       const onlineWorldIdFromUrl = searchParams.get("onlineWorld");
 
+      if (searchParams.get("from") === "account") {
+        setExitHref("/account");
+      }
+
       if (localWorldIdFromUrl) {
         const savedWorld = loadLocalItem("worlds", localWorldIdFromUrl);
 
@@ -1750,6 +1842,27 @@ export default function WorldCreator() {
       if (!event?.shiftKey) {
         setSelectedCounterDelta(null);
         setSelectedCounterAction(null);
+      }
+
+      return;
+    }
+
+    if (selectedCounterAction === "base") {
+      updateCellsWithHistory((currentCells) =>
+        updateCellAtIndex(currentCells, index, (targetCell) => {
+          if (!cellHasOccupant(targetCell)) return;
+
+          setCounterOnCell(
+            targetCell,
+            selectedCounterKey,
+            selectedCounterBaseValue
+          );
+        })
+      );
+
+      if (!event?.shiftKey) {
+        setSelectedCounterAction(null);
+        setSelectedCounterBaseValue(null);
       }
 
       return;
@@ -2118,7 +2231,13 @@ export default function WorldCreator() {
           : {}
       }
     >
-      <div className="game-stage">
+      <div
+        className={
+          hasScrollablePlaySystems
+            ? "game-stage game-stage--scrollable"
+            : "game-stage"
+        }
+      >
 
         <div
           className="stage-scale-frame"
@@ -2128,7 +2247,13 @@ export default function WorldCreator() {
           }}
         >
           <div
-            className="stage-content"
+            ref={stageContentRef}
+            className={[
+              "stage-content",
+              hasScrollablePlaySystems ? "stage-content--scrollable" : ""
+            ]
+              .filter(Boolean)
+              .join(" ")}
             style={{ "--stage-scale": stageLayout.scale }}
             onClick={(event) => {
               if (event.target === event.currentTarget) {
@@ -2167,6 +2292,7 @@ export default function WorldCreator() {
               onlineSaveStatus={onlineSaveStatus}
               isSavingOnline={isSavingOnline}
               isSavingLocal={isSavingLocal}
+              exitHref={exitHref}
 
               onSaveTestGame={handleSaveTestGame}
               onLoadTestGame={handleLoadTestGame}
@@ -2228,6 +2354,7 @@ export default function WorldCreator() {
               onSaveCharacter={handleSaveCharacter}
 
               onSelectCounterDelta={handleSelectCounterDelta}
+              onSelectBaseCounter={handleSelectBaseCounter}
               onSelectSetCounter={handleSelectSetCounter}
               onSelectClearCounter={handleSelectClearCounter}
 
@@ -2239,6 +2366,14 @@ export default function WorldCreator() {
               onApplyTerrainToWholeBoard={handleApplyTerrainToWholeBoard}
             />
 
+            <aside className="stage-rail stage-rail-left" aria-label="Board systems">
+              <PlayLeftSystemsRail
+                worldFeatures={worldFeatures}
+                systemsRuntime={systemsRuntime}
+                onSystemsRuntimeChange={setSystemsRuntime}
+              />
+            </aside>
+
             <Workspace
               cells={cells}
               movingPiece={movingPiece}
@@ -2248,6 +2383,10 @@ export default function WorldCreator() {
               worldTheme={worldTheme}
               worldMechanics={worldMechanics}
               worldFeatures={worldFeatures}
+              systemsRuntime={systemsRuntime}
+              onSystemsRuntimeChange={setSystemsRuntime}
+              turnTeam="white"
+              isPlayMode={true}
               fogCells={worldMechanics?.fogOfWar?.defaultFogCells || []}
               viewerTeam=""
               selectedBoardAction={selectedBoardAction}
@@ -2272,6 +2411,10 @@ export default function WorldCreator() {
               activePiece={activePiece}
               pieceNames={pieceNames}
               pieceNameLocked={pieceNameLocked}
+              timers={
+                worldFeatures?.timers ? systemsRuntime?.timers || null : null
+              }
+              onToggleTimer={handleToggleTimer}
               onClearSelections={clearAllSelections}
               onSelectPiece={handleSelectPiece}
               onSelectToken={handleSelectToken}

@@ -174,6 +174,7 @@ export default function PlayMode() {
     const [selectedCounterKey, setSelectedCounterKey] = useState("main-counter");
     const [selectedCounterDelta, setSelectedCounterDelta] = useState(null);
     const [selectedCounterAction, setSelectedCounterAction] = useState(null);
+    const [selectedCounterBaseValue, setSelectedCounterBaseValue] = useState(null);
     const [counterSetValue, setCounterSetValue] = useState("1");
 
     const [selectedCondition, setSelectedCondition] = useState(null);
@@ -206,7 +207,7 @@ export default function PlayMode() {
     const [turnTeam, setTurnTeam] = useState("white");
     const [moveNumber, setMoveNumber] = useState(1);
     const [enPassantTargetIndex, setEnPassantTargetIndex] = useState(null);
-    const [playInteractionMode, setPlayInteractionMode] = useState("rules");
+    const [playInteractionMode, setPlayInteractionMode] = useState("free");
     const [showLegalMoveHints, setShowLegalMoveHints] = useState(true);
     const [actionLog, setActionLog] = useState([]);
     const [systemsRuntime, setSystemsRuntime] = useState(null);
@@ -990,6 +991,7 @@ export default function PlayMode() {
         setSelectedCounterKey(counterKey);
         setSelectedCounterDelta(delta);
         setSelectedCounterAction("adjust");
+        setSelectedCounterBaseValue(null);
 
         setSelectedTeam(null);
         setSelectedPiece(null);
@@ -1005,11 +1007,31 @@ export default function PlayMode() {
         setSelectedBoardAction(null);
     }
 
-    function handleSelectSetCounter(counterKey, nextSetValue = 0) {
+    function handleSelectBaseCounter(counterKey, baseValue = 0) {
         setSelectedCounterKey(counterKey);
-        setCounterSetValue(String(nextSetValue));
+        setSelectedCounterBaseValue(Number(baseValue) || 0);
+        setSelectedCounterAction("base");
+        setSelectedCounterDelta(null);
+
+        setSelectedTeam(null);
+        setSelectedPiece(null);
+        setSelectedToken(null);
+
+        setSelectedCondition(null);
+        setSelectedConditionAction(null);
+
+        setSelectedTerrain(null);
+        setSelectedTerrainAction(null);
+
+        setMovingPiece(null);
+        setSelectedBoardAction(null);
+    }
+
+    function handleSelectSetCounter(counterKey) {
+        setSelectedCounterKey(counterKey);
         setSelectedCounterAction("set");
         setSelectedCounterDelta(null);
+        setSelectedCounterBaseValue(null);
 
         setSelectedTeam(null);
         setSelectedPiece(null);
@@ -1029,6 +1051,7 @@ export default function PlayMode() {
         setSelectedCounterKey(counterKey);
         setSelectedCounterAction("clear");
         setSelectedCounterDelta(null);
+        setSelectedCounterBaseValue(null);
 
         setSelectedTeam(null);
         setSelectedPiece(null);
@@ -1394,6 +1417,27 @@ export default function PlayMode() {
             if (!event?.shiftKey) {
                 setSelectedCounterDelta(null);
                 setSelectedCounterAction(null);
+            }
+
+            return;
+        }
+
+        if (selectedCounterAction === "base") {
+            updateCellsWithHistory((currentCells) =>
+                updateCellAtIndex(currentCells, index, (targetCell) => {
+                    if (!cellHasOccupant(targetCell)) return;
+
+                    setCounterOnCell(
+                        targetCell,
+                        selectedCounterKey,
+                        selectedCounterBaseValue
+                    );
+                })
+            );
+
+            if (!event?.shiftKey) {
+                setSelectedCounterAction(null);
+                setSelectedCounterBaseValue(null);
             }
 
             return;
@@ -1788,6 +1832,13 @@ export default function PlayMode() {
 
     function handleBackToWorld() {
         if (playBackTo === "account") {
+            if (playWorldId) {
+                router.push(
+                    `/worlds/${encodeURIComponent(playWorldId)}?from=account`
+                );
+                return;
+            }
+
             router.push("/account");
             return;
         }
@@ -1810,6 +1861,9 @@ export default function PlayMode() {
             const nextUrl = new URL(window.location.href);
             nextUrl.searchParams.set("session", sessionId);
             nextUrl.searchParams.delete("world");
+            if (playBackTo === "account") {
+                nextUrl.searchParams.set("from", "account");
+            }
             window.history.replaceState({}, "", nextUrl.toString());
         }
     }
@@ -1833,6 +1887,14 @@ export default function PlayMode() {
                 <SiteHeader />
 
                 <section className="simple-page-card">
+                    <img
+                        className="brand-loading-lockup"
+                        src="/brand/lockup.png"
+                        alt="Chess Multiverse"
+                        width={180}
+                        height={180}
+                    />
+
                     <p className="home-kicker">Play Board</p>
 
                     <h1>{loadStatus}</h1>
@@ -2015,6 +2077,7 @@ export default function PlayMode() {
                             onCharacterCsvUpload={() => { }}
                             onSaveCharacter={() => { }}
                             onSelectCounterDelta={handleSelectCounterDelta}
+                            onSelectBaseCounter={handleSelectBaseCounter}
                             onSelectSetCounter={handleSelectSetCounter}
                             onSelectClearCounter={handleSelectClearCounter}
                             onSelectCondition={handleSelectCondition}

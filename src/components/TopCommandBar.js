@@ -49,7 +49,9 @@ export default function TopCommandBar({
   onSaveTestGame,
   onLoadTestGame,
   onDeleteTestGame,
-  onSelectedSavedTestGameChange
+  onSelectedSavedTestGameChange,
+
+  exitHref = "/worlds"
 }) {
   const router = useRouter();
 
@@ -98,13 +100,13 @@ export default function TopCommandBar({
       return;
     }
 
-    router.push("/worlds");
+    router.push(exitHref);
   }
 
   function handleDiscardAndExit() {
     if (isSavingOnline || isSavingLocal) return;
     setIsExitConfirmOpen(false);
-    router.push("/worlds");
+    router.push(exitHref);
   }
 
   async function handleSaveAndExit() {
@@ -114,7 +116,7 @@ export default function TopCommandBar({
 
     if (saved) {
       setIsExitConfirmOpen(false);
-      router.push("/worlds");
+      router.push(exitHref);
     }
   }
 
@@ -310,7 +312,13 @@ export default function TopCommandBar({
   return (
     <header className="top-command-bar">
       <div className="world-title-block">
-        <h1>Chess Multiverse</h1>
+        <img
+          className="world-title-brand"
+          src="/favicon.png"
+          alt="Chess Multiverse"
+          width={40}
+          height={40}
+        />
         <p className="world-name-display">
           {getDisplayWorldName(worldDetails.name)}
         </p>

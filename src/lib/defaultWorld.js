@@ -140,10 +140,13 @@ export const DEFAULT_WORLD_MECHANICS = {
       decreaseLabel: "-1",
       increaseLabel: "+1",
 
-      allowSetCounter: false,
+      allowBaseValue: false,
+      baseLabel: "Base",
+      baseValue: 0,
+
+      allowSetValue: false,
       setLabel: "Set Number",
-      setDescription: "Set the counter to an exact value.",
-      initialValue: 0
+      setDescription: "Set the counter to an exact value."
     }
   ],
 
@@ -153,10 +156,13 @@ export const DEFAULT_WORLD_MECHANICS = {
     decreaseLabel: "-1",
     increaseLabel: "+1",
 
-    allowSetCounter: false,
+    allowBaseValue: false,
+    baseLabel: "Base",
+    baseValue: 0,
+
+    allowSetValue: false,
     setLabel: "Set Number",
-    setDescription: "Set the counter to an exact value.",
-    initialValue: "0"
+    setDescription: "Set the counter to an exact value."
   },
 
   conditions: [
@@ -288,14 +294,47 @@ export function createCounterKey(label) {
   return makeKeyFromLabel(label) || `counter-${Date.now()}`;
 }
 
+export function normalizeCounterDefinition(counter = {}) {
+  const legacyAllowSet = Boolean(counter.allowSetCounter);
+  const hasBaseFlag = Object.prototype.hasOwnProperty.call(
+    counter,
+    "allowBaseValue"
+  );
+  const hasSetFlag = Object.prototype.hasOwnProperty.call(
+    counter,
+    "allowSetValue"
+  );
+
+  const resolvedBaseLabel = Object.prototype.hasOwnProperty.call(
+    counter,
+    "baseLabel"
+  )
+    ? counter.baseLabel
+    : hasBaseFlag
+      ? "Base"
+      : counter.setLabel || "Base";
+
+  return {
+    ...counter,
+    allowBaseValue: hasBaseFlag
+      ? Boolean(counter.allowBaseValue)
+      : legacyAllowSet,
+    baseLabel: resolvedBaseLabel || "Base",
+    baseValue: Number(counter.baseValue ?? counter.initialValue ?? 0),
+    allowSetValue: hasSetFlag ? Boolean(counter.allowSetValue) : false,
+    setLabel: counter.setLabel || "Set",
+    setDescription: counter.setDescription || ""
+  };
+}
+
 export function getCounterListFromMechanics(worldMechanics) {
   if (Array.isArray(worldMechanics?.counters)) {
-    return worldMechanics.counters;
+    return worldMechanics.counters.map(normalizeCounterDefinition);
   }
 
   if (worldMechanics?.counter) {
     return [
-      {
+      normalizeCounterDefinition({
         key: "main-counter",
         label: worldMechanics.counter.name || "Counter",
         description: worldMechanics.counter.description || "",
@@ -303,10 +342,14 @@ export function getCounterListFromMechanics(worldMechanics) {
         decreaseLabel: worldMechanics.counter.decreaseLabel || "-1",
         increaseLabel: worldMechanics.counter.increaseLabel || "+1",
         allowSetCounter: Boolean(worldMechanics.counter.allowSetCounter),
+        allowBaseValue: worldMechanics.counter.allowBaseValue,
+        baseLabel: worldMechanics.counter.baseLabel,
+        baseValue: worldMechanics.counter.baseValue,
+        allowSetValue: worldMechanics.counter.allowSetValue,
         setLabel: worldMechanics.counter.setLabel || "Set Number",
         setDescription: worldMechanics.counter.setDescription || "",
         initialValue: Number(worldMechanics.counter.initialValue || 0)
-      }
+      })
     ];
   }
 

@@ -30,7 +30,8 @@ import WorldPostsSection from "@/components/WorldPostsSection";
 export default function WorldDetailsClient({ worldId }) {
     const [world, setWorld] = useState(null);
     const [worldSource, setWorldSource] = useState("");
-    const [status, setStatus] = useState("Loading universe…");
+    const [status, setStatus] = useState("Loading universe overview…");
+    const [isLoading, setIsLoading] = useState(true);
     const [playStatus, setPlayStatus] = useState("");
     const [currentUser, setCurrentUser] = useState(null);
     const [openPostsInitially, setOpenPostsInitially] = useState(false);
@@ -45,7 +46,8 @@ export default function WorldDetailsClient({ worldId }) {
 
     useEffect(() => {
         async function loadWorldDetails() {
-            setStatus("Loading universe…");
+            setIsLoading(true);
+            setStatus("Loading universe overview…");
             setWorld(null);
             setWorldSource("");
             setInviteSessionId("");
@@ -59,11 +61,13 @@ export default function WorldDetailsClient({ worldId }) {
                 setWorld(savedWorld);
                 setWorldSource("local");
                 setStatus("");
+                setIsLoading(false);
                 return;
             }
 
             if (!hasSupabaseConfig() || !supabase) {
                 setStatus("Could not find this universe.");
+                setIsLoading(false);
                 return;
             }
 
@@ -86,6 +90,7 @@ export default function WorldDetailsClient({ worldId }) {
                 if (error || !canView) {
                     setStatus("Could not find this universe.");
                     setWorld(null);
+                    setIsLoading(false);
                     return;
                 }
 
@@ -100,10 +105,12 @@ export default function WorldDetailsClient({ worldId }) {
 
                 setWorldSource("online");
                 setStatus("");
+                setIsLoading(false);
             } catch (error) {
                 console.error("Online world details load failed:", error);
                 setStatus("Could not reach Supabase to load this universe.");
                 setWorld(null);
+                setIsLoading(false);
             }
         }
 
@@ -164,17 +171,32 @@ export default function WorldDetailsClient({ worldId }) {
         return (
             <div className="world-details-content">
                 <section className="world-details-missing-card">
+                    <img
+                        className="brand-loading-lockup"
+                        src="/brand/lockup.png"
+                        alt="Chess Multiverse"
+                        width={180}
+                        height={180}
+                    />
+
                     <p className="home-kicker">Universe Details</p>
-                    <h1>{status}</h1>
+                    <h1>
+                        {isLoading
+                            ? "Loading universe overview…"
+                            : status}
+                    </h1>
 
                     <p>
-                        This universe may be private, unpublished, deleted, or saved in another
-                        browser.
+                        {isLoading
+                            ? "Explore this universe&apos;s content to plan your battles more effectively."
+                            : "This universe may be private, unpublished, deleted, or saved in another browser."}
                     </p>
 
-                    <Link className="home-secondary-link" href={backHref}>
-                        {backLabel}
-                    </Link>
+                    {!isLoading && (
+                        <Link className="home-secondary-link" href={backHref}>
+                            {backLabel}
+                        </Link>
+                    )}
                 </section>
             </div>
         );
@@ -205,8 +227,12 @@ export default function WorldDetailsClient({ worldId }) {
     const selectedCondition = conditions[selectedConditionIndex] || conditions[0];
 
     const playHref = inviteSessionId
-        ? `/play?session=${encodeURIComponent(inviteSessionId)}`
-        : `/play?world=${encodeURIComponent(world.id)}`;
+        ? `/play?session=${encodeURIComponent(inviteSessionId)}${
+              fromAccount ? "&from=account" : ""
+          }`
+        : `/play?world=${encodeURIComponent(world.id)}${
+              fromAccount ? "&from=account" : ""
+          }`;
 
     return (
         <div className="world-details-content">
@@ -590,7 +616,13 @@ export default function WorldDetailsClient({ worldId }) {
                                             <span>{selectedCounter.decreaseLabel || "-1"}</span>
                                             <span>{selectedCounter.increaseLabel || "+1"}</span>
 
-                                            {selectedCounter.allowSetCounter && (
+                                            {selectedCounter.allowBaseValue && (
+                                                <span>
+                                                    {`${selectedCounter.baseLabel || "Base"} (${selectedCounter.baseValue ?? 0})`}
+                                                </span>
+                                            )}
+
+                                            {selectedCounter.allowSetValue && (
                                                 <span>{selectedCounter.setLabel || "Set"}</span>
                                             )}
                                         </div>

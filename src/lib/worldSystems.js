@@ -1,7 +1,8 @@
 import {
     DEFAULT_WORLD_FEATURES,
     DEFAULT_WORLD_MECHANICS,
-    makeKeyFromLabel
+    makeKeyFromLabel,
+    normalizeCounterDefinition
 } from "@/lib/defaultWorld";
 
 export const ACCOUNT_CARDS_STORAGE_KEY = "chess-multiverse:account-cards";
@@ -59,9 +60,10 @@ export function normalizeWorldMechanics(mechanics = {}) {
         terrains: Array.isArray(source.terrains)
             ? source.terrains
             : defaults.terrains,
-        counters: Array.isArray(source.counters)
+        counters: (Array.isArray(source.counters)
             ? source.counters
-            : defaults.counters,
+            : defaults.counters
+        ).map(normalizeCounterDefinition),
         conditions: Array.isArray(source.conditions)
             ? source.conditions
             : defaults.conditions,

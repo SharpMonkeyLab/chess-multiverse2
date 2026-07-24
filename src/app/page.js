@@ -1,3 +1,4 @@
+import Image from "next/image";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import HomeFeaturedWorlds from "@/components/HomeFeaturedWorlds";
@@ -13,16 +14,27 @@ export default function Home() {
         <div className="home-hero-bleed-grid" aria-hidden="true" />
 
         <div className="home-hero-bleed-inner">
-          <p className="home-brand-signal">Chess Multiverse</p>
+          <Image
+            className="home-brand-lockup"
+            src="/brand/lockup.png"
+            alt="Chess Multiverse"
+            width={1254}
+            height={1254}
+            priority
+          />
 
-          <h1>Every board is a new universe.</h1>
+          <div className="home-hero-copy-row">
+            <div className="home-hero-copy">
+              <h1>Every board is a new universe.</h1>
 
-          <p className="home-description">
-            Create your own Universe, Ready up for a match, and fight across
-            the Multiverse.
-          </p>
+              <p className="home-description">
+                Create your own Universe, Ready up for a match, and fight across
+                the Multiverse.
+              </p>
+            </div>
 
-          <HomeHeroActions />
+            <HomeHeroActions />
+          </div>
         </div>
       </section>
 

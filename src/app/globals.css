@@ -187,6 +187,12 @@ select {
   letter-spacing: 0.03em;
 }
 
+.world-title-brand {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+}
+
 .world-title-block .world-name-display,
 .world-title-block .play-world-name-readonly {
   margin: 0;
@@ -1993,28 +1999,18 @@ select {
   margin: 0;
 }
 
-/* Play / creator paint tool shelf: independent columns (no row-gap from tall siblings) */
+/* Play / creator paint tool shelf: one full-width module per row */
 .play-tool-shelf {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  align-items: start;
-}
-
-.play-tool-shelf-col {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  min-width: 0;
-}
-
-.play-tool-shelf-col-full {
-  grid-column: 1 / -1;
+  align-items: stretch;
 }
 
 .play-tool-module {
   margin: 0;
   min-width: 0;
+  width: 100%;
   gap: 8px;
   padding: 10px;
   align-content: start;
@@ -6532,7 +6528,7 @@ button.home-secondary-link {
   justify-content: space-between;
   gap: 16px;
 
-  padding: 10px 14px;
+  padding: 6px 14px 6px 10px;
 
   border: 1px solid rgba(231, 201, 122, 0.24);
   border-radius: 999px;
@@ -6549,16 +6545,36 @@ button.home-secondary-link {
 }
 
 .site-logo {
-  color: var(--royal-gold, var(--gold));
-
-  font-family: var(--font-heading);
-  font-size: 0.92rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
   text-decoration: none;
+}
 
-  white-space: nowrap;
+.site-logo-mark,
+.site-logo-wordmark,
+.home-brand-lockup,
+.world-title-brand,
+.site-footer-brand,
+.brand-loading-lockup {
+  display: block;
+  object-fit: contain;
+}
+
+.site-logo-mark {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+}
+
+/* Horizontal wordmark asset is a square canvas — crop empty padding. */
+.site-logo-wordmark {
+  width: 260px !important;
+  height: 40px !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  flex: 0 0 auto;
 }
 
 .site-nav {
@@ -6676,7 +6692,17 @@ button.site-account-link {
   }
 
   .site-logo {
-    text-align: center;
+    justify-content: center;
+  }
+
+  .site-logo-mark {
+    width: 36px;
+    height: 36px;
+  }
+
+  .site-logo-wordmark {
+    width: 200px !important;
+    height: 34px !important;
   }
 
   .site-header-right {
@@ -8255,7 +8281,7 @@ body {
   min-height: 0;
   display: grid;
   align-items: start;
-  padding: 104px 24px 20px;
+  padding: 108px 24px 36px;
   overflow: hidden;
 }
 
@@ -8302,6 +8328,26 @@ body {
   line-height: 1.05;
 }
 
+.home-brand-lockup {
+  width: min(320px, 58vw) !important;
+  height: auto !important;
+  margin: 0;
+}
+
+.home-hero-copy-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(220px, 0.75fr);
+  gap: clamp(20px, 4vw, 48px);
+  align-items: start;
+  margin-top: 8px;
+}
+
+.home-hero-copy {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
 .home-hero-bleed-inner h1 {
   margin: 0;
   max-width: 14ch;
@@ -8313,6 +8359,100 @@ body {
 
 .home-hero-bleed-inner .home-description {
   max-width: 36rem;
+}
+
+.home-hero-bleed-inner .home-action-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-top: 4px;
+  min-width: 220px;
+}
+
+.home-hero-bleed-inner .home-primary-link,
+.home-hero-bleed-inner .home-secondary-link {
+  min-height: 48px;
+  width: 100%;
+  padding: 12px 18px;
+  border-radius: 12px;
+  font-family: var(--font-heading);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease,
+    color 0.18s ease;
+}
+
+.home-hero-bleed-inner .home-primary-link {
+  border: 1px solid rgba(231, 201, 122, 0.72);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(241, 216, 146, 0.98),
+      rgba(176, 136, 54, 0.96)
+    );
+  color: #0a0c12;
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+
+.home-hero-bleed-inner .home-secondary-link {
+  border: 1px solid rgba(231, 201, 122, 0.34);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(28, 32, 42, 0.92),
+      rgba(14, 16, 22, 0.94)
+    );
+  color: var(--royal-gold, var(--gold));
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.home-hero-bleed-inner .home-primary-link:hover,
+.home-hero-bleed-inner .home-secondary-link:hover {
+  transform: translateY(-1px);
+}
+
+.home-hero-bleed-inner .home-primary-link:hover {
+  border-color: rgba(255, 232, 176, 0.9);
+  box-shadow:
+    0 14px 28px rgba(0, 0, 0, 0.32),
+    0 0 18px rgba(231, 201, 122, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.home-hero-bleed-inner .home-secondary-link:hover {
+  border-color: rgba(168, 107, 255, 0.55);
+  color: #eadcff;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(48, 36, 72, 0.95),
+      rgba(22, 18, 34, 0.96)
+    );
+  box-shadow:
+    0 12px 24px rgba(0, 0, 0, 0.28),
+    0 0 16px rgba(168, 107, 255, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 820px) {
+  .home-hero-copy-row {
+    grid-template-columns: 1fr;
+  }
+
+  .home-hero-bleed-inner .home-action-row {
+    grid-template-columns: 1fr;
+    max-width: 360px;
+  }
 }
 
 .home-section {
@@ -9329,7 +9469,22 @@ body {
 
   border-top: 1px solid rgba(231, 201, 122, 0.18);
 
+  display: grid;
+  justify-items: center;
+  gap: 10px;
   text-align: center;
+}
+
+.site-footer-brand {
+  width: min(148px, 42vw);
+  height: auto;
+  opacity: 0.96;
+}
+
+.brand-loading-lockup {
+  width: min(180px, 46vw);
+  height: auto;
+  margin: 0 auto 8px;
 }
 
 .site-footer p {

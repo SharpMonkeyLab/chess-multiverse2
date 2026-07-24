@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 
-import { createCounterKey } from "@/lib/defaultWorld";
+import {
+  createCounterKey,
+  normalizeCounterDefinition
+} from "@/lib/defaultWorld";
 
 function createNewCounter() {
   const label = "New Counter";
@@ -15,19 +18,24 @@ function createNewCounter() {
     decreaseLabel: "-1",
     increaseLabel: "+1",
 
-    allowSetCounter: false,
+    allowBaseValue: false,
+    baseLabel: "Base",
+    baseValue: 0,
+
+    allowSetValue: false,
     setLabel: "Set",
-    setDescription: "",
-    initialValue: 0
+    setDescription: ""
   };
 }
 
 function getCounterList(counterSettings) {
-  if (Array.isArray(counterSettings)) return counterSettings;
+  if (Array.isArray(counterSettings)) {
+    return counterSettings.map(normalizeCounterDefinition);
+  }
 
   if (counterSettings) {
     return [
-      {
+      normalizeCounterDefinition({
         key: "main-counter",
         label: counterSettings.name || "Counter",
         description: counterSettings.description || "",
@@ -35,10 +43,14 @@ function getCounterList(counterSettings) {
         decreaseLabel: counterSettings.decreaseLabel || "-1",
         increaseLabel: counterSettings.increaseLabel || "+1",
         allowSetCounter: Boolean(counterSettings.allowSetCounter),
+        allowBaseValue: counterSettings.allowBaseValue,
+        baseLabel: counterSettings.baseLabel,
+        baseValue: counterSettings.baseValue,
+        allowSetValue: counterSettings.allowSetValue,
         setLabel: counterSettings.setLabel || "Set",
         setDescription: counterSettings.setDescription || "",
         initialValue: Number(counterSettings.initialValue || 0)
-      }
+      })
     ];
   }
 
@@ -252,20 +264,65 @@ export default function CounterEditor({
           <label className="checkbox-row">
             <input
               type="checkbox"
-              checked={Boolean(selectedCounter.allowSetCounter)}
+              checked={Boolean(selectedCounter.allowBaseValue)}
               onChange={(event) =>
                 updateCounter(
                   selectedCounter.key,
-                  "allowSetCounter",
+                  "allowBaseValue",
                   event.target.checked
                 )
               }
             />
 
-            <span>Allow Set Counter in tools</span>
+            <span>Allow Base Value button</span>
           </label>
 
-          {selectedCounter.allowSetCounter && (
+          {selectedCounter.allowBaseValue && (
+            <>
+              <label>Base Button Label</label>
+              <input
+                value={selectedCounter.baseLabel || "Base"}
+                onChange={(event) =>
+                  updateCounter(
+                    selectedCounter.key,
+                    "baseLabel",
+                    event.target.value
+                  )
+                }
+              />
+
+              <label>Base Value</label>
+              <input
+                type="number"
+                value={selectedCounter.baseValue ?? 0}
+                onChange={(event) =>
+                  updateCounter(
+                    selectedCounter.key,
+                    "baseValue",
+                    Number(event.target.value)
+                  )
+                }
+              />
+            </>
+          )}
+
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={Boolean(selectedCounter.allowSetValue)}
+              onChange={(event) =>
+                updateCounter(
+                  selectedCounter.key,
+                  "allowSetValue",
+                  event.target.checked
+                )
+              }
+            />
+
+            <span>Allow Set Value box in-game</span>
+          </label>
+
+          {selectedCounter.allowSetValue && (
             <>
               <label>Set Button Label</label>
               <input
@@ -275,19 +332,6 @@ export default function CounterEditor({
                     selectedCounter.key,
                     "setLabel",
                     event.target.value
-                  )
-                }
-              />
-
-              <label>Initial Value</label>
-              <input
-                type="number"
-                value={selectedCounter.initialValue ?? 0}
-                onChange={(event) =>
-                  updateCounter(
-                    selectedCounter.key,
-                    "initialValue",
-                    Number(event.target.value)
                   )
                 }
               />

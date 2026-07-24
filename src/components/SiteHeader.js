@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import AccountNavButton from "./AccountNavButton";
 
@@ -6,8 +7,23 @@ import AccountNavButton from "./AccountNavButton";
 export default function SiteHeader() {
   return (
     <header className="site-header">
-      <Link className="site-logo" href="/">
-        Chess Multiverse
+      <Link className="site-logo" href="/" aria-label="Chess Multiverse home">
+        <Image
+          className="site-logo-mark"
+          src="/favicon.png"
+          alt=""
+          width={40}
+          height={40}
+          priority
+        />
+        <Image
+          className="site-logo-wordmark"
+          src="/brand/wordmark-horizontal.png"
+          alt="Chess Multiverse"
+          width={1254}
+          height={1254}
+          priority
+        />
       </Link>
 
       <div className="site-header-right">

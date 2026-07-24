@@ -602,7 +602,7 @@ export default function AccountPage() {
 
                             <Link
                               className="world-play-link"
-                              href={`/creator?onlineWorld=${world.id}`}
+                              href={`/creator?onlineWorld=${world.id}&from=account`}
                             >
                               Edit Universe
                             </Link>
